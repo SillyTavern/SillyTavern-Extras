@@ -15,18 +15,15 @@ from io import BytesIO
 DEFAULT_BART = 'Qiliang/bart-large-cnn-samsum-ChatGPT_v3'
 DEFAULT_BERT = 'bhadresh-savani/distilbert-base-uncased-emotion'
 DEFAULT_BLIP = 'Salesforce/blip-image-captioning-base'
-UPLOAD_FOLDER = './uploads'
 
 # Script arguments
-parser = argparse.ArgumentParser(
-                    prog = 'TavernAI Extras',
-                    description = 'Web API for transformers models')
+parser = argparse.ArgumentParser(prog = 'TavernAI Extras', description = 'Web API for transformers models')
 parser.add_argument('--port', type=int, help="Specify the port on which the application is hosted")
 parser.add_argument('--listen', action='store_true', help="Hosts the app on the local network")
-parser.add_argument('--share', action='store_true', help="Shares the app on cloudflare tunnel")
-parser.add_argument('--bart-model', help="Customize a BART model to be used by the app")
-parser.add_argument('--bert-model', help="Customize a BERT model to be used by the app")
-parser.add_argument('--blip-model', help="Customize a BLIP model to be used by the app")
+parser.add_argument('--share', action='store_true', help="Shares the app on CloudFlare tunnel")
+parser.add_argument('--bart-model', help="Load a custom BART model")
+parser.add_argument('--bert-model', help="Load a custom BERT model")
+parser.add_argument('--blip-model', help="Load a custom BLIP model")
 
 args = parser.parse_args()
 
@@ -74,7 +71,6 @@ bert = AutoModelForSequenceClassification.from_pretrained(bert_model)
 
 # Flask init
 app = Flask(__name__)
-app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024
 
 # AI stuff
