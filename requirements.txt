@@ -1,0 +1,5 @@
+flask
+flask_cloudflared
+Pillow
+torch >= 1.9, < 1.13
+git+https://github.com/huggingface/transformers
