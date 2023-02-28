@@ -1,5 +1,6 @@
 flask
-flask_cloudflared
+flask-cloudflared
+markdown
 Pillow
 torch >= 1.9, < 1.13
 git+https://github.com/huggingface/transformers
