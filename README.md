@@ -1,5 +1,4 @@
 # TavernAI - Extras
-[TOC]
 ## What is this
 A set of unofficial APIs for various [TavernAI](https://github.com/TavernAI/TavernAI) extensions
 
