@@ -2,5 +2,9 @@ flask
 flask-cloudflared
 markdown
 Pillow
+--extra-index-url https://download.pytorch.org/whl/cu116
 torch >= 1.9, < 1.13
+numpy
+accelerate
 git+https://github.com/huggingface/transformers
+git+https://github.com/huggingface/diffusers

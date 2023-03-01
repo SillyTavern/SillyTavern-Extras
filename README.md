@@ -81,14 +81,56 @@ A set of unofficial APIs for various [TavernAI](https://github.com/TavernAI/Tave
 > 2. Six fixed categories
 > 3. Value range from 0.0 to 1.0
 
+### Key phrase extraction
+`POST /api/keywords`
+#### **Input**
+```
+{ "text": "text to be scanned for key phrases" }
+```
+#### **Output**
+```
+{
+    "keywords": [
+        "array of",
+        "extracted",
+        "keywords",
+    ]
+}
+```
+
+### GPT-2 for Stable Diffusion prompt generation
+`POST /api/prompt`
+#### **Input**
+```
+{ "name": "character name (optional)", "text": "textual summary of a character" }
+```
+#### **Output**
+```
+{ "prompts": [ "array of generated prompts" ] }
+```
+
+### Stable Diffusion for image generation
+`POST /api/image`
+#### **Input**
+```
+{ "prompt": "prompt to be generated" }
+```
+#### **Output**
+```
+{ "image": "base64 encoded image" }
+```
 
 ## Additional options
-| Flag           | Description                                                          |
-| -------------- | -------------------------------------------------------------------- |
-| `--port`       | Specify the port on which the application is hosted. Default: *5100* |
-| `--listen`     | Hosts the app on the local network                                   |
-| `--share`      | Shares the app on CloudFlare tunnel                                  |
-| `--cpu`        | Run the models on the CPU instead of CUDA                            |
-| `--bart-model` | Load a custom BART model.<br>Expects a HuggingFace model ID.<br>Default: [Qiliang/bart-large-cnn-samsum-ChatGPT_v3](https://huggingface.co/Qiliang/bart-large-cnn-samsum-ChatGPT_v3) |
-| `--bert-model` | Load a custom BERT model.<br>Expects a HuggingFace model ID.<br>Default: [bhadresh-savani/distilbert-base-uncased-emotion](https://huggingface.co/bhadresh-savani/distilbert-base-uncased-emotion) |
-| `--blip-model` | Load a custom BLIP model.<br>Expects a HuggingFace model Id.<br>Default: [Salesforce/blip-image-captioning-base](https://huggingface.co/Salesforce/blip-image-captioning-base) |
+| Flag                     | Description                                                            |
+| ------------------------ | ---------------------------------------------------------------------- |
+| `--port`                 | Specify the port on which the application is hosted. Default: **5100** |
+| `--listen`               | Hosts the app on the local network                                     |
+| `--share`                | Shares the app on CloudFlare tunnel                                    |
+| `--cpu`                  | Run the models on the CPU instead of CUDA                              |
+| `--summarization-model`  | Load a custom BART summarization model.<br>Expects a HuggingFace model ID.<br>Default: [Qiliang/bart-large-cnn-samsum-ChatGPT_v3](https://huggingface.co/Qiliang/bart-large-cnn-samsum-ChatGPT_v3) |
+| `--classification-model` | Load a custom BERT sentiment classification model.<br>Expects a HuggingFace model ID.<br>Default: [bhadresh-savani/distilbert-base-uncased-emotion](https://huggingface.co/bhadresh-savani/distilbert-base-uncased-emotion) |
+| `--captioning-model`     | Load a custom BLIP captioning model.<br>Expects a HuggingFace model ID.<br>Default: [Salesforce/blip-image-captioning-base](https://huggingface.co/Salesforce/blip-image-captioning-base) |
+| `--keyphrase-model`      | Load a custom key phrase extraction model.<br>Expects a HuggingFace model ID.<br>Default: [ml6team/keyphrase-extraction-distilbert-inspec](https://huggingface.co/ml6team/keyphrase-extraction-distilbert-inspec) |
+| `--prompt-model`         | Load a custom GPT-2 prompt generation model.<br>Expects a HuggingFace model ID.<br>Default: [FredZhang7/anime-anything-promptgen-v2](https://huggingface.co/FredZhang7/anime-anything-promptgen-v2) |
+| `--sd-model`             | Load a custom Stable Diffusion image generation model.<br>Expects a HuggingFace model ID.<br>Default: [ckpt/anything-v4.5-vae-swapped](https://huggingface.co/ckpt/anything-v4.5-vae-swapped)<br>*Must have VAE pre-baked in PyTorch format or the output will look drab!* |
+| `--sd-cpu`               | Forces the Stable Diffusion generation pipeline to run on the CPU.<br>**SLOW!** |
