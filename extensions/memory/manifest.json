@@ -1,0 +1,8 @@
+{
+    "display_name": "Memory",
+    "requires": [
+        "summarize"
+    ],
+    "js": "index.js",
+    "css": "style.css"
+}

@@ -19,6 +19,29 @@ A set of unofficial APIs for various [TavernAI](https://github.com/TavernAI/Tave
 | `sd`        | Stable Diffusion image generation |
 
 ## API Endpoints
+### Get UI extensions list
+`GET /api/extensions`
+#### **Input**
+None
+#### **Output**
+```
+{"extensions":[{"metadata":{"css":"file.css","display_name":"human-friendly name","js":"file.js","requires":["module_id"]},"name":"extension_name"}]}
+```
+
+### Get UI extension JS script
+`GET /api/script/<name>`
+#### **Input**
+Extension name in a route
+#### **Output**
+File content
+
+### Get UI extension CSS stylesheet
+`GET /api/style/<name>`
+#### **Input**
+Extension name in a route
+#### **Output**
+File content
+
 ### BLIP model for image captioning
 `POST /api/caption`
 #### **Input**

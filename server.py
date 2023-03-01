@@ -1,4 +1,4 @@
-from flask import Flask, jsonify, request, render_template_string, abort
+from flask import Flask, jsonify, request, render_template_string, abort, send_from_directory
 import markdown
 import argparse
 from transformers import AutoTokenizer, AutoProcessor, pipeline
@@ -7,6 +7,9 @@ from transformers import GPT2Tokenizer, GPT2LMHeadModel
 import unicodedata
 import torch
 import time
+from glob import glob
+import json
+import os
 from PIL import Image
 import base64
 from io import BytesIO
@@ -135,6 +138,20 @@ indicator_list = ['female', 'girl', 'male', 'boy', 'woman', 'man', 'hair', 'eyes
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024
 
+extensions = []
+
+
+def load_extensions():
+    for match in glob("./extensions/*/"):
+        manifest_path = os.path.join(match, 'manifest.json')
+        if os.path.exists(manifest_path):
+            name = os.path.basename(os.path.normpath(match))
+            with open(manifest_path, 'r') as f:
+                manifest_content = f.read()
+            manifest = json.loads(manifest_content)
+            if set(manifest['requires']).issubset(set(modules)):
+                extensions.append({'name': name, 'metadata': manifest})
+
 
 # AI stuff
 def classify_text(text: str) -> list[dict]:
@@ -238,6 +255,27 @@ def index():
     return render_template_string(markdown.markdown(content, extensions=['tables']))
 
 
+@app.route('/api/extensions', methods=['GET'])
+def get_extensions():
+    return jsonify({'extensions': extensions})
+
+
+@app.route('/api/script/<name>', methods=['GET'])
+def get_script(name: str):
+    extension = [element for element in extensions if element['name'] == name]
+    if len(extension) == 0:
+        abort(404)
+    return send_from_directory(os.path.join('./extensions/', extension[0]['name']),  extension[0]['metadata']['js'])
+    
+
+@app.route('/api/style/<name>', methods=['GET'])
+def get_style(name: str):
+    extension = [element for element in extensions if element['name'] == name]
+    if len(extension) == 0:
+        abort(404)
+    return send_from_directory(os.path.join('./extensions/', extension[0]['name']),  extension[0]['metadata']['css'])
+
+
 @app.route('/api/caption', methods=['POST'])
 def api_caption():
     if 'caption' not in modules:
@@ -338,4 +376,5 @@ if args.share:
     from flask_cloudflared import run_with_cloudflared
     run_with_cloudflared(app)
 
+load_extensions()
 app.run(host=host, port=port)

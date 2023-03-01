@@ -1,0 +1,8 @@
+{
+    "display_name": "Image Captioning",
+    "requires": [
+        "caption"
+    ],
+    "js": "index.js",
+    "css": "style.css"
+}
