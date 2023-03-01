@@ -7,7 +7,18 @@ A set of unofficial APIs for various [TavernAI](https://github.com/TavernAI/Tave
 * Run `pip install -r requirements.txt`
 * Run `python server.py`
 
-## Included functionality
+## Modules
+
+| Name        | Description                       |
+| ----------- | --------------------------------- |
+| `caption`   | Image captioning                  |
+| `summarize` | Text summarization                |
+| `classify`  | Text sentiment classification     |
+| `keywords`  | Text key phrases extraction       |
+| `prompt`    | SD prompt generation from text    |
+| `sd`        | Stable Diffusion image generation |
+
+## API Endpoints
 ### BLIP model for image captioning
 `POST /api/caption`
 #### **Input**
@@ -134,3 +145,4 @@ A set of unofficial APIs for various [TavernAI](https://github.com/TavernAI/Tave
 | `--prompt-model`         | Load a custom GPT-2 prompt generation model.<br>Expects a HuggingFace model ID.<br>Default: [FredZhang7/anime-anything-promptgen-v2](https://huggingface.co/FredZhang7/anime-anything-promptgen-v2) |
 | `--sd-model`             | Load a custom Stable Diffusion image generation model.<br>Expects a HuggingFace model ID.<br>Default: [ckpt/anything-v4.5-vae-swapped](https://huggingface.co/ckpt/anything-v4.5-vae-swapped)<br>*Must have VAE pre-baked in PyTorch format or the output will look drab!* |
 | `--sd-cpu`               | Forces the Stable Diffusion generation pipeline to run on the CPU.<br>**SLOW!** |
+| `--enable-modules`       | Override a list of enabled modules. Runs with everything enabled by default.<br>Expects a comma-separated list of module names. See [Modules](#modules) |
