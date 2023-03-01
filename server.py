@@ -91,7 +91,7 @@ app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024
 
 
 # AI stuff
-def classify_text(text: str) -> list[list]:
+def classify_text(text: str) -> list[dict]:
     output = bert_classifier(text)[0]
     return sorted(output, key=lambda x: x['score'], reverse=True)
 
@@ -148,7 +148,7 @@ def after_request(response):
 def index():
     with open('./README.md', 'r') as f:
         content = f.read()
-    return render_template_string(markdown.markdown(content, extensions=['tables', 'toc']))
+    return render_template_string(markdown.markdown(content, extensions=['tables']))
 
 
 @app.route('/api/caption', methods=['POST'])
