@@ -1,9 +1,8 @@
 from flask import Flask, jsonify, request, render_template_string, abort
 import markdown
 import argparse
-from transformers import AutoTokenizer, BartForConditionalGeneration
-from transformers import BlipForConditionalGeneration, AutoProcessor
-from transformers import AutoTokenizer, AutoModelForSequenceClassification
+from transformers import AutoTokenizer, AutoProcessor, pipeline
+from transformers import BlipForConditionalGeneration, BartForConditionalGeneration
 import unicodedata
 import torch
 import time
@@ -68,25 +67,23 @@ else:
     blip_model = DEFAULT_BLIP
 
 # Models init
-
 device_string = "cuda:0" if torch.cuda.is_available() and not args.cpu else "cpu"
-torch_device = torch.device(device_string)
+device = torch.device(device_string)
 torch_dtype = torch.float32 if device_string == "cpu" else torch.float16
 
 print('Initializing BLIP...')
 blip_processor = AutoProcessor.from_pretrained(blip_model)
 blip = BlipForConditionalGeneration.from_pretrained(
-    blip_model, torch_dtype=torch_dtype).to(torch_device)
+    blip_model, torch_dtype=torch_dtype).to(device)
 
 print('Initializing BART...')
 bart_tokenizer = AutoTokenizer.from_pretrained(bart_model)
 bart = BartForConditionalGeneration.from_pretrained(
-    bart_model, torch_dtype=torch_dtype).to(torch_device)
+    bart_model, torch_dtype=torch_dtype).to(device)
 
 print('Initializing BERT...')
-bert_tokenizer = AutoTokenizer.from_pretrained(bert_model)
-bert = AutoModelForSequenceClassification.from_pretrained(
-    bert_model, torch_dtype=torch_dtype).to(torch_device)
+bert_classifier = pipeline("text-classification", model=bert_model,
+                           return_all_scores=True, device=device, torch_dtype=torch_dtype)
 
 # Flask init
 app = Flask(__name__)
@@ -94,11 +91,14 @@ app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024
 
 
 # AI stuff
+def classify_text(text: str) -> list[list]:
+    output = bert_classifier(text)[0]
+    return sorted(output, key=lambda x: x['score'], reverse=True)
 
 
 def caption_image(raw_image: Image, max_new_tokens: int = 20) -> str:
     inputs = blip_processor(raw_image.convert(
-        'RGB'), return_tensors="pt").to(torch_device, torch_dtype)
+        'RGB'), return_tensors="pt").to(device, torch_dtype)
     outputs = blip.generate(**inputs, max_new_tokens=max_new_tokens)
     caption = blip_processor.decode(outputs[0], skip_special_tokens=True)
     return caption
@@ -130,10 +130,9 @@ def summarize(text: str, params: dict) -> str:
     summary = " ".join(unicodedata.normalize("NFKC", summary).strip().split())
     return summary
 
-# Request time measuring
-
 
 @app.before_request
+# Request time measuring
 def before_request():
     request.start_time = time.time()
 
@@ -149,7 +148,7 @@ def after_request(response):
 def index():
     with open('./README.md', 'r') as f:
         content = f.read()
-    return render_template_string(markdown.markdown(content, extensions=['tables']))
+    return render_template_string(markdown.markdown(content, extensions=['tables', 'toc']))
 
 
 @app.route('/api/caption', methods=['POST'])
@@ -176,11 +175,23 @@ def api_summarize():
     if 'params' in data and isinstance(data['params'], dict):
         params.update(data['params'])
 
-    summary = summarize(data['text'], params)
+    summary = summarize(data['text'], params)[0]
     return jsonify({'summary': summary})
 
 
+@app.route('/api/classify', methods=['POST'])
+def api_classify():
+    data = request.get_json()
+
+    if not 'text' in data or not isinstance(data['text'], str):
+        abort(400, '"text" is required')
+
+    classification = classify_text(data['text'])
+    return jsonify({'classification': classification})
+
+
 if args.share:
+    # Doesn't work currently
     from flask_cloudflared import run_with_cloudflared
     run_with_cloudflared(app)
 

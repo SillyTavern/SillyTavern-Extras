@@ -1,4 +1,5 @@
 # TavernAI - Extras
+[TOC]
 ## What is this
 A set of unofficial APIs for various [TavernAI](https://github.com/TavernAI/TavernAI) extensions
 
@@ -29,7 +30,7 @@ A set of unofficial APIs for various [TavernAI](https://github.com/TavernAI/Tave
 ```
 { "summary": "summarized text" }
 ```
-#### Optional `params` object for control over summarization:
+#### Optional: `params` object for control over summarization:
 | Name                  | Default value                                                 |
 | --------------------- | ------------------------------------------------------------- |
 | `temperature`         | 1.0                                                           |
@@ -40,7 +41,47 @@ A set of unofficial APIs for various [TavernAI](https://github.com/TavernAI/Tave
 | `bad_words`           | ["\n", '"', "*", "[", "]", "{", "}", ":", "(", ")", "<", ">"] |
 
 ### BERT model for text classification
-Not implemented yet
+`POST /api/classify`
+#### **Input**
+```
+{ "text": "text to classify sentiment of" }
+```
+#### **Output**
+```
+{
+    "classification": [
+        {
+            "label": "joy",
+            "score": 1.0
+        },
+        {
+            "label": "anger",
+            "score": 0.7
+        },
+        {
+            "label": "love",
+            "score": 0.6
+        },
+        {
+            "label": "sadness",
+            "score": 0.5
+        },
+        {
+            "label": "fear",
+            "score": 0.4
+        },
+        {
+            "label": "surprise",
+            "score": 0.3
+        }
+    ]
+}
+```
+> **NOTES**
+> 1. Sorted by descending score order
+> 2. Six fixed categories
+> 3. Value range from 0.0 to 1.0
+
 
 ## Additional options
 | Flag           | Description                                                          |
