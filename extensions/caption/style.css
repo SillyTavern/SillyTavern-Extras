@@ -1,3 +1,35 @@
-.test {
-    color: red;
+#send_picture {
+    width: 40px;
+    height: 40px;
+    margin: 0;
+    padding: 1px;
+    background: no-repeat;
+    background-size: 26px auto;
+    background-position: center center;
+    outline: none;
+    border: none;
+    cursor: pointer;
+    transition: 0.3s;
+    filter: invert(1);
+    opacity: 0.5;
+}
+
+#send_picture:hover {
+    opacity: 1;
+}
+
+#img_form {
+    display: none;
+}
+
+.mes img.img_extra {
+    max-width: 600px;
+    max-height: 300px;
+    border-radius: 10px;
+}
+
+@media (max-width: 768px) {
+    .mes img.img_extra {
+        max-width: 100%;
+    }
 }

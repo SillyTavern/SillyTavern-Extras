@@ -4,5 +4,8 @@
         "caption"
     ],
     "js": "index.js",
-    "css": "style.css"
+    "css": "style.css",
+    "assets": [
+        "image-solid.svg"
+    ]
 }

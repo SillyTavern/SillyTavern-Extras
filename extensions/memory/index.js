@@ -1,3 +1,3 @@
 const MODULE_NAME = 'memory';
 
-alert(MODULE_NAME);
+console.log(MODULE_NAME);
