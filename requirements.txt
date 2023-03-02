@@ -1,5 +1,6 @@
 flask
 flask-cloudflared
+flask-cors
 markdown
 Pillow
 --extra-index-url https://download.pytorch.org/whl/cu116

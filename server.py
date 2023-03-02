@@ -1,4 +1,5 @@
 from flask import Flask, jsonify, request, render_template_string, abort, send_from_directory
+from flask_cors import CORS
 import markdown
 import argparse
 from transformers import AutoTokenizer, AutoProcessor, pipeline
@@ -136,6 +137,7 @@ indicator_list = ['female', 'girl', 'male', 'boy', 'woman', 'man', 'hair', 'eyes
 
 # Flask init
 app = Flask(__name__)
+CORS(app) # allow cross-domain requests
 app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024
 
 extensions = []
@@ -274,6 +276,16 @@ def get_style(name: str):
     if len(extension) == 0:
         abort(404)
     return send_from_directory(os.path.join('./extensions/', extension[0]['name']),  extension[0]['metadata']['css'])
+
+
+@app.route('/api/asset/<name>/<asset>', methods=['GET'])
+def get_asset(name: str, asset: str):
+    extension = [element for element in extensions if element['name'] == name]
+    if len(extension) == 0:
+        abort(404)
+    if not asset in extension[0]['metadata']['assets']:
+        abort(404)
+    return send_from_directory(os.path.join('./extensions', extension[0]['name'], 'assets'), asset)
 
 
 @app.route('/api/caption', methods=['POST'])
