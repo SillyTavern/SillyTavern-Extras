@@ -14,6 +14,7 @@ import os
 from PIL import Image
 import base64
 from io import BytesIO
+from random import randint
 from diffusers import StableDiffusionPipeline
 from diffusers import EulerAncestralDiscreteScheduler
 
@@ -388,8 +389,10 @@ def api_image():
 
 
 if args.share:
-    from flask_cloudflared import run_with_cloudflared
-    run_with_cloudflared(app)
+    from flask_cloudflared import _run_cloudflared
+    metrics_port = randint(8100, 9000)
+    cloudflare = _run_cloudflared(port, metrics_port)
+    print("Running on", cloudflare)
 
 load_extensions()
 app.run(host=host, port=port)
