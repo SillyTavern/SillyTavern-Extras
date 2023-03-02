@@ -22,22 +22,6 @@
     display: none;
 }
 
-.mes img.img_extra {
-    max-width: 600px;
-    max-height: 300px;
-    border-radius: 10px;
-}
-
-.mes img.img_extra ~ * {
-    display: none;
-}
-
-@media (max-width: 768px) {
-    .mes img.img_extra {
-        max-width: 100%;
-    }
-}
-
 .spin {
     animation-name: spin;
     animation-duration: 2000ms;
