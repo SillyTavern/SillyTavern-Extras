@@ -28,6 +28,10 @@
     border-radius: 10px;
 }
 
+.mes img.img_extra ~ * {
+    display: none;
+}
+
 @media (max-width: 768px) {
     .mes img.img_extra {
         max-width: 100%;
