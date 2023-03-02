@@ -30,6 +30,22 @@ async function moduleWorker() {
         : $('#send_picture').show(200);
 }
 
+function setImageIcon() {
+    const sendButton = document.getElementById('send_picture');
+    const imgUrl = new URL(getApiUrl());
+    imgUrl.pathname = `/api/asset/${MODULE_NAME}/image-solid.svg`;
+    sendButton.style.backgroundImage = `url(${imgUrl.toString()})`;
+    sendButton.classList.remove('spin');
+}
+
+function setSpinnerIcon() {
+    const sendButton = document.getElementById('send_picture');
+    const imgUrl = new URL(getApiUrl());
+    imgUrl.pathname = `/api/asset/${MODULE_NAME}/spinner-solid.svg`;
+    sendButton.style.backgroundImage = `url(${imgUrl.toString()})`;
+    sendButton.classList.add('spin');
+}
+
 async function sendCaptionedMessage(caption, image) {
     const context = getContext();
     const messageText = `[${context.name1} sends ${context.name2 ?? ''} a picture that contains: ${caption}]`;
@@ -47,6 +63,7 @@ async function sendCaptionedMessage(caption, image) {
 }
 
 async function onSelectImage(e) {
+    setSpinnerIcon();
     const file = e.target.files[0];
 
     if (!file) {
@@ -71,6 +88,7 @@ async function onSelectImage(e) {
     }
     finally {
         e.target.form.reset();
+        setImageIcon();
     }
 }
 
@@ -83,11 +101,8 @@ $(document).ready(function () {
     }
     function addSendPictureButton() {
         const sendButton = document.createElement('input');
-        const imgUrl = new URL(getApiUrl());
-        imgUrl.pathname = `/api/asset/${MODULE_NAME}/image-solid.svg`;
         sendButton.type = 'button';
         sendButton.id = 'send_picture';
-        sendButton.style.backgroundImage = `url(${imgUrl.toString()})`;
         $(sendButton).hide();
         $(sendButton).on('click', () => $('#img_file').click());
         $('#send_but_sheld').prepend(sendButton);
@@ -104,6 +119,7 @@ $(document).ready(function () {
 
     addPictureSendForm();
     addSendPictureButton();
+    setImageIcon();
     patchSendForm();
     setInterval(moduleWorker, UPDATE_INTERVAL);
 });

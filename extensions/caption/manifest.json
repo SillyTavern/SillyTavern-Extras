@@ -6,6 +6,7 @@
     "js": "index.js",
     "css": "style.css",
     "assets": [
-        "image-solid.svg"
+        "image-solid.svg",
+        "spinner-solid.svg"
     ]
 }

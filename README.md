@@ -55,7 +55,7 @@ Extension name in a route
 #### **Output**
 File content
 
-### BLIP model for image captioning
+### Image captioning
 `POST /api/caption`
 #### **Input**
 ```
@@ -66,7 +66,7 @@ File content
 { "caption": "caption of the posted image" }
 ```
 
-### BART model for text summarization
+### Text summarization
 `POST /api/summarize`
 #### **Input**
 ```
@@ -86,7 +86,7 @@ File content
 | `length_penalty`      | 1.5                                                           |
 | `bad_words`           | ["\n", '"', "*", "[", "]", "{", "}", ":", "(", ")", "<", ">"] |
 
-### BERT model for text classification
+### Text sentiment classification
 `POST /api/classify`
 #### **Input**
 ```
@@ -145,7 +145,7 @@ File content
 }
 ```
 
-### GPT-2 for Stable Diffusion prompt generation
+### Stable Diffusion prompt generation
 `POST /api/prompt`
 #### **Input**
 ```
@@ -156,7 +156,7 @@ File content
 { "prompts": [ "array of generated prompts" ] }
 ```
 
-### Stable Diffusion for image generation
+### Stable Diffusion image generation
 `POST /api/image`
 #### **Input**
 ```
@@ -175,10 +175,10 @@ File content
 | `--share`                | Shares the app on CloudFlare tunnel                                    |
 | `--cpu`                  | Run the models on the CPU instead of CUDA                              |
 | `--summarization-model`  | Load a custom BART summarization model.<br>Expects a HuggingFace model ID.<br>Default: [Qiliang/bart-large-cnn-samsum-ChatGPT_v3](https://huggingface.co/Qiliang/bart-large-cnn-samsum-ChatGPT_v3) |
-| `--classification-model` | Load a custom BERT sentiment classification model.<br>Expects a HuggingFace model ID.<br>Default: [bhadresh-savani/distilbert-base-uncased-emotion](https://huggingface.co/bhadresh-savani/distilbert-base-uncased-emotion) |
-| `--captioning-model`     | Load a custom BLIP captioning model.<br>Expects a HuggingFace model ID.<br>Default: [Salesforce/blip-image-captioning-base](https://huggingface.co/Salesforce/blip-image-captioning-base) |
+| `--classification-model` | Load a custom sentiment classification model.<br>Expects a HuggingFace model ID.<br>Default: [bhadresh-savani/distilbert-base-uncased-emotion](https://huggingface.co/bhadresh-savani/distilbert-base-uncased-emotion) |
+| `--captioning-model`     | Load a custom captioning model.<br>Expects a HuggingFace model ID.<br>Default: [Salesforce/blip-image-captioning-base](https://huggingface.co/Salesforce/blip-image-captioning-base) |
 | `--keyphrase-model`      | Load a custom key phrase extraction model.<br>Expects a HuggingFace model ID.<br>Default: [ml6team/keyphrase-extraction-distilbert-inspec](https://huggingface.co/ml6team/keyphrase-extraction-distilbert-inspec) |
-| `--prompt-model`         | Load a custom GPT-2 prompt generation model.<br>Expects a HuggingFace model ID.<br>Default: [FredZhang7/anime-anything-promptgen-v2](https://huggingface.co/FredZhang7/anime-anything-promptgen-v2) |
+| `--prompt-model`         | Load a custom prompt generation model.<br>Expects a HuggingFace model ID.<br>Default: [FredZhang7/anime-anything-promptgen-v2](https://huggingface.co/FredZhang7/anime-anything-promptgen-v2) |
 | `--sd-model`             | Load a custom Stable Diffusion image generation model.<br>Expects a HuggingFace model ID.<br>Default: [ckpt/anything-v4.5-vae-swapped](https://huggingface.co/ckpt/anything-v4.5-vae-swapped)<br>*Must have VAE pre-baked in PyTorch format or the output will look drab!* |
 | `--sd-cpu`               | Forces the Stable Diffusion generation pipeline to run on the CPU.<br>**SLOW!** |
 | `--enable-modules`       | Override a list of enabled modules. Runs with everything enabled by default.<br>Expects a comma-separated list of module names. See [Modules](#modules) |
