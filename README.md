@@ -6,6 +6,11 @@ A set of unofficial APIs for various [TavernAI](https://github.com/TavernAI/Tave
 * Install Python 3.10
 * Run `pip install -r requirements.txt`
 * Run `python server.py`
+* Get the API URL. Defaults to `http://localhost:5100` if you run locally.
+* Start TavernAI with extensions support: set `enableExtensions` to `true` in [config.conf](https://github.com/SillyLossy/TavernAI/blob/dev/config.conf)
+* Navigate to TavernAI settings and put in an API URL and tap "Connect" to load the extensions
+
+![image](https://user-images.githubusercontent.com/18619528/222469130-84cf5784-7f0d-48b9-bf8d-3851f2c8cea0.png)
 
 ## Modules
 
