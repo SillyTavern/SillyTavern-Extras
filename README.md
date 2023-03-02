@@ -10,7 +10,12 @@ A set of unofficial APIs for various [TavernAI](https://github.com/TavernAI/Tave
 * Start TavernAI with extensions support: set `enableExtensions` to `true` in [config.conf](https://github.com/SillyLossy/TavernAI/blob/dev/config.conf)
 * Navigate to TavernAI settings and put in an API URL and tap "Connect" to load the extensions
 
-![image](https://user-images.githubusercontent.com/18619528/222469130-84cf5784-7f0d-48b9-bf8d-3851f2c8cea0.png)
+<img src="https://user-images.githubusercontent.com/18619528/222469130-84cf5784-7f0d-48b9-bf8d-3851f2c8cea0.png" style="width:500px">
+
+## UI Extensions
+| Name             | Description                      | Required [Modules](#modules) | Screenshot |
+| ---------------- | ---------------------------------| ---------------------------- | ---------- |
+| Image Captioning | Send a cute picture to your bot! | `caption`                    | <img src="https://user-images.githubusercontent.com/18619528/222471170-5c28faca-dd33-4479-a768-2acd92563c4c.png" style="height:200px"> |
 
 ## Modules
 
