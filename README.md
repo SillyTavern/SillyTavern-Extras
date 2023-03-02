@@ -10,13 +10,22 @@ Try on Colab (runs KoboldAI backend and TavernAI Extras server alongside):  <a t
 </a>
 
 ## How to run
+### Locally
 * Install Python 3.10
 * Run `pip install -r requirements.txt`
 * Run `python server.py`
 * Get the API URL. Defaults to `http://localhost:5100` if you run locally.
 * Start TavernAI with extensions support: set `enableExtensions` to `true` in [config.conf](https://github.com/SillyLossy/TavernAI/blob/dev/config.conf)
 * Navigate to TavernAI settings and put in an API URL and tap "Connect" to load the extensions
+### Colab
+* Open colab link
+* Select desired "extra" options and start the cell
+* Wait for it to finish
+* Get an API URL link from colab output under the `### TavernAI Extensions LINK ###` title
+* Start TavernAI with extensions support: set `enableExtensions` to `true` in [config.conf](https://github.com/SillyLossy/TavernAI/blob/dev/config.conf)
+* Navigate to TavernAI settings and put in an API URL and tap "Connect" to load the extensions
 
+### Settings menu
 <img src="https://user-images.githubusercontent.com/18619528/222469130-84cf5784-7f0d-48b9-bf8d-3851f2c8cea0.png" style="width:500px">
 
 ## UI Extensions
