@@ -1,6 +1,7 @@
 # TavernAI - Extras
 ## What is this
 A set of unofficial APIs for various [TavernAI](https://github.com/TavernAI/TavernAI) extensions.
+
 All modules require at least 6 Gb of VRAM to run. With Stable Diffusion disabled, it will probably fit in 4 Gb.
 Alternatively, everything could also be run on the CPU.
 
