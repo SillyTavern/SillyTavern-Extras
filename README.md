@@ -70,6 +70,13 @@ Extension name in a route
 #### **Output**
 File content
 
+### Get UI extension static asset
+`GET /api/asset/<name>/<asset>`
+#### **Input**
+Extension name and assert name in a route
+#### **Output**
+File content
+
 ### Image captioning
 `POST /api/caption`
 #### **Input**
@@ -186,14 +193,14 @@ File content
 | Flag                     | Description                                                            |
 | ------------------------ | ---------------------------------------------------------------------- |
 | `--port`                 | Specify the port on which the application is hosted. Default: **5100** |
-| `--listen`               | Hosts the app on the local network                                     |
-| `--share`                | Shares the app on CloudFlare tunnel                                    |
+| `--listen`               | Host the app on the local network                                      |
+| `--share`                | Share the app on CloudFlare tunnel                                     |
 | `--cpu`                  | Run the models on the CPU instead of CUDA                              |
-| `--summarization-model`  | Load a custom BART summarization model.<br>Expects a HuggingFace model ID.<br>Default: [Qiliang/bart-large-cnn-samsum-ChatGPT_v3](https://huggingface.co/Qiliang/bart-large-cnn-samsum-ChatGPT_v3) |
+| `--summarization-model`  | Load a custom summarization model.<br>Expects a HuggingFace model ID.<br>Default: [Qiliang/bart-large-cnn-samsum-ChatGPT_v3](https://huggingface.co/Qiliang/bart-large-cnn-samsum-ChatGPT_v3) |
 | `--classification-model` | Load a custom sentiment classification model.<br>Expects a HuggingFace model ID.<br>Default: [bhadresh-savani/distilbert-base-uncased-emotion](https://huggingface.co/bhadresh-savani/distilbert-base-uncased-emotion) |
 | `--captioning-model`     | Load a custom captioning model.<br>Expects a HuggingFace model ID.<br>Default: [Salesforce/blip-image-captioning-base](https://huggingface.co/Salesforce/blip-image-captioning-base) |
 | `--keyphrase-model`      | Load a custom key phrase extraction model.<br>Expects a HuggingFace model ID.<br>Default: [ml6team/keyphrase-extraction-distilbert-inspec](https://huggingface.co/ml6team/keyphrase-extraction-distilbert-inspec) |
 | `--prompt-model`         | Load a custom prompt generation model.<br>Expects a HuggingFace model ID.<br>Default: [FredZhang7/anime-anything-promptgen-v2](https://huggingface.co/FredZhang7/anime-anything-promptgen-v2) |
 | `--sd-model`             | Load a custom Stable Diffusion image generation model.<br>Expects a HuggingFace model ID.<br>Default: [ckpt/anything-v4.5-vae-swapped](https://huggingface.co/ckpt/anything-v4.5-vae-swapped)<br>*Must have VAE pre-baked in PyTorch format or the output will look drab!* |
-| `--sd-cpu`               | Forces the Stable Diffusion generation pipeline to run on the CPU.<br>**SLOW!** |
+| `--sd-cpu`               | Force the Stable Diffusion generation pipeline to run on the CPU.<br>**SLOW!** |
 | `--enable-modules`       | Override a list of enabled modules. Runs with everything enabled by default.<br>Expects a comma-separated list of module names. See [Modules](#modules) |
