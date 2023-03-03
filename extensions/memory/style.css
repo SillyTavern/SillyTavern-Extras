@@ -1,3 +1,25 @@
-.test {
-    color: green;
+#memory_settings {
+    display: flex;
+    flex-direction: column;
+}
+
+#memory_settings textarea {
+    margin-bottom: 20px;
+}
+
+#memory_settings input[type="range"] {
+    margin-left: 10px;
+    margin-bottom: 20px;
+}
+
+#memory_settings input[type="button"] {
+    cursor: pointer;
+    margin-left: 10px;
+    margin-bottom: 20px;
+    width: fit-content;
+}
+
+#memory_settings label {
+    margin-left: 10px;
+    margin-bottom: 10px;
 }

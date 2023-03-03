@@ -38,6 +38,10 @@ DEFAULT_SUMMARIZE_PARAMS = {
     'bad_words': ["\n", '"', "*", "[", "]", "{", "}", ":", "(", ")", "<", ">"]
 }
 
+class SplitArgs(argparse.Action):
+    def __call__(self, parser, namespace, values, option_string=None):
+        setattr(namespace, self.dest, values.replace('"', '').replace("'", '').split(','))
+
 # Script arguments
 parser = argparse.ArgumentParser(
     prog='TavernAI Extras', description='Web API for transformers models')
@@ -63,7 +67,7 @@ parser.add_argument('--sd-model',
                     help="Load a custom SD image generation model")
 parser.add_argument('--sd-cpu',
                     help="Force the SD pipeline to run on the CPU")
-parser.add_argument('--enable-modules', nargs='*', default=[],
+parser.add_argument('--enable-modules', action=SplitArgs, default=[],
                     help="Override a list of enabled modules")
 
 args = parser.parse_args()
