@@ -75,7 +75,14 @@ async function onSelectImage(e) {
         const url = new URL(getApiUrl());
         url.pathname = '/api/caption';
 
-        const apiResult = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ image: base64Img.split(',')[1] }) });
+        const apiResult = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Bypass-Tunnel-Reminder': '',
+            },
+            body: JSON.stringify({ image: base64Img.split(',')[1] })
+        });
 
         if (apiResult.ok) {
             const data = await apiResult.json();

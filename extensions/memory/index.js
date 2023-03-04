@@ -195,7 +195,10 @@ async function summarizeChat(context) {
 
         const apiResult = await fetch(url, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+                'Bypass-Tunnel-Reminder': '',
+            },
             body: JSON.stringify({
                 text: resultingString,
                 params: {
