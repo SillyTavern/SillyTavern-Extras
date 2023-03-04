@@ -135,7 +135,7 @@ async function moduleWorker() {
         && chat[chat.length - 1].extra.memory
         && lastMessageId === chat.length
         && getStringHash(chat[chat.length - 1].mes) !== lastMessageHash) {
-        chat[chat.length - 1].extra.memory = null;
+        delete chat[chat.length - 1].extra.memory;
     }
 
     try {
@@ -228,7 +228,19 @@ async function summarizeChat(context) {
 }
 
 function onMemoryRestoreClick() {
+    const context = getContext();
+    const content = $('#memory_contents').val();
+    const reversedChat = context.chat.slice().reverse();
 
+    for (let mes of reversedChat) {
+        if (mes.extra && mes.extra.memory == content) {
+            delete mes.extra.memory;
+            break;
+        }
+    }
+
+    const newContent = getLatestMemoryFromChat(context.chat);
+    setMemoryContext(newContent, false);
 }
 
 function onMemoryContentInput() {

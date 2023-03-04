@@ -1,0 +1,8 @@
+{
+    "display_name": "Character Expressions",
+    "requires": [
+        "classify"
+    ],
+    "js": "index.js",
+    "css": "style.css"
+}

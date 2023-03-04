@@ -1,0 +1,19 @@
+div.expression {
+    background-image: unset;
+    background-repeat: no-repeat;
+    background-size: contain;
+    width: 200px;
+    height: 300px;
+    position: fixed;
+    left: 0;
+    bottom: 0;
+    margin-left: 10px;
+    filter: drop-shadow(2px 2px 4px #cccccc84);
+    transition: 500ms;
+}
+
+@media screen and (max-width:1200px) {
+    div.expression {
+        display: none;
+    }
+}
