@@ -8,7 +8,7 @@ div.expression {
     left: 0;
     bottom: 0;
     margin-left: 10px;
-    filter: drop-shadow(2px 2px 4px #cccccc84);
+    filter: drop-shadow(2px 2px 2px #cccccc80);
     transition: 500ms;
 }
 
