@@ -33,8 +33,9 @@ Try on Colab (runs KoboldAI backend and TavernAI Extras server alongside):  <a t
 ## UI Extensions
 | Name             | Description                      | Required [Modules](#modules) | Screenshot |
 | ---------------- | ---------------------------------| ---------------------------- | ---------- |
-| Image Captioning | Send a cute picture to your bot! | `caption`                    | <img src="https://user-images.githubusercontent.com/18619528/222471170-5c28faca-dd33-4479-a768-2acd92563c4c.png" style="max-width:200px"> |
+| Image Captioning | Send a cute picture to your bot!<br><br>Picture select option will appear beside "Message send" button. | `caption`                    | <img src="https://user-images.githubusercontent.com/18619528/222471170-5c28faca-dd33-4479-a768-2acd92563c4c.png" style="max-width:200px"> |
 | Character Expressions | See your character reacting to your messages!<br><br>**You need to provide your own character images!**<br><br>1. Create a folder in TavernAI called `public/characters/<name>`, where `<name>` is a name of your character.<br>2. Put six PNG files there with the following names: `joy.png`, `anger.png`, `fear.png`, `love.png`, `sadness.png`, `surprise.png`.<br>3. Images only display in desktop mode. | `classify` | <img style="max-width:200px" alt="image" src="https://user-images.githubusercontent.com/18619528/222927745-8c70a068-8648-428e-9510-ab539b0cb838.png"> |
+| Memory | Chatbot long-term memory simulation using automatic message context summarization. | `summarize` | Not yet |
 
 
 ## Modules
