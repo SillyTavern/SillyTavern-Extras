@@ -3,9 +3,12 @@ flask-cloudflared
 flask-cors
 markdown
 Pillow
---extra-index-url https://download.pytorch.org/whl/cu116
+--extra-index-url https://download.pytorch.org/whl/cu117
 torch >= 1.9, < 1.13
+torchvision >= 0.9, < 0.13
+torchaudio >= 0.9, < 0.13
 numpy
 accelerate
 git+https://github.com/huggingface/transformers
 git+https://github.com/huggingface/diffusers
+git+https://github.com/coqui-ai/TTS
