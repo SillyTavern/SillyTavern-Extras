@@ -79,7 +79,7 @@ async function onSelectImage(e) {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'Bypass-Tunnel-Reminder': '',
+                'Bypass-Tunnel-Reminder': 'bypass',
             },
             body: JSON.stringify({ image: base64Img.split(',')[1] })
         });

@@ -197,7 +197,7 @@ async function summarizeChat(context) {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'Bypass-Tunnel-Reminder': '',
+                'Bypass-Tunnel-Reminder': 'bypass',
             },
             body: JSON.stringify({
                 text: resultingString,
@@ -271,9 +271,9 @@ $(document).ready(function () {
             <label for="memory_contents">Memory contents</label>
             <textarea id="memory_contents" class="text_pole" rows="4" placeholder="Context will be generated here...">
             </textarea>
-            <label for="memory_short_length">Memory summarization length (<span id="memory_short_length_tokens"></span> tokens)</label>
+            <label for="memory_short_length">Memory summarization [short-term] length (<span id="memory_short_length_tokens"></span> tokens)</label>
             <input id="memory_short_length" type="range" value="${defaultSettings.shortMemoryLength}" min="${defaultSettings.minShortMemory}" max="${defaultSettings.maxShortMemory}" step="${defaultSettings.shortMemoryStep}" />
-            <label for="memory_long_length">Memory context length (<span id="memory_long_length_tokens"></span> tokens)</label>
+            <label for="memory_long_length">Memory context [long-term] length (<span id="memory_long_length_tokens"></span> tokens)</label>
             <input id="memory_long_length" type="range" value="${defaultSettings.longMemoryLength}" min="${defaultSettings.minLongMemory}" max="${defaultSettings.maxLongMemory}" step="${defaultSettings.longMemoryStep}" />
             <input id="memory_restore" type="button" value="Restore previous state" />
         </div>
