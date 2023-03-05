@@ -2,8 +2,8 @@ div.expression {
     background-image: unset;
     background-repeat: no-repeat;
     background-size: contain;
-    width: 200px;
-    height: 300px;
+    max-width: 200px;
+    max-height: 300px;
     position: fixed;
     left: 0;
     bottom: 0;
