@@ -16,7 +16,7 @@ Try on Colab (runs KoboldAI backend and TavernAI Extras server alongside):  <a t
 > Default **requirements.txt** contains only basic packages for text processing
 
 
-> If you want to use the most advanced features (like Stable Diffusion, TTS), change that to **requirements-complete.txt** in commands below
+> If you want to use the most advanced features (like Stable Diffusion, TTS), change that to **requirements-complete.txt** in commands below. See [Modules](#modules) section for more details.
 ### Locally
 #### Option 1 - Conda (recommended)
 * Install Miniconda: https://docs.conda.io/en/latest/miniconda.html
