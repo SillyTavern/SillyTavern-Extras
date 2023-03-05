@@ -29,7 +29,7 @@ git clone https://github.com/SillyLossy/TavernAI-extras
 cd TavernAI-extras
 pip install -r requirements.txt
 ```
-* Run `python server.py`
+* Run `python server.py --enable-modules=caption`
 * Get the API URL. Defaults to `http://localhost:5100` if you run locally.
 * Start TavernAI with extensions support: set `enableExtensions` to `true` in [config.conf](https://github.com/SillyLossy/TavernAI/blob/dev/config.conf)
 * Navigate to TavernAI settings and put in an API URL and tap "Connect" to load the extensions
@@ -41,7 +41,7 @@ python server.py
 #### Option 2 - Vanilla
 * Install Python 3.10
 * Run `pip install -r requirements.txt`
-* Run `python server.py`
+* Run `python server.py --enable-modules=caption`
 * Get the API URL. Defaults to `http://localhost:5100` if you run locally.
 * Start TavernAI with extensions support: set `enableExtensions` to `true` in [config.conf](https://github.com/SillyLossy/TavernAI/blob/dev/config.conf)
 * Navigate to TavernAI settings and put in an API URL and tap "Connect" to load the extensions
@@ -222,6 +222,7 @@ File content
 ## Additional options
 | Flag                     | Description                                                            |
 | ------------------------ | ---------------------------------------------------------------------- |
+| `--enable-modules`       | **Required option**. Provide a list of enabled modules.<br>Expects a comma-separated list of module names. See [Modules](#modules)<br>Example: `--enable-modules=caption,sd` |
 | `--port`                 | Specify the port on which the application is hosted. Default: **5100** |
 | `--listen`               | Host the app on the local network                                      |
 | `--share`                | Share the app on CloudFlare tunnel                                     |
@@ -233,4 +234,3 @@ File content
 | `--prompt-model`         | Load a custom prompt generation model.<br>Expects a HuggingFace model ID.<br>Default: [FredZhang7/anime-anything-promptgen-v2](https://huggingface.co/FredZhang7/anime-anything-promptgen-v2) |
 | `--sd-model`             | Load a custom Stable Diffusion image generation model.<br>Expects a HuggingFace model ID.<br>Default: [ckpt/anything-v4.5-vae-swapped](https://huggingface.co/ckpt/anything-v4.5-vae-swapped)<br>*Must have VAE pre-baked in PyTorch format or the output will look drab!* |
 | `--sd-cpu`               | Force the Stable Diffusion generation pipeline to run on the CPU.<br>**SLOW!** |
-| `--enable-modules`       | Override a list of enabled modules. Runs with everything enabled by default.<br>Expects a comma-separated list of module names. See [Modules](#modules)<br>Example: `--enable-modules=caption,sd` |

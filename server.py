@@ -29,7 +29,7 @@ DEFAULT_CAPTIONING_MODEL = 'Salesforce/blip-image-captioning-base'
 DEFAULT_KEYPHRASE_MODEL = 'ml6team/keyphrase-extraction-distilbert-inspec'
 DEFAULT_PROMPT_MODEL = 'FredZhang7/anime-anything-promptgen-v2'
 DEFAULT_SD_MODEL = "ckpt/anything-v4.5-vae-swapped"
-ALL_MODULES = ['caption', 'summarize', 'classify', 'keywords', 'prompt', 'sd', 'tts']
+#ALL_MODULES = ['caption', 'summarize', 'classify', 'keywords', 'prompt', 'sd', 'tts']
 DEFAULT_SUMMARIZE_PARAMS = {
     'temperature': 1.0,
     'repetition_penalty': 1.0,
@@ -81,7 +81,12 @@ captioning_model = args.captioning_model if args.captioning_model else DEFAULT_C
 keyphrase_model = args.keyphrase_model if args.keyphrase_model else DEFAULT_KEYPHRASE_MODEL
 prompt_model = args.prompt_model if args.prompt_model else DEFAULT_PROMPT_MODEL
 sd_model = args.sd_model if args.sd_model else DEFAULT_SD_MODEL
-modules = args.enable_modules if args.enable_modules and len(args.enable_modules) > 0 else ALL_MODULES
+modules = args.enable_modules if args.enable_modules and len(args.enable_modules) > 0 else []
+
+if len(modules) == 0:
+    print('You did not select any modules to run! Choose them by adding an --enable-modules option')
+    print('Example: --enable-modules=caption,summarize')
+    exit(1)
 
 # Models init
 device_string = "cuda:0" if torch.cuda.is_available() and not args.cpu else "cpu"
