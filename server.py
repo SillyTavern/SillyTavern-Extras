@@ -18,8 +18,6 @@ from PIL import Image
 import base64
 from io import BytesIO
 from random import randint
-from diffusers import StableDiffusionPipeline
-from diffusers import EulerAncestralDiscreteScheduler
 
 
 # Constants
@@ -120,6 +118,8 @@ if 'prompt' in modules:
     prompt_generator = pipeline('text-generation', model=gpt_model, tokenizer=gpt_tokenizer)
 
 if 'sd' in modules:
+    from diffusers import StableDiffusionPipeline
+    from diffusers import EulerAncestralDiscreteScheduler
     print('Initializing Stable Diffusion pipeline')
     sd_device_string = "cuda" if torch.cuda.is_available() and not args.sd_cpu else "cpu"
     sd_device = torch.device(sd_device_string)
