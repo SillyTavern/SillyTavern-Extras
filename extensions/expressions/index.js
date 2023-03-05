@@ -2,6 +2,7 @@ const MODULE_NAME = 'expressions';
 const SETTINGS_KEY = 'extensions_memory_settings';
 const UPDATE_INTERVAL = 1000;
 
+let expressionsList = null;
 let lastCharacter = null;
 let lastMessage = null;
 let inApiCall = false;
@@ -90,9 +91,9 @@ function removeExpression() {
     $('.expression_settings').hide();
 }
 
-function validateImages() {
+async function validateImages() {
     const context = getContext();
-    const IMAGE_LIST = ['joy.png', 'anger.png', 'love.png', 'fear.png', 'surprise.png', 'sadness.png'];
+    const IMAGE_LIST = (await getExpressionsList()).map(x => `${x}.png`);
     $('.expression_settings').show();
     $('#image_list').empty();
     
@@ -110,6 +111,32 @@ function validateImages() {
         }
         $('#image_list').prepend(image);
     });
+}
+
+async function getExpressionsList() {
+    if (Array.isArray(expressionsList)) {
+        return expressionsList;
+    }
+
+    const url = new URL(getApiUrl());
+    url.pathname = '/api/classify/labels';
+
+    try {
+        const apiResult = await fetch(url, {
+            method: 'GET',
+            headers: { 'Bypass-Tunnel-Reminder': 'bypass' },
+        });
+    
+        if (apiResult.ok) {
+            const data = await apiResult.json();
+            expressionsList = data.labels;
+            return expressionsList;
+        }
+    }
+    catch (error) {
+        console.log(error);
+        return [];
+    }
 }
 
 function setExpression(character, expression) {

@@ -369,6 +369,14 @@ def api_classify():
     return jsonify({'classification': classification})
 
 
+@app.route('/api/classify/labels', methods=['GET'])
+@require_module('classify')
+def api_classify_labels():
+    classification = classify_text('')
+    labels = [x['label'] for x in classification]
+    return jsonify({'labels': labels})
+
+
 @app.route('/api/keywords', methods=['POST'])
 @require_module('keywords')
 def api_keywords():
