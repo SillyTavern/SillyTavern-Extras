@@ -14,6 +14,32 @@ div.expression {
     transition: 500ms;
 }
 
+.debug-image {
+    display: none;
+    visibility: collapse;
+    opacity: 0;
+    width: 0px;
+    height: 0px;
+}
+
+#image_list {
+    margin-top: 0;
+    margin-bottom: 0;
+    font-weight: 600;
+}
+
+#image_list .success {
+    color: green;
+}
+
+#image_list .failure {
+    color: red;
+}
+
+.expression_settings {
+    white-space: pre-line;
+}
+
 @media screen and (max-width:1200px) {
     div.expression {
         display: none;

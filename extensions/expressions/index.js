@@ -40,6 +40,7 @@ async function moduleWorker() {
     // character changed
     if (lastCharacter !== context.characterId) {
         removeExpression();
+        validateImages();
     }
 
     // check if last message changed
@@ -86,6 +87,29 @@ async function moduleWorker() {
 
 function removeExpression() {
     $('div.expression').css('background-image', 'unset');
+    $('.expression_settings').hide();
+}
+
+function validateImages() {
+    const context = getContext();
+    const IMAGE_LIST = ['joy.png', 'anger.png', 'love.png', 'fear.png', 'surprise.png', 'sadness.png'];
+    $('.expression_settings').show();
+    $('#image_list').empty();
+    
+    IMAGE_LIST.forEach((item) => {
+        const image = document.createElement('img');
+        image.src = `/characters/${context.name2}/${item}`;
+        image.classList.add('debug-image');
+        image.width = '0px';
+        image.height = '0px';
+        image.onload = function() {
+            $('#image_list').append(`<li class="success">${item} - OK</li>`);
+        }
+        image.onerror = function() {
+            $('#image_list').append(`<li class="failure">${item} - Missing</li>`);
+        }
+        $('#image_list').prepend(image);
+    });
 }
 
 function setExpression(character, expression) {
@@ -98,7 +122,20 @@ function setExpression(character, expression) {
         const html = `<div class="expression"></div>`
         $('body').append(html);
     }
+    function addSettings() {
+        const html = `
+        <div class="expression_settings">
+            <h4>Expression images</h4>
+            <ul id="image_list"></ul>
+            <p><b>Hint:</b> <i>Put images into the <tt>public/characters/Name</tt>
+            folder of TavernAI, where Name is the name of the character</i></p>
+        </div>
+        `;
+        $('#extensions_settings').append(html);
+        $('.expression_settings').hide();
+    }
 
     addExpressionImage();
+    addSettings();
     setInterval(moduleWorker, UPDATE_INTERVAL);
 })();
