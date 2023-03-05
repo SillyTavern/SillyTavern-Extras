@@ -13,10 +13,10 @@ Try on Colab (runs KoboldAI backend and TavernAI Extras server alongside):  <a t
 
 ## How to run
 ### **IMPORTANT!**
-> Default requirements.txt contains only basic packages for text processing
+> Default **requirements.txt** contains only basic packages for text processing
 
 
-> If you want to use the most advanced features (like Stable Diffusion, TTS), change that to requirements-complete.txt
+> If you want to use the most advanced features (like Stable Diffusion, TTS), change that to **requirements-complete.txt** in commands below
 ### Locally
 #### Option 1 - Conda (recommended)
 * Install Miniconda: https://docs.conda.io/en/latest/miniconda.html
@@ -66,14 +66,15 @@ python server.py
 
 ## Modules
 
-| Name        | Description                       |
-| ----------- | --------------------------------- |
-| `caption`   | Image captioning                  |
-| `summarize` | Text summarization                |
-| `classify`  | Text sentiment classification     |
-| `keywords`  | Text key phrases extraction       |
-| `prompt`    | SD prompt generation from text    |
-| `sd`        | Stable Diffusion image generation |
+| Name        | Description                       | Included in default requirements.txt       |
+| ----------- | --------------------------------- | ------ |
+| `caption`   | Image captioning                  | ✔️ Yes        |
+| `summarize` | Text summarization                | ✔️ Yes    |
+| `classify`  | Text sentiment classification     | ✔️ Yes      |
+| `keywords`  | Text key phrases extraction       | ✔️ Yes      |
+| `prompt`    | SD prompt generation from text    | ✔️ Yes     |
+| `sd`        | Stable Diffusion image generation | :x: No      |
+| `tts`       | Speech synthesis based on coqui-tts | :x: No    | 
 
 ## API Endpoints
 ### Get UI extensions list
