@@ -9,6 +9,8 @@ torchvision >= 0.9, < 0.13
 torchaudio >= 0.9, < 0.13
 numpy
 accelerate
+SpeechRecognition~=3.9.0
 git+https://github.com/huggingface/transformers
 git+https://github.com/huggingface/diffusers
 git+https://github.com/coqui-ai/TTS
+git+https://github.com/openai/whisper
