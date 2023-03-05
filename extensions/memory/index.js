@@ -26,7 +26,7 @@ function getStringHash(str, seed = 0) {
 
 const getContext = () => window['TavernAI'].getContext();
 const getApiUrl = () => localStorage.getItem('extensions_url');
-const formatMemoryValue = (value) => `[Context: "${value}"]`;
+const formatMemoryValue = (value) => value ? `[Context: "${value.trim()}"]` : '';
 
 const defaultSettings = {
     minLongMemory: 16,
@@ -202,8 +202,8 @@ async function summarizeChat(context) {
             body: JSON.stringify({
                 text: resultingString,
                 params: {
-                    min_length: settings.longMemoryLength,
-                    max_length: settings.longMemoryLength * 1.25
+                    min_length: settings.longMemoryLength * 0.8,
+                    max_length: settings.longMemoryLength,
                 }
             })
         });
@@ -254,7 +254,7 @@ function onMemoryContentInput() {
 function setMemoryContext(value, saveToMessage) {
     const context = getContext();
     context.setExtensionPrompt(formatMemoryValue(value));
-    $('#memory_contents').val(value);
+    $('#memory_contents').val(value.trim());
 
     if (saveToMessage && context.chat.length) {
         const mes = context.chat[context.chat.length - 1];
