@@ -30,20 +30,42 @@ async function moduleWorker() {
         : $('#send_picture').show(200);
 }
 
-function setImageIcon() {
-    const sendButton = document.getElementById('send_picture');
-    const imgUrl = new URL(getApiUrl());
-    imgUrl.pathname = `/api/asset/${MODULE_NAME}/image-solid.svg`;
-    sendButton.style.backgroundImage = `url(${imgUrl.toString()})`;
-    sendButton.classList.remove('spin');
+async function urlContentToDataUri(url) {
+    const response = await fetch(url);
+    const blob = await response.blob();
+    return await new Promise(callback => {
+        let reader = new FileReader();
+        reader.onload = function () { callback(this.result); };
+        reader.readAsDataURL(blob);
+    });
 }
 
-function setSpinnerIcon() {
-    const sendButton = document.getElementById('send_picture');
-    const imgUrl = new URL(getApiUrl());
-    imgUrl.pathname = `/api/asset/${MODULE_NAME}/spinner-solid.svg`;
-    sendButton.style.backgroundImage = `url(${imgUrl.toString()})`;
-    sendButton.classList.add('spin');
+async function setImageIcon() {
+    try {
+        const sendButton = document.getElementById('send_picture');
+        const imgUrl = new URL(getApiUrl());
+        imgUrl.pathname = `/api/asset/${MODULE_NAME}/image-solid.svg`;
+        const dataUri = await urlContentToDataUri(imgUrl.toString());
+        sendButton.style.backgroundImage = `url(${dataUri})`;
+        sendButton.classList.remove('spin');
+    }
+    catch (error) {
+        console.log(error);
+    }
+}
+
+async function setSpinnerIcon() {
+    try {
+        const sendButton = document.getElementById('send_picture');
+        const imgUrl = new URL(getApiUrl());
+        imgUrl.pathname = `/api/asset/${MODULE_NAME}/spinner-solid.svg`;
+        const dataUri = await urlContentToDataUri(imgUrl.toString());
+        sendButton.style.backgroundImage = `url(${dataUri})`;
+        sendButton.classList.add('spin');
+    }
+    catch (error) {
+        console.log(error);
+    }
 }
 
 async function sendCaptionedMessage(caption, image) {
