@@ -37,11 +37,28 @@ const defaultSettings = {
     maxShortMemory: 2048,
     shortMemoryStep: 16,
     longMemoryStep: 8,
+    repetitionPenaltyStep: 0.05,
+    repetitionPenalty: 1.0,
+    maxRepetitionPenalty: 2.0,
+    minRepetitionPenalty: 1.0,
+    temperature: 1.0,
+    minTemperature: 0.1,
+    maxTemperature: 2.0,
+    temperatureStep: 0.05,
+    lengthPenalty: 1,
+    minLengthPenalty: 0,
+    maxLengthPenalty: 2,
+    lengthPenaltyStep: 0.05,
+    memoryFrozen: false,
 };
 
 const settings = {
     shortMemoryLength: defaultSettings.shortMemoryLength,
     longMemoryLength: defaultSettings.longMemoryLength,
+    repetitionPenalty: defaultSettings.repetitionPenalty,
+    temperature: defaultSettings.temperature,
+    lengthPenalty: defaultSettings.lengthPenalty,
+    memoryFrozen: defaultSettings.memoryFrozen,
 }
 
 function saveSettings() {
@@ -55,6 +72,10 @@ function loadSettings() {
         Object.assign(settings, savedSettings);
         $('#memory_long_length').val(settings.longMemoryLength).trigger('input');
         $('#memory_short_length').val(settings.shortMemoryLength).trigger('input');
+        $('#memory_repetition_penalty').val(settings.repetitionPenalty).trigger('input');
+        $('#memory_temperature').val(settings.temperature).trigger('input');
+        $('#memory_length_penalty').val(settings.lengthPenalty).trigger('input');
+        $('#memory_frozen').prop('checked', settings.memoryFrozen).trigger('input');
     }
 }
 
@@ -63,12 +84,49 @@ function onMemoryShortInput() {
     settings.shortMemoryLength = Number(value);
     $('#memory_short_length_tokens').text(value);
     saveSettings();
+
+    // Don't let long buffer be bigger than short
+    if (settings.longMemoryLength > settings.shortMemoryLength) {
+        $('#memory_long_length').val(settings.shortMemoryLength).trigger('input');
+    }
 }
 
 function onMemoryLongInput() {
     const value = $(this).val();
     settings.longMemoryLength = Number(value);
     $('#memory_long_length_tokens').text(value);
+    saveSettings();
+
+    // Don't let long buffer be bigger than short
+    if (settings.longMemoryLength > settings.shortMemoryLength) {
+        $('#memory_short_length').val(settings.longMemoryLength).trigger('input');
+    }
+}
+
+function onMemoryRepetitionPenaltyInput() {
+    const value = $(this).val();
+    settings.repetitionPenalty = Number(value);
+    $('#memory_repetition_penalty_value').text(settings.repetitionPenalty.toFixed(2));
+    saveSettings();
+}
+
+function onMemoryTemperatureInput() {
+    const value = $(this).val();
+    settings.temperature = Number(value);
+    $('#memory_temperature_value').text(settings.temperature.toFixed(2));
+    saveSettings();
+}
+
+function onMemoryLengthPenaltyInput() {
+    const value = $(this).val();
+    settings.lengthPenalty = Number(value);
+    $('#memory_length_penalty_value').text(settings.lengthPenalty.toFixed(2));
+    saveSettings();
+}
+
+function onMemoryFrozenInput() {
+    const value = Boolean($(this).prop('checked'));
+    settings.memoryFrozen = value;
     saveSettings();
 }
 
@@ -113,8 +171,8 @@ async function moduleWorker() {
         return;
     }
 
-    // Currently summarizing - skip
-    if (inApiCall) {
+    // Currently summarizing or frozen state - skip
+    if (inApiCall || settings.memoryFrozen) {
         return;
     }
 
@@ -204,6 +262,9 @@ async function summarizeChat(context) {
                 params: {
                     min_length: settings.longMemoryLength * 0.8,
                     max_length: settings.longMemoryLength,
+                    repetition_penalty: settings.repetitionPenalty,
+                    temperature: settings.temperature,
+                    length_penalty: settings.lengthPenalty,
                 }
             })
         });
@@ -254,11 +315,15 @@ function onMemoryContentInput() {
 function setMemoryContext(value, saveToMessage) {
     const context = getContext();
     context.setExtensionPrompt(formatMemoryValue(value));
-    $('#memory_contents').val(value.trim());
+    $('#memory_contents').val(value);
 
     if (saveToMessage && context.chat.length) {
         const mes = context.chat[context.chat.length - 1];
-        !mes.extra && (mes.extra = {});
+
+        if (!mes.extra) {
+            mes.extra = {};
+        }
+
         mes.extra.memory = value;
     }
 }
@@ -269,13 +334,19 @@ $(document).ready(function () {
         <h4>Memory</h4>
         <div id="memory_settings">
             <label for="memory_contents">Memory contents</label>
-            <textarea id="memory_contents" class="text_pole" rows="4" placeholder="Context will be generated here...">
-            </textarea>
+            <textarea id="memory_contents" class="text_pole" rows="8" placeholder="Context will be generated here..."></textarea>
+            <label for="memory_frozen"><input id="memory_frozen" type="checkbox" /> Freeze context (don't auto-update)</label>
+            <input id="memory_restore" type="button" value="Restore previous state" />
             <label for="memory_short_length">Memory summarization [short-term] length (<span id="memory_short_length_tokens"></span> tokens)</label>
             <input id="memory_short_length" type="range" value="${defaultSettings.shortMemoryLength}" min="${defaultSettings.minShortMemory}" max="${defaultSettings.maxShortMemory}" step="${defaultSettings.shortMemoryStep}" />
             <label for="memory_long_length">Memory context [long-term] length (<span id="memory_long_length_tokens"></span> tokens)</label>
             <input id="memory_long_length" type="range" value="${defaultSettings.longMemoryLength}" min="${defaultSettings.minLongMemory}" max="${defaultSettings.maxLongMemory}" step="${defaultSettings.longMemoryStep}" />
-            <input id="memory_restore" type="button" value="Restore previous state" />
+            <label for="memory_temperature">Summarization temperature (<span id="memory_temperature_value"></span>)</label>
+            <input id="memory_temperature" type="range" value="${defaultSettings.temperature}" min="${defaultSettings.minTemperature}" max="${defaultSettings.maxTemperature}" step="${defaultSettings.temperatureStep}" />
+            <label for="memory_repetition_penalty">Summarization repetition penalty (<span id="memory_repetition_penalty_value"></span>)</label>
+            <input id="memory_repetition_penalty" type="range" value="${defaultSettings.repetitionPenalty}" min="${defaultSettings.minRepetitionPenalty}" max="${defaultSettings.maxRepetitionPenalty}" step="${defaultSettings.repetitionPenaltyStep}" />
+            <label for="memory_length_penalty">Summarization length penalty (<span id="memory_length_penalty_value"></span>)</label>
+            <input id="memory_length_penalty" type="range" value="${defaultSettings.lengthPenalty}" min="${defaultSettings.minLengthPenalty}" max="${defaultSettings.maxLengthPenalty}" step="${defaultSettings.lengthPenaltyStep}" />
         </div>
         `;
         $('#extensions_settings').append(settingsHtml);
@@ -283,6 +354,10 @@ $(document).ready(function () {
         $('#memory_contents').on('input', onMemoryContentInput);
         $('#memory_long_length').on('input', onMemoryLongInput);
         $('#memory_short_length').on('input', onMemoryShortInput);
+        $('#memory_repetition_penalty').on('input', onMemoryRepetitionPenaltyInput);
+        $('#memory_temperature').on('input', onMemoryTemperatureInput);
+        $('#memory_length_penalty').on('input', onMemoryLengthPenaltyInput);
+        $('#memory_frozen').on('input', onMemoryFrozenInput);
     }
 
     addExtensionControls();
