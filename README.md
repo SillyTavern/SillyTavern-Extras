@@ -15,7 +15,7 @@ Try on Colab (runs KoboldAI backend and TavernAI Extras server alongside):  <a t
 ### Locally
 #### Option 1 - Conda (recommended)
 * Install Miniconda: https://docs.conda.io/en/latest/miniconda.html
-* Create an environment (let's call it `extras`):
+* Before the first run, create an environment (let's call it `extras`):
 ```
 conda create -n extras
 conda activate extras
@@ -28,6 +28,11 @@ pip install -r requirements.txt
 * Get the API URL. Defaults to `http://localhost:5100` if you run locally.
 * Start TavernAI with extensions support: set `enableExtensions` to `true` in [config.conf](https://github.com/SillyLossy/TavernAI/blob/dev/config.conf)
 * Navigate to TavernAI settings and put in an API URL and tap "Connect" to load the extensions
+* To run again, simply activate the environment and run the script:
+```
+conda activate extras
+python server.py
+```
 #### Option 2 - Vanilla
 * Install Python 3.10
 * Run `pip install -r requirements.txt`
