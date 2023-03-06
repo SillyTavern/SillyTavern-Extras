@@ -4,9 +4,9 @@ flask-cors
 markdown
 Pillow
 --extra-index-url https://download.pytorch.org/whl/cu117
-torch >= 1.9, < 1.13
-torchvision >= 0.9, < 0.13
-torchaudio >= 0.9, < 0.13
+torch==1.13.1+cu117
+torchvision
+torchaudio
 numpy
 accelerate
 SpeechRecognition~=3.9.0
