@@ -5,5 +5,4 @@ markdown
 Pillow
 --extra-index-url https://download.pytorch.org/whl/cu117
 torch==1.13.1+cu117
-numpy
 git+https://github.com/huggingface/transformers

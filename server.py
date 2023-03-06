@@ -28,7 +28,7 @@ DEFAULT_CAPTIONING_MODEL = 'Salesforce/blip-image-captioning-base'
 DEFAULT_KEYPHRASE_MODEL = 'ml6team/keyphrase-extraction-distilbert-inspec'
 DEFAULT_PROMPT_MODEL = 'FredZhang7/anime-anything-promptgen-v2'
 DEFAULT_SD_MODEL = "ckpt/anything-v4.5-vae-swapped"
-#ALL_MODULES = ['caption', 'summarize', 'classify', 'keywords', 'prompt', 'sd', 'tts']
+#ALL_MODULES = ['caption', 'summarize', 'classify', 'keywords', 'prompt', 'sd']
 DEFAULT_SUMMARIZE_PARAMS = {
     'temperature': 1.0,
     'repetition_penalty': 1.0,
@@ -133,11 +133,6 @@ if 'sd' in modules:
     sd_pipe.enable_attention_slicing()
     # pipe.scheduler = KarrasVeScheduler.from_config(pipe.scheduler.config)
     sd_pipe.scheduler = EulerAncestralDiscreteScheduler.from_config(sd_pipe.scheduler.config)
-
-if 'tts' in modules:
-    from TTS.api import TTS
-    tts_model = TTS('tts_models/multilingual/multi-dataset/your_tts')
-    sample_rate = 16000
 
 prompt_prefix = "best quality, absurdres, "
 neg_prompt = """lowres, bad anatomy, error body, error hair, error arm,
@@ -259,14 +254,6 @@ def generate_image(input: str, steps: int = 30, scale: int = 6) -> Image:
 
     image.save("./debug.png")
     return image
-
-
-def generate_audio(text: str, voice: str):
-    from scipy.io import wavfile
-    audio = tts_model.tts(text=text, speaker_wav=f'tts_voices/{voice}.wav', language='en')
-    filename = f'tts_output/{voice}_{time.time_ns()}.wav';
-    wavfile.write(filename, sample_rate, np.array(audio))
-    return filename
 
 
 def image_to_base64(image: Image):
@@ -417,22 +404,6 @@ def api_image():
     image = generate_image(data['prompt'])
     base64image = image_to_base64(image)
     return jsonify({'image': base64image})
-
-
-@app.route('/api/tts', methods=['POST'])
-@require_module('tts')
-def api_tts():
-    data = request.get_json()
-
-    if 'text' not in data or not isinstance(data['text'], str):
-        abort(400, '"text" is required')
-        
-    if 'voice' not in data or not isinstance(data['voice'], str):
-        abort(400, '"voice" is required')
-
-    filename = generate_audio(data['text'], data['voice'])
-    base64audio = base64.b64encode(open(filename, "rb").read())
-    return jsonify({'audio': base64audio})
 
 
 if args.share:

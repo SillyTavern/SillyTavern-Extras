@@ -7,10 +7,6 @@ Pillow
 torch==1.13.1+cu117
 torchvision
 torchaudio
-numpy
 accelerate
-SpeechRecognition~=3.9.0
 git+https://github.com/huggingface/transformers
 git+https://github.com/huggingface/diffusers
-git+https://github.com/coqui-ai/TTS
-git+https://github.com/openai/whisper
