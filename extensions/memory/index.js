@@ -335,8 +335,10 @@ $(document).ready(function () {
         <div id="memory_settings">
             <label for="memory_contents">Memory contents</label>
             <textarea id="memory_contents" class="text_pole" rows="8" placeholder="Context will be generated here..."></textarea>
-            <label for="memory_frozen"><input id="memory_frozen" type="checkbox" /> Freeze context (don't auto-update)</label>
-            <input id="memory_restore" type="button" value="Restore previous state" />
+            <div class="memory_contents_controls">
+                <input id="memory_restore" class="menu_button" type="submit" value="Restore previous state" />
+                <label for="memory_frozen"><input id="memory_frozen" type="checkbox" /> Freeze context</label>
+            </div>
             <label for="memory_short_length">Memory summarization [short-term] length (<span id="memory_short_length_tokens"></span> tokens)</label>
             <input id="memory_short_length" type="range" value="${defaultSettings.shortMemoryLength}" min="${defaultSettings.minShortMemory}" max="${defaultSettings.maxShortMemory}" step="${defaultSettings.shortMemoryStep}" />
             <label for="memory_long_length">Memory context [long-term] length (<span id="memory_long_length_tokens"></span> tokens)</label>
