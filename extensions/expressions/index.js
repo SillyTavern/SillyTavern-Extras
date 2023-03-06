@@ -3,7 +3,7 @@ const SETTINGS_KEY = 'extensions_memory_settings';
 const UPDATE_INTERVAL = 1000;
 
 let expressionsList = null;
-let lastCharacter = null;
+let lastCharacter = undefined;
 let lastMessage = null;
 let inApiCall = false;
 
@@ -93,10 +93,14 @@ function removeExpression() {
 
 async function validateImages() {
     const context = getContext();
-    const IMAGE_LIST = (await getExpressionsList()).map(x => `${x}.png`);
     $('.expression_settings').show();
     $('#image_list').empty();
-    
+
+    if (!context.characterId) {
+        return;
+    }
+
+    const IMAGE_LIST = (await getExpressionsList()).map(x => `${x}.png`);
     IMAGE_LIST.forEach((item) => {
         const image = document.createElement('img');
         image.src = `/characters/${context.name2}/${item}`;

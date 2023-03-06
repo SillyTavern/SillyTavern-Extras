@@ -2,15 +2,16 @@ div.expression {
     background-image: unset;
     background-repeat: no-repeat;
     background-size: contain;
-    max-width: 200px;
-    max-height: 300px;
+    background-position-y: bottom;
+    max-height: 90vh;
+    max-width: calc((100vw - 800px)/2);
     width: 100%;
     height: 100%;
     position: fixed;
     left: 0;
     bottom: 0;
     margin-left: 10px;
-    filter: drop-shadow(2px 2px 2px #cccccc80);
+    filter: drop-shadow(2px 2px 2px #51515199);
     transition: 500ms;
 }
 
