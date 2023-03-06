@@ -26,7 +26,7 @@ Try on Colab (runs KoboldAI backend and TavernAI Extras server alongside):  <a t
 ```
 conda create -n extras
 conda activate extras
-conda install torchvision torchaudio pytorch-cuda=11.7 git -c pytorch -c nvidia
+conda install pytorch torchvision torchaudio pytorch-cuda=11.7 -c pytorch -c nvidia
 git clone https://github.com/SillyLossy/TavernAI-extras
 cd TavernAI-extras
 pip install -r requirements.txt
