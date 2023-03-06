@@ -10,7 +10,6 @@ import unicodedata
 import torch
 import time
 import numpy as np
-from scipy.io import wavfile
 from glob import glob
 import json
 import os
@@ -263,6 +262,7 @@ def generate_image(input: str, steps: int = 30, scale: int = 6) -> Image:
 
 
 def generate_audio(text: str, voice: str):
+    from scipy.io import wavfile
     audio = tts_model.tts(text=text, speaker_wav=f'tts_voices/{voice}.wav', language='en')
     filename = f'tts_output/{voice}_{time.time_ns()}.wav';
     wavfile.write(filename, sample_rate, np.array(audio))
