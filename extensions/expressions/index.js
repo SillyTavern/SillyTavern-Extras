@@ -91,7 +91,14 @@ function removeExpression() {
     $('.expression_settings').hide();
 }
 
+let imagesValidating = false;
+
 async function validateImages() {
+    if (imagesValidating) {
+        return;
+    }
+
+    imagesValidating = true;
     const context = getContext();
     $('.expression_settings').show();
     $('#image_list').empty();
@@ -115,6 +122,7 @@ async function validateImages() {
         }
         $('#image_list').prepend(image);
     });
+    imagesValidating = false;
 }
 
 async function getExpressionsList() {
