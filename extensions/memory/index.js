@@ -1,4 +1,4 @@
-const MODULE_NAME = 'memory';
+const MODULE_NAME = '1_memory';
 const SETTINGS_KEY = 'extensions_memory_settings';
 const UPDATE_INTERVAL = 1000;
 
