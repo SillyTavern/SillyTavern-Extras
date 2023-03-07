@@ -12,7 +12,7 @@ Try on Colab (runs KoboldAI backend and TavernAI Extras server alongside):  <a t
 </a>
 
 ## How to run
-### **IMPORTANT!**
+### :exclamation: **IMPORTANT!**
 > Default **requirements.txt** contains only basic packages for text processing
 
 
@@ -76,7 +76,6 @@ python server.py
 | `keywords`  | Text key phrases extraction       | ✔️ Yes      |
 | `prompt`    | SD prompt generation from text    | ✔️ Yes     |
 | `sd`        | Stable Diffusion image generation | :x: No      |
-| `tts`       | Speech synthesis based on coqui-tts | :x: No    | 
 
 ## API Endpoints
 ### Get UI extensions list
