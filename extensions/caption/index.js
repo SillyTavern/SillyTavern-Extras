@@ -30,8 +30,8 @@ async function moduleWorker() {
         : $('#send_picture').show(200);
 }
 
-async function urlContentToDataUri(url) {
-    const response = await fetch(url);
+async function urlContentToDataUri(url, params) {
+    const response = await fetch(url, params);
     const blob = await response.blob();
     return await new Promise(callback => {
         let reader = new FileReader();
@@ -45,7 +45,7 @@ async function setImageIcon() {
         const sendButton = document.getElementById('send_picture');
         const imgUrl = new URL(getApiUrl());
         imgUrl.pathname = `/api/asset/${MODULE_NAME}/image-solid.svg`;
-        const dataUri = await urlContentToDataUri(imgUrl.toString());
+        const dataUri = await urlContentToDataUri(imgUrl.toString(), { method: 'GET', headers: { 'Bypass-Tunnel-Reminder': 'bypass' } });
         sendButton.style.backgroundImage = `url(${dataUri})`;
         sendButton.classList.remove('spin');
     }
@@ -59,7 +59,7 @@ async function setSpinnerIcon() {
         const sendButton = document.getElementById('send_picture');
         const imgUrl = new URL(getApiUrl());
         imgUrl.pathname = `/api/asset/${MODULE_NAME}/spinner-solid.svg`;
-        const dataUri = await urlContentToDataUri(imgUrl.toString());
+        const dataUri = await urlContentToDataUri(imgUrl.toString(), { method: 'GET', headers: { 'Bypass-Tunnel-Reminder': 'bypass' } });
         sendButton.style.backgroundImage = `url(${dataUri})`;
         sendButton.classList.add('spin');
     }

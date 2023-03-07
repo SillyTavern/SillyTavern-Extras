@@ -41,6 +41,21 @@ div.expression {
     white-space: pre-line;
 }
 
+.expression_settings p {
+    margin-bottom: 0px;
+}
+
+.expression_settings label {
+    display: flex;
+    align-items: center;
+    flex-direction: row;
+    margin-left: 0px;
+}
+
+.expression_settings label input {
+    margin-left: 0px !important;
+}
+
 @media screen and (max-width:1200px) {
     div.expression {
         display: none;

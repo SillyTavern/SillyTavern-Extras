@@ -1,11 +1,46 @@
 const MODULE_NAME = 'expressions';
-const SETTINGS_KEY = 'extensions_memory_settings';
+const DEFAULT_KEY = 'extensions_expressions_showDefault';
 const UPDATE_INTERVAL = 1000;
 
 let expressionsList = null;
 let lastCharacter = undefined;
 let lastMessage = null;
 let inApiCall = false;
+let showDefault = false;
+
+async function urlContentToDataUri(url, params) {
+    const response = await fetch(url, params);
+    const blob = await response.blob();
+    return await new Promise(callback => {
+        let reader = new FileReader();
+        reader.onload = function () { callback(this.result); };
+        reader.readAsDataURL(blob);
+    });
+}
+
+function loadSettings() {
+    showDefault = localStorage.getItem(DEFAULT_KEY) == 'true';
+    $('#expressions_show_default').prop('checked', showDefault).trigger('input');
+}
+
+function saveSettings() {
+    localStorage.setItem(DEFAULT_KEY, showDefault.toString());
+}
+
+function onExpressionsShowDefaultInput() {
+    const value = $(this).prop('checked');
+    showDefault = value;
+    saveSettings();
+
+    const existingImage = $('div.expression').css('background-image');
+    if (!value && existingImage.includes('data:image/png')) {
+        $('div.expression').css('background-image', 'unset');
+        lastMessage = null;
+    }
+    if (value) {
+        lastMessage = null;
+    }
+}
 
 const getContext = function () {
     return window['TavernAI'].getContext();
@@ -87,6 +122,7 @@ async function moduleWorker() {
 }
 
 function removeExpression() {
+    lastMessage = null;
     $('div.expression').css('background-image', 'unset');
     $('.expression_settings').hide();
 }
@@ -115,10 +151,10 @@ async function validateImages() {
         image.width = '0px';
         image.height = '0px';
         image.onload = function() {
-            $('#image_list').append(`<li class="success">${item} - OK</li>`);
+            $('#image_list').append(`<li id="${item}" class="success">${item} - OK</li>`);
         }
         image.onerror = function() {
-            $('#image_list').append(`<li class="failure">${item} - Missing</li>`);
+            $('#image_list').append(`<li id="${item}" class="failure">${item} - Missing</li>`);
         }
         $('#image_list').prepend(image);
     });
@@ -151,9 +187,23 @@ async function getExpressionsList() {
     }
 }
 
-function setExpression(character, expression) {
-    const imgUrl = `url('/characters/${character}/${expression}.png')`;
+async function setExpression(character, expression) {
+    const filename = `${expression}.png`;
+    const imgUrl = `url('/characters/${character}/${filename}')`;
     $('div.expression').css('background-image', imgUrl);
+
+    const debugImageStatus = document.querySelector(`#image_list li[id="${filename}"]`);
+    if (showDefault && debugImageStatus && debugImageStatus.classList.contains('failure')) {
+        try {
+            const imgUrl = new URL(getApiUrl());
+            imgUrl.pathname = `/api/asset/${MODULE_NAME}/${filename}`;
+            const dataUri = await urlContentToDataUri(imgUrl.toString(), { method: 'GET', headers: { 'Bypass-Tunnel-Reminder': 'bypass' } });
+            $('div.expression').css('background-image', `url(${dataUri})`);
+        } 
+        catch {
+            $('div.expression').css('background-image', 'unset');
+        }
+    }
 }
 
 (function () {
@@ -168,13 +218,16 @@ function setExpression(character, expression) {
             <ul id="image_list"></ul>
             <p><b>Hint:</b> <i>Put images into the <tt>public/characters/Name</tt>
             folder of TavernAI, where Name is the name of the character</i></p>
+            <label for="expressions_show_default"><input id="expressions_show_default" type="checkbox">Show default images (emojis) if missing</label>
         </div>
         `;
         $('#extensions_settings').append(html);
+        $('#expressions_show_default').on('input', onExpressionsShowDefaultInput);
         $('.expression_settings').hide();
     }
 
     addExpressionImage();
     addSettings();
+    loadSettings();
     setInterval(moduleWorker, UPDATE_INTERVAL);
 })();
