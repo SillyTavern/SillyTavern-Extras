@@ -37,7 +37,7 @@ DEFAULT_SUMMARIZE_PARAMS = {
     'max_length': 500,
     'min_length': 200,
     'length_penalty': 1.5,
-    'bad_words': ["\n", '"', "*", "[", "]", "{", "}", ":", "(", ")", "<", ">"]
+    'bad_words': ["\n", '"', "*", "[", "]", "{", "}", ":", "(", ")", "<", ">", "Â"]
 }
 
 class SplitArgs(argparse.Action):
@@ -202,7 +202,7 @@ def summarize(text: str, params: dict) -> str:
     token_count = len(inputs[0])
 
     bad_words_ids = [
-        summarization_tokenizer(bad_word, add_special_tokens=True).input_ids
+        summarization_tokenizer(bad_word, add_special_tokens=False).input_ids
         for bad_word in params['bad_words']
     ]
     summary_ids = summarization_transformer.generate(
