@@ -24,9 +24,18 @@ function getStringHash(str, seed = 0) {
     return 4294967296 * (2097151 & h2) + (h1 >>> 0);
 };
 
+function debounce(func, timeout = 300) {
+    let timer;
+    return (...args) => {
+        clearTimeout(timer);
+        timer = setTimeout(() => { func.apply(this, args); }, timeout);
+    };
+}
+
 const getContext = () => window['TavernAI'].getContext();
 const getApiUrl = () => localStorage.getItem('extensions_url');
 const formatMemoryValue = (value) => value ? `[Context: "${value.trim()}"]` : '';
+const saveChatDebounced = debounce(() => getContext().saveChat(), 2000);
 
 const defaultSettings = {
     minLongMemory: 16,
@@ -325,7 +334,7 @@ function setMemoryContext(value, saveToMessage) {
         }
 
         mes.extra.memory = value;
-        context.saveChat();
+        saveChatDebounced();
     }
 }
 
