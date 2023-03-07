@@ -314,7 +314,7 @@ function onMemoryContentInput() {
 
 function setMemoryContext(value, saveToMessage) {
     const context = getContext();
-    context.setExtensionPrompt(formatMemoryValue(value));
+    context.setExtensionPrompt(MODULE_NAME, formatMemoryValue(value));
     $('#memory_contents').val(value);
 
     if (saveToMessage && context.chat.length) {
@@ -325,6 +325,7 @@ function setMemoryContext(value, saveToMessage) {
         }
 
         mes.extra.memory = value;
+        context.saveChat();
     }
 }
 
