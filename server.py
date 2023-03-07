@@ -9,7 +9,6 @@ from transformers import BlipForConditionalGeneration, GPT2Tokenizer
 import unicodedata
 import torch
 import time
-import numpy as np
 from glob import glob
 import json
 import os
@@ -17,6 +16,9 @@ from PIL import Image
 import base64
 from io import BytesIO
 from random import randint
+from colorama import Fore, Style, init as colorama_init
+
+colorama_init()
 
 
 # Constants
@@ -83,9 +85,8 @@ sd_model = args.sd_model if args.sd_model else DEFAULT_SD_MODEL
 modules = args.enable_modules if args.enable_modules and len(args.enable_modules) > 0 else []
 
 if len(modules) == 0:
-    print('You did not select any modules to run! Choose them by adding an --enable-modules option')
-    print('Example: --enable-modules=caption,summarize')
-    exit(1)
+    print(f'{Fore.RED}{Style.BRIGHT}You did not select any modules to run! Choose them by adding an --enable-modules option')
+    print(f'Example: --enable-modules=caption,summarize{Style.RESET_ALL}')
 
 # Models init
 device_string = "cuda:0" if torch.cuda.is_available() and not args.cpu else "cpu"
