@@ -409,8 +409,14 @@ def api_image():
 
 if args.share:
     from flask_cloudflared import _run_cloudflared
-    metrics_port = randint(8100, 9000)
-    cloudflare = _run_cloudflared(port, metrics_port)
+    import inspect
+    sig = inspect.signature(_run_cloudflared)
+    sum = sum(1 for param in sig.parameters.values() if param.kind == param.POSITIONAL_OR_KEYWORD)
+    if sum > 1:
+        metrics_port = randint(8100, 9000)
+        cloudflare = _run_cloudflared(port, metrics_port)
+    else:
+        cloudflare = _run_cloudflared(port)
     print("Running on", cloudflare)
 
 load_extensions()
