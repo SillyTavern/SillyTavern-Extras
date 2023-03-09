@@ -178,7 +178,7 @@ File content
 ```
 > **NOTES**
 > 1. Sorted by descending score order
-> 2. Six fixed categories
+> 2. List of categories defined by the summarization model
 > 3. Value range from 0.0 to 1.0
 
 ### Key phrase extraction
