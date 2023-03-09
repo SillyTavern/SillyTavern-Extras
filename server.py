@@ -24,9 +24,10 @@ colorama_init()
 # Constants
 # Also try: 'Qiliang/bart-large-cnn-samsum-ElectrifAi_v10'
 DEFAULT_SUMMARIZATION_MODEL = 'Qiliang/bart-large-cnn-samsum-ChatGPT_v3'
+# Also try: 'joeddav/distilbert-base-uncased-go-emotions-student'
 DEFAULT_CLASSIFICATION_MODEL = 'bhadresh-savani/distilbert-base-uncased-emotion'
-# Also try: 'Salesforce/blip-image-captioning-large' or 'microsoft/git-large-r-textcaps'
-DEFAULT_CAPTIONING_MODEL = 'Salesforce/blip-image-captioning-base'
+# Also try: 'Salesforce/blip-image-captioning-base' or 'microsoft/git-large-r-textcaps'
+DEFAULT_CAPTIONING_MODEL = 'Salesforce/blip-image-captioning-large'
 DEFAULT_KEYPHRASE_MODEL = 'ml6team/keyphrase-extraction-distilbert-inspec'
 DEFAULT_PROMPT_MODEL = 'FredZhang7/anime-anything-promptgen-v2'
 DEFAULT_TEXT_MODEL = 'PygmalionAI/pygmalion-6b'
