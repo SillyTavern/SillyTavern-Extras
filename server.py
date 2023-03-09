@@ -29,7 +29,9 @@ DEFAULT_CLASSIFICATION_MODEL = 'bhadresh-savani/distilbert-base-uncased-emotion'
 DEFAULT_CAPTIONING_MODEL = 'Salesforce/blip-image-captioning-base'
 DEFAULT_KEYPHRASE_MODEL = 'ml6team/keyphrase-extraction-distilbert-inspec'
 DEFAULT_PROMPT_MODEL = 'FredZhang7/anime-anything-promptgen-v2'
+DEFAULT_TEXT_MODEL = 'PygmalionAI/pygmalion-6b'
 DEFAULT_SD_MODEL = "ckpt/anything-v4.5-vae-swapped"
+
 #ALL_MODULES = ['caption', 'summarize', 'classify', 'keywords', 'prompt', 'sd']
 DEFAULT_SUMMARIZE_PARAMS = {
     'temperature': 1.0,
@@ -69,6 +71,8 @@ parser.add_argument('--sd-model',
                     help="Load a custom SD image generation model")
 parser.add_argument('--sd-cpu',
                     help="Force the SD pipeline to run on the CPU")
+parser.add_argument('--text-model',
+                    help="Load a custom text generation model")
 parser.add_argument('--enable-modules', action=SplitArgs, default=[],
                     help="Override a list of enabled modules")
 
@@ -82,6 +86,7 @@ captioning_model = args.captioning_model if args.captioning_model else DEFAULT_C
 keyphrase_model = args.keyphrase_model if args.keyphrase_model else DEFAULT_KEYPHRASE_MODEL
 prompt_model = args.prompt_model if args.prompt_model else DEFAULT_PROMPT_MODEL
 sd_model = args.sd_model if args.sd_model else DEFAULT_SD_MODEL
+text_model = args.text_model if args.text_model else DEFAULT_TEXT_MODEL
 modules = args.enable_modules if args.enable_modules and len(args.enable_modules) > 0 else []
 
 if len(modules) == 0:
@@ -134,6 +139,11 @@ if 'sd' in modules:
     sd_pipe.enable_attention_slicing()
     # pipe.scheduler = KarrasVeScheduler.from_config(pipe.scheduler.config)
     sd_pipe.scheduler = EulerAncestralDiscreteScheduler.from_config(sd_pipe.scheduler.config)
+
+if 'text' in modules:
+    print('Initializing a text generator')
+    text_tokenizer = AutoTokenizer.from_pretrained(text_model)
+    text_transformer = AutoModelForCausalLM.from_pretrained(text_model, torch_dtype=torch.float16).to(device)
 
 prompt_prefix = "best quality, absurdres, "
 neg_prompt = """lowres, bad anatomy, error body, error hair, error arm,
@@ -263,6 +273,27 @@ def image_to_base64(image: Image):
     img_str = base64.b64encode(buffered.getvalue()).decode("utf-8") 
     return img_str
 
+def generate_text(prompt: str) -> str:
+    input_ids = text_tokenizer.encode(prompt, return_tensors="pt").to(device)
+    attention_mask = torch.ones_like(input_ids)
+    output = text_transformer.generate(
+        input_ids,
+        max_length=2048,
+        do_sample=True,
+        use_cache=True,
+        min_new_tokens=10,
+        temperature=0.71,
+        repetition_penalty=1.15,
+        top_p=0.9,
+        top_k=40,
+        attention_mask=attention_mask,
+        pad_token_id=text_tokenizer.pad_token_id,
+        )
+    if output is not None:
+            generated_text = text_tokenizer.decode(output[0], skip_special_tokens=True)
+            return generated_text
+    else:
+        return "This is an empty message. Something went wrong. Please check your code!"
 
 @app.before_request
 # Request time measuring
@@ -394,6 +425,7 @@ def api_prompt():
     return jsonify({'prompts': prompts})
 
 
+
 @app.route('/api/image', methods=['POST'])
 @require_module('sd')
 def api_image():
@@ -406,6 +438,16 @@ def api_image():
     base64image = image_to_base64(image)
     return jsonify({'image': base64image})
 
+@app.route('/api/text', methods=['POST'])
+@require_module('text')
+def api_prompt():
+    data = request.get_json()
+
+    if 'prompt' not in data or not isinstance(data['prompt'], str):
+        abort(400, '"prompt" is required')
+    prompt = data['prompt']
+    results = generate_text(prompt)
+    return jsonify({'results': results})
 
 if args.share:
     from flask_cloudflared import _run_cloudflared
