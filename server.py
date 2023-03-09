@@ -441,9 +441,8 @@ def api_image():
 
 @app.route('/api/text', methods=['POST'])
 @require_module('text')
-def api_prompt():
+def api_text():
     data = request.get_json()
-
     if 'prompt' not in data or not isinstance(data['prompt'], str):
         abort(400, '"prompt" is required')
     prompt = data['prompt']
