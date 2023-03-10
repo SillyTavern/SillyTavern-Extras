@@ -51,6 +51,7 @@ DEFAULT_TEXT_PARAMS = {
     'repetition_penalty':1.15,
     'top_p':0.9,
     'top_k':40,
+    'typical_p':1,
     'repetition_penalty': 1,
     'num_beams': 1,
     'penalty_alpha': 0,
@@ -306,7 +307,7 @@ def generate_text(prompt: str, settings: dict) -> str:
         repetition_penalty=float(settings['repetition_penalty']),
         num_beams=int(settings['num_beams']),
         top_p=float(settings['top_p']),
-        top_k=float(settings['top_k']),
+        top_k=int(settings['top_k']),
         no_repeat_ngram_size=float(settings['no_repeat_ngram_size']),
         attention_mask=attention_mask,
         pad_token_id=text_tokenizer.pad_token_id,
@@ -325,7 +326,7 @@ def generate_text(prompt: str, settings: dict) -> str:
                 closest_lines[0] = closest_lines[0].replace(filter_word, '', 1).lstrip()
                 result_text = "\n".join(closest_lines)
         results = {"text" : result_text}
-        return results.replace(r'<|endoftext|>', '')
+        return results
     else:
         return {'text': "This is an empty message. Something went wrong. Please check your code!"}
 
