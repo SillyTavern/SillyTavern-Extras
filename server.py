@@ -44,13 +44,12 @@ DEFAULT_SUMMARIZE_PARAMS = {
 }
 DEFAULT_TEXT_PARAMS = {
     'do_sample': True,
-    'max_length':2048,
     'use_cache':True,
     'min_new_tokens':10,
-    'temperature':0.71,
-    'repetition_penalty':1.15,
+    'temperature':0.6,
+    'repetition_penalty':1.1,
     'top_p':0.9,
-    'top_k':40,
+    'top_k':0,
     'typical_p':1,
     'repetition_penalty': 1,
     'num_beams': 1,
@@ -295,7 +294,6 @@ def generate_text(prompt: str, settings: dict) -> str:
     attention_mask = torch.ones_like(input_ids)
     output = text_transformer.generate(
         input_ids,
-        max_length=int(settings['max_length']),
         do_sample=settings['do_sample'],
         use_cache=settings['use_cache'],
         typical_p=float(settings['typical_p']),
