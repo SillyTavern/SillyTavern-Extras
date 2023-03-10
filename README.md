@@ -76,6 +76,7 @@ python server.py
 | `classify`  | Text sentiment classification     | ✔️ Yes      |
 | `keywords`  | Text key phrases extraction       | ✔️ Yes      |
 | `prompt`    | SD prompt generation from text    | ✔️ Yes     |
+| `text`      | Chat text generation from promt   | ✔️ Yes     |
 | `sd`        | Stable Diffusion image generation | :x: No      |
 
 ## API Endpoints
@@ -220,6 +221,17 @@ File content
 ```
 { "image": "base64 encoded image" }
 ```
+### Chat text model generation
+`POST /api/text`
+#### **Input**
+Prompt is required, settings is not.
+```
+{ "prompt": "prompt to be generated", "settings": setting stuff here }
+```
+#### **Output**
+```
+{ "results": ["text": "continuation of the prompt"] }
+```
 
 ## Additional options
 | Flag                     | Description                                                            |
@@ -233,6 +245,8 @@ File content
 | `--classification-model` | Load a custom sentiment classification model.<br>Expects a HuggingFace model ID.<br>Default (6 emotions): [bhadresh-savani/distilbert-base-uncased-emotion](https://huggingface.co/bhadresh-savani/distilbert-base-uncased-emotion)<br>Other solid option is (28 emotions): [joeddav/distilbert-base-uncased-go-emotions-student](https://huggingface.co/joeddav/distilbert-base-uncased-go-emotions-student) |
 | `--captioning-model`     | Load a custom captioning model.<br>Expects a HuggingFace model ID.<br>Default: [Salesforce/blip-image-captioning-large](https://huggingface.co/Salesforce/blip-image-captioning-large)<br>Other option (better for recognizing images with text on them, but worse for anime-style pictures): [microsoft/git-large-r-textcaps](https://huggingface.co/microsoft/git-large-r-textcaps) |
 | `--keyphrase-model`      | Load a custom key phrase extraction model.<br>Expects a HuggingFace model ID.<br>Default: [ml6team/keyphrase-extraction-distilbert-inspec](https://huggingface.co/ml6team/keyphrase-extraction-distilbert-inspec) |
+| `--text-model`           | Load a custom text generation model.<br>Expects a HuggingFace model ID.<br>Default: [PygmalionAI/pygmalion-6b]
+(https://huggingface.co/PygmalionAI/pygmalion-6b)
 | `--prompt-model`         | Load a custom prompt generation model.<br>Expects a HuggingFace model ID.<br>Default: [FredZhang7/anime-anything-promptgen-v2](https://huggingface.co/FredZhang7/anime-anything-promptgen-v2) |
 | `--sd-model`             | Load a custom Stable Diffusion image generation model.<br>Expects a HuggingFace model ID.<br>Default: [ckpt/anything-v4.5-vae-swapped](https://huggingface.co/ckpt/anything-v4.5-vae-swapped)<br>*Must have VAE pre-baked in PyTorch format or the output will look drab!* |
 | `--sd-cpu`               | Force the Stable Diffusion generation pipeline to run on the CPU.<br>**SLOW!** |
