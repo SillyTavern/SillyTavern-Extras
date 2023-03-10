@@ -42,7 +42,14 @@ DEFAULT_SUMMARIZE_PARAMS = {
     'length_penalty': 1.5,
     'bad_words': ["\n", '"', "*", "[", "]", "{", "}", ":", "(", ")", "<", ">", "Â"]
 }
-
+DEFAULT_TEXT_PARAMS = {
+    'max_length':2048,
+    'min_new_tokens':10,
+    'temperature':0.71,
+    'repetition_penalty':1.15,
+    'top_p':0.9,
+    'top_k':40,
+}
 class SplitArgs(argparse.Action):
     def __call__(self, parser, namespace, values, option_string=None):
         setattr(namespace, self.dest, values.replace('"', '').replace("'", '').split(','))
@@ -274,19 +281,19 @@ def image_to_base64(image: Image):
     img_str = base64.b64encode(buffered.getvalue()).decode("utf-8") 
     return img_str
 
-def generate_text(prompt: str) -> str:
+def generate_text(prompt: str, settings: dict) -> str:
     input_ids = text_tokenizer.encode(prompt, return_tensors="pt").to(device)
     attention_mask = torch.ones_like(input_ids)
     output = text_transformer.generate(
         input_ids,
-        max_length=2048,
+        max_length=int(settings['max_length']),
         do_sample=True,
         use_cache=True,
-        min_new_tokens=10,
-        temperature=0.71,
-        repetition_penalty=1.15,
-        top_p=0.9,
-        top_k=40,
+        min_new_tokens=int(settings['min_new_tokens']),
+        temperature=float(settings['temperature']),
+        repetition_penalty=float(settings['repetition_penalty']),
+        top_p=float(settings['top_p']),
+        top_k=float(settings['top_k']),
         attention_mask=attention_mask,
         pad_token_id=text_tokenizer.pad_token_id,
         )
@@ -457,8 +464,14 @@ def api_text():
     data = request.get_json()
     if 'prompt' not in data or not isinstance(data['prompt'], str):
         abort(400, '"prompt" is required')
+
+    settings = DEFAULT_TEXT_PARAMS.copy()
+
+    if 'settings' in data and isinstance(data['settings'], dict):
+        settings.update(data['settings'])
+    
     prompt = data['prompt']
-    results = {'results': [generate_text(prompt)]}
+    results = {'results': [generate_text(prompt, settings)]}
     return jsonify(results)
 
 if args.share:
