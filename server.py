@@ -291,10 +291,22 @@ def generate_text(prompt: str) -> str:
         pad_token_id=text_tokenizer.pad_token_id,
         )
     if output is not None:
-            generated_text = text_tokenizer.decode(output[0], skip_special_tokens=True)
-            return generated_text
+        generated_text = text_tokenizer.decode(output[0], skip_special_tokens=True)
+        prompt_lines  = [line.strip() for line in str(prompt).split("\n")]
+        response_lines  = [line.strip() for line in str(generated_text).split("\n")]
+        new_amt = (len(response_lines) - len(prompt_lines)) + 1
+        closest_lines = response_lines[-new_amt:]
+        last_line = prompt_lines[-1]
+        if last_line:
+            last_line_words = last_line.split()
+            if len(last_line_words) > 0:
+                filter_word = last_line_words[0]
+                closest_lines[0] = closest_lines[0].replace(filter_word, '', 1).lstrip()
+                result_text = "\n".join(closest_lines)
+        results = {"text" : result_text}
+        return results
     else:
-        return "This is an empty message. Something went wrong. Please check your code!"
+        return {'text': "This is an empty message. Something went wrong. Please check your code!"}
 
 @app.before_request
 # Request time measuring
@@ -446,8 +458,8 @@ def api_text():
     if 'prompt' not in data or not isinstance(data['prompt'], str):
         abort(400, '"prompt" is required')
     prompt = data['prompt']
-    results = generate_text(prompt)
-    return jsonify({'results': results})
+    results = {'results': [generate_text(prompt)]}
+    return jsonify(results)
 
 if args.share:
     from flask_cloudflared import _run_cloudflared
