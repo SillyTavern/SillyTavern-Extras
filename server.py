@@ -43,12 +43,20 @@ DEFAULT_SUMMARIZE_PARAMS = {
     'bad_words': ["\n", '"', "*", "[", "]", "{", "}", ":", "(", ")", "<", ">", "Â"]
 }
 DEFAULT_TEXT_PARAMS = {
+    'do_sample': True,
     'max_length':2048,
+    'use_cache':True,
     'min_new_tokens':10,
     'temperature':0.71,
     'repetition_penalty':1.15,
     'top_p':0.9,
     'top_k':40,
+    'repetition_penalty': 1,
+    'num_beams': 1,
+    'penalty_alpha': 0,
+    'length_penalty': 1,
+    'no_repeat_ngram_size': 0,
+    'early_stopping': False,
 }
 class SplitArgs(argparse.Action):
     def __call__(self, parser, namespace, values, option_string=None):
@@ -287,13 +295,18 @@ def generate_text(prompt: str, settings: dict) -> str:
     output = text_transformer.generate(
         input_ids,
         max_length=int(settings['max_length']),
-        do_sample=True,
-        use_cache=True,
+        do_sample=settings['do_sample'],
+        use_cache=settings['use_cache'],
+        typical_p=float(settings['typical_p']),
+        penalty_alpha=float(settings['penalty_alpha']),
         min_new_tokens=int(settings['min_new_tokens']),
         temperature=float(settings['temperature']),
+        length_penalty=float(settings['length_penalty']),
+        early_stopping=settings['early_stopping'],
         repetition_penalty=float(settings['repetition_penalty']),
         top_p=float(settings['top_p']),
         top_k=float(settings['top_k']),
+        no_repeat_ngram_size=float(settings['no_repeat_ngram_size']),
         attention_mask=attention_mask,
         pad_token_id=text_tokenizer.pad_token_id,
         )
@@ -311,7 +324,7 @@ def generate_text(prompt: str, settings: dict) -> str:
                 closest_lines[0] = closest_lines[0].replace(filter_word, '', 1).lstrip()
                 result_text = "\n".join(closest_lines)
         results = {"text" : result_text}
-        return results
+        return results.replace(r'<|endoftext|>', '')
     else:
         return {'text': "This is an empty message. Something went wrong. Please check your code!"}
 
