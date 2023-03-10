@@ -304,6 +304,7 @@ def generate_text(prompt: str, settings: dict) -> str:
         length_penalty=float(settings['length_penalty']),
         early_stopping=settings['early_stopping'],
         repetition_penalty=float(settings['repetition_penalty']),
+        num_beams=int(settings['num_beams']),
         top_p=float(settings['top_p']),
         top_k=float(settings['top_k']),
         no_repeat_ngram_size=float(settings['no_repeat_ngram_size']),
