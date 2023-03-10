@@ -38,7 +38,7 @@ async function moduleWorker() {
     lastMessageNumber = Array.isArray(context.chat) && context.chat.length ? context.chat.filter(m => m.is_user).length : 0;
 
     if (lastMessageNumber <= 0 || promptInsertionInterval <= 0) {
-        $('#extension_floating_counter').text('NEVER');
+        $('#extension_floating_counter').text('No');
         return;
     }
 
@@ -58,7 +58,7 @@ async function moduleWorker() {
             <textarea id="extension_floating_prompt" class="text_pole" rows="2"></textarea>
             <label for="extension_floating_interval">Every N messages <b>you</b> send (set to 0 to disable):</label>
             <input id="extension_floating_interval" class="text_pole" type="number" value="0" min="0" max="999" />
-            <span>Appending the prompt in next: <span id="extension_floating_counter">NEVER</span> message(s)</span>
+            <span>Appending the prompt in next: <span id="extension_floating_counter">No</span> message(s)</span>
         </div>
         `;
 
