@@ -177,7 +177,7 @@ def load_extensions():
         manifest_path = os.path.join(match, 'manifest.json')
         if os.path.exists(manifest_path):
             name = os.path.basename(os.path.normpath(match))
-            with open(manifest_path, 'r') as f:
+            with open(manifest_path, 'r', encoding='utf8') as f:
                 manifest_content = f.read()
             manifest = json.loads(manifest_content)
             if set(manifest['requires']).issubset(set(modules)):
@@ -280,7 +280,7 @@ def after_request(response):
 
 @app.route('/', methods=['GET'])
 def index():
-    with open('./README.md', 'r') as f:
+    with open('./README.md', 'r', encoding='utf8') as f:
         content = f.read()
     return render_template_string(markdown.markdown(content, extensions=['tables']))
 
