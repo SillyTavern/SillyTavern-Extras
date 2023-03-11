@@ -48,7 +48,7 @@ DEFAULT_TEXT_PARAMS = {
     'use_cache':True,
     'min_new_tokens':10,
     'temperature':0.71,
-    'repetition_penalty':1.15,
+    'repetition_penalty':1.01,
     'top_p':0.9,
     'top_k':40,
     'typical_p':1,
