@@ -19,7 +19,7 @@ Try on Colab (runs KoboldAI backend and TavernAI Extras server alongside):  <a t
 > If you want to use the most advanced features (like Stable Diffusion, TTS), change that to **requirements-complete.txt** in commands below. See [Modules](#modules) section for more details.
 
 > You must specify a list of module names to be run in the `--enable-modules` command (`caption` provided as an example). See [Modules](#modules) section.
-### Colab
+### ☁️ Colab
 * Open colab link
 * Select desired "extra" options and start the cell
 * Wait for it to finish
@@ -27,8 +27,8 @@ Try on Colab (runs KoboldAI backend and TavernAI Extras server alongside):  <a t
 * Start TavernAI with extensions support: set `enableExtensions` to `true` in [config.conf](https://github.com/SillyLossy/TavernAI/blob/dev/config.conf)
 * Navigate to TavernAI settings and put in an API URL and tap "Connect" to load the extensions
 
-### Locally
-#### Option 1 - Conda (recommended)
+### 💻 Locally
+#### Option 1 - Conda (recommended) 🐍
 * Install Miniconda: https://docs.conda.io/en/latest/miniconda.html
 * Before the first run, create an environment (let's call it `extras`):
 ```
@@ -48,7 +48,7 @@ pip install -r requirements.txt
 conda activate extras
 python server.py
 ```
-#### Option 2 - Vanilla
+#### Option 2 - Vanilla 🍦
 * Install Python 3.10
 * Run `pip install -r requirements.txt`
 * Run `python server.py --enable-modules=caption`
@@ -56,10 +56,10 @@ python server.py
 * Start TavernAI with extensions support: set `enableExtensions` to `true` in [config.conf](https://github.com/SillyLossy/TavernAI/blob/dev/config.conf)
 * Navigate to TavernAI settings and put in an API URL and tap "Connect" to load the extensions
 
-### Settings menu
+### Settings menu ⚙️
 <img src="https://user-images.githubusercontent.com/18619528/222469130-84cf5784-7f0d-48b9-bf8d-3851f2c8cea0.png" style="width:500px">
 
-## UI Extensions
+## UI Extensions 🚀
 | Name             | Description                      | Required [Modules](#modules) | Screenshot |
 | ---------------- | ---------------------------------| ---------------------------- | ---------- |
 | Image Captioning | Send a cute picture to your bot!<br><br>Picture select option will appear beside "Message send" button. | `caption`                    | <img src="https://user-images.githubusercontent.com/18619528/224161576-ddfc51cd-995e-44ec-bf2d-d2477d603f0c.png" style="max-width:200px" />  |
