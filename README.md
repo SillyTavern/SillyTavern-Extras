@@ -30,6 +30,7 @@ Try on Colab (runs KoboldAI backend and TavernAI Extras server alongside):  <a t
 ### 💻 Locally
 #### Option 1 - Conda (recommended) 🐍
 * Install Miniconda: https://docs.conda.io/en/latest/miniconda.html
+* Install git: https://git-scm.com/downloads
 * Before the first run, create an environment (let's call it `extras`):
 ```
 conda create -n extras
@@ -50,6 +51,7 @@ python server.py
 ```
 #### Option 2 - Vanilla 🍦
 * Install Python 3.10
+* Install git: https://git-scm.com/downloads
 * Run `pip install -r requirements.txt`
 * Run `python server.py --enable-modules=caption`
 * Get the API URL. Defaults to `http://localhost:5100` if you run locally.
