@@ -50,7 +50,7 @@ conda activate extras
 python server.py
 ```
 #### Option 2 - Vanilla 🍦
-* Install Python 3.10
+* Install Python 3.10: https://www.python.org/downloads/release/python-31010/
 * Install git: https://git-scm.com/downloads
 * Clone the repo:
 ```
