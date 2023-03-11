@@ -19,6 +19,14 @@ Try on Colab (runs KoboldAI backend and TavernAI Extras server alongside):  <a t
 > If you want to use the most advanced features (like Stable Diffusion, TTS), change that to **requirements-complete.txt** in commands below. See [Modules](#modules) section for more details.
 
 > You must specify a list of module names to be run in the `--enable-modules` command (`caption` provided as an example). See [Modules](#modules) section.
+### Colab
+* Open colab link
+* Select desired "extra" options and start the cell
+* Wait for it to finish
+* Get an API URL link from colab output under the `### TavernAI Extensions LINK ###` title
+* Start TavernAI with extensions support: set `enableExtensions` to `true` in [config.conf](https://github.com/SillyLossy/TavernAI/blob/dev/config.conf)
+* Navigate to TavernAI settings and put in an API URL and tap "Connect" to load the extensions
+
 ### Locally
 #### Option 1 - Conda (recommended)
 * Install Miniconda: https://docs.conda.io/en/latest/miniconda.html
@@ -45,13 +53,6 @@ python server.py
 * Run `pip install -r requirements.txt`
 * Run `python server.py --enable-modules=caption`
 * Get the API URL. Defaults to `http://localhost:5100` if you run locally.
-* Start TavernAI with extensions support: set `enableExtensions` to `true` in [config.conf](https://github.com/SillyLossy/TavernAI/blob/dev/config.conf)
-* Navigate to TavernAI settings and put in an API URL and tap "Connect" to load the extensions
-### Colab
-* Open colab link
-* Select desired "extra" options and start the cell
-* Wait for it to finish
-* Get an API URL link from colab output under the `### TavernAI Extensions LINK ###` title
 * Start TavernAI with extensions support: set `enableExtensions` to `true` in [config.conf](https://github.com/SillyLossy/TavernAI/blob/dev/config.conf)
 * Navigate to TavernAI settings and put in an API URL and tap "Connect" to load the extensions
 
