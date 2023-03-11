@@ -1,0 +1,9 @@
+{
+    "display_name": "D&D Dice",
+    "requires": [],
+    "js": "index.js",
+    "css": "style.css",
+    "assets": [
+        "dice-solid.svg"
+    ]
+}
