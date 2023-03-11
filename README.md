@@ -52,6 +52,11 @@ python server.py
 #### Option 2 - Vanilla 🍦
 * Install Python 3.10
 * Install git: https://git-scm.com/downloads
+* Clone the repo:
+```
+git clone https://github.com/SillyLossy/TavernAI-extras
+cd TavernAI-extras
+```
 * Run `pip install -r requirements.txt`
 * Run `python server.py --enable-modules=caption`
 * Get the API URL. Defaults to `http://localhost:5100` if you run locally.
