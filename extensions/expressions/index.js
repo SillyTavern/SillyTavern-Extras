@@ -216,8 +216,7 @@ async function setExpression(character, expression) {
         <div class="expression_settings">
             <h4>Expression images</h4>
             <ul id="image_list"></ul>
-            <p><b>Hint:</b> <i>Put images into the <tt>public/characters/Name</tt>
-            folder of TavernAI, where Name is the name of the character</i></p>
+            <p><b>Hint:</b> <i>Create new folder in the <tt>public/characters/</tt> folder and name it as the name of the character. Put PNG images with expressions there.</i></p>
             <label for="expressions_show_default"><input id="expressions_show_default" type="checkbox">Show default images (emojis) if missing</label>
         </div>
         `;
