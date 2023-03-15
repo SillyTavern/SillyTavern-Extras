@@ -408,6 +408,11 @@ def api_image():
     return jsonify({'image': base64image})
 
 
+@app.route('/api/modules', methods=['GET'])
+def get_modules():
+    return jsonify({'modules': modules})
+
+
 if args.share:
     from flask_cloudflared import _run_cloudflared
     import inspect
