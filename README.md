@@ -67,6 +67,9 @@ cd TavernAI-extras
 <img src="https://user-images.githubusercontent.com/18619528/222469130-84cf5784-7f0d-48b9-bf8d-3851f2c8cea0.png" style="width:500px">
 
 ## UI Extensions 🚀
+
+### Will be moved to main project soon!!
+
 | Name             | Description                      | Required [Modules](#modules) | Screenshot |
 | ---------------- | ---------------------------------| ---------------------------- | ---------- |
 | Image Captioning | Send a cute picture to your bot!<br><br>Picture select option will appear beside "Message send" button. | `caption`                    | <img src="https://user-images.githubusercontent.com/18619528/224161576-ddfc51cd-995e-44ec-bf2d-d2477d603f0c.png" style="max-width:200px" />  |
