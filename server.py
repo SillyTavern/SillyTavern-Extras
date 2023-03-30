@@ -40,6 +40,7 @@ DEFAULT_SUMMARIZE_PARAMS = {
     'length_penalty': 1.5,
     'bad_words': ["\n", '"', "*", "[", "]", "{", "}", ":", "(", ")", "<", ">", "Â"]
 }
+DEFAULT_POE_BOT = 'a2' # Claude my beloved
 
 class SplitArgs(argparse.Action):
     def __call__(self, parser, namespace, values, option_string=None):
@@ -135,6 +136,11 @@ if 'sd' in modules:
     sd_pipe.enable_attention_slicing()
     # pipe.scheduler = KarrasVeScheduler.from_config(pipe.scheduler.config)
     sd_pipe.scheduler = EulerAncestralDiscreteScheduler.from_config(sd_pipe.scheduler.config)
+
+if 'poe' in modules:
+    import poe
+    import logging
+    poe.logger.setLevel(logging.ERROR)
 
 prompt_prefix = "best quality, absurdres, "
 neg_prompt = """lowres, bad anatomy, error body, error hair, error arm,
@@ -263,6 +269,23 @@ def image_to_base64(image: Image):
     image.save(buffered, format="JPEG")
     img_str = base64.b64encode(buffered.getvalue()).decode("utf-8") 
     return img_str
+
+
+def poe_status(token: str) -> dict:
+    client = poe.Client(token)
+    return client.bot_names
+
+
+def poe_purge(token: str, bot: str):
+    client = poe.Client(token)
+    client.purge_conversation(bot)
+
+
+def poe_generate(token: str, bot: str, prompt: str) -> str:
+    client = poe.Client(token)
+    for chunk in client.send_message(bot, prompt):
+      pass
+    return chunk["text"]
 
 
 @app.before_request
@@ -411,6 +434,65 @@ def api_image():
 @app.route('/api/modules', methods=['GET'])
 def get_modules():
     return jsonify({'modules': modules})
+
+
+@app.route('/api/poe/status', methods=['POST'])
+@require_module('poe')
+def api_poe_status():
+    data = request.get_json()
+
+    if 'token' not in data or not isinstance(data['token'], str):
+        abort(400, '"token" is required')
+
+    token = data['token']
+    bot_names = poe_status(token)
+    return jsonify({'bot_names': bot_names})
+
+
+@app.route('/api/poe/purge', methods=['POST'])
+@require_module('poe')
+def api_poe_purge():
+    data = request.get_json()
+
+    if 'token' not in data or not isinstance(data['token'], str):
+        abort(400, '"token" is required')
+
+    if 'token' not in data or not isinstance(data['token'], str):
+        abort(400, '"token" is required')
+
+    token = data['token']
+
+    bot = DEFAULT_POE_BOT
+
+    if 'bot' in data and isinstance(data['bot'], str):
+        bot = data['bot']
+
+    poe_purge(token, bot)
+    return jsonify({"ok": True})
+
+
+@app.route('/api/poe/generate', methods=['POST'])
+@require_module('poe')
+def api_poe_generate():
+    data = request.get_json()
+
+    if 'prompt' not in data or not isinstance(data['prompt'], str):
+        abort(400, '"prompt is required')
+
+    prompt = data['prompt']
+
+    if 'token' not in data or not isinstance(data['token'], str):
+        abort(400, '"token" is required')
+
+    token = data['token']
+
+    bot = DEFAULT_POE_BOT
+
+    if 'bot' in data and isinstance(data['bot'], str):
+        bot = data['bot']
+
+    reply = poe_generate(token, bot, prompt)
+    return jsonify({'reply': reply})
 
 
 if args.share:

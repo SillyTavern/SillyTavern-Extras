@@ -4,6 +4,7 @@ flask-cors
 markdown
 Pillow
 colorama
+git+https://github.com/SillyLossy/poe-api
 --extra-index-url https://download.pytorch.org/whl/cu117
 torch==1.13.1+cu117
 git+https://github.com/huggingface/transformers
