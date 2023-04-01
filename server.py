@@ -139,8 +139,7 @@ if 'sd' in modules:
 
 if 'poe' in modules:
     import poe
-    import logging
-    poe.logger.setLevel(logging.ERROR)
+    poe.logger.disabled = True
 
 prompt_prefix = "best quality, absurdres, "
 neg_prompt = """lowres, bad anatomy, error body, error hair, error arm,
@@ -276,15 +275,18 @@ def poe_status(token: str) -> dict:
     return client.bot_names
 
 
-def poe_purge(token: str, bot: str):
+def poe_purge(token: str, bot: str, count: int):
     client = poe.Client(token)
-    client.purge_conversation(bot)
+    client.purge_conversation(bot, count)
 
 
 def poe_generate(token: str, bot: str, prompt: str) -> str:
+    print('## Prompt:', prompt, sep="\n")
     client = poe.Client(token)
     for chunk in client.send_message(bot, prompt):
       pass
+    time.sleep(0.5)
+    print('## Reply:', chunk["text"], sep="\n")
     return chunk["text"]
 
 
@@ -461,13 +463,16 @@ def api_poe_purge():
         abort(400, '"token" is required')
 
     token = data['token']
-
+    count = -1
     bot = DEFAULT_POE_BOT
 
     if 'bot' in data and isinstance(data['bot'], str):
         bot = data['bot']
 
-    poe_purge(token, bot)
+    if 'count' in data and isinstance(data['count'], int):
+        count = data['count']
+
+    poe_purge(token, bot, count)
     return jsonify({"ok": True})
 
 
