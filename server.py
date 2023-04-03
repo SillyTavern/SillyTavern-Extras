@@ -141,6 +141,16 @@ if 'poe' in modules:
     import poe
     poe.logger.disabled = True
 
+    # `with` support
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.disconnect_ws()
+    
+    poe.Client.__enter__ = __enter__
+    poe.Client.__exit__ = __exit__
+
 prompt_prefix = "best quality, absurdres, "
 neg_prompt = """lowres, bad anatomy, error body, error hair, error arm,
 error hands, bad hands, error fingers, bad fingers, missing fingers
@@ -271,23 +281,23 @@ def image_to_base64(image: Image):
 
 
 def poe_status(token: str) -> dict:
-    client = poe.Client(token)
-    return client.bot_names
+    with poe.Client(token) as client:
+        return client.bot_names
 
 
 def poe_purge(token: str, bot: str, count: int):
-    client = poe.Client(token)
-    client.purge_conversation(bot, count)
+    with poe.Client(token) as client:
+        client.purge_conversation(bot, count)
 
 
 def poe_generate(token: str, bot: str, prompt: str) -> str:
     print('## Prompt:', prompt, sep="\n")
-    client = poe.Client(token)
-    for chunk in client.send_message(bot, prompt):
-      pass
-    time.sleep(0.5)
-    print('## Reply:', chunk["text"], sep="\n")
-    return chunk["text"]
+    with poe.Client(token) as client:
+        for chunk in client.send_message(bot, prompt):
+          pass
+        time.sleep(0.5)
+        print('## Reply:', chunk["text"], sep="\n")
+        return chunk["text"]
 
 
 @app.before_request
