@@ -6,9 +6,9 @@ Pillow
 colorama
 git+https://github.com/SillyLossy/poe-api
 --extra-index-url https://download.pytorch.org/whl/cu117
-torch==1.13.1+cu117
-torchvision
-torchaudio
+torch==2.0.0+cu117
+torchvision==0.15.1
+torchaudio==2.0.1
 accelerate
 git+https://github.com/huggingface/transformers
 git+https://github.com/huggingface/diffusers
