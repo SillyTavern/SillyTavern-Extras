@@ -1,5 +1,5 @@
 from functools import wraps
-from flask import Flask, jsonify, request, render_template_string, abort, send_from_directory
+from flask import Flask, jsonify, request, render_template_string, abort
 from flask_cors import CORS
 import markdown
 import argparse
@@ -9,9 +9,6 @@ from transformers import BlipForConditionalGeneration, GPT2Tokenizer
 import unicodedata
 import torch
 import time
-from glob import glob
-import json
-import os
 from PIL import Image
 import base64
 from io import BytesIO
@@ -40,7 +37,6 @@ DEFAULT_SUMMARIZE_PARAMS = {
     'length_penalty': 1.5,
     'bad_words': ["\n", '"', "*", "[", "]", "{", "}", ":", "(", ")", "<", ">", "Â"]
 }
-DEFAULT_POE_BOT = 'a2' # Claude my beloved
 
 class SplitArgs(argparse.Action):
     def __call__(self, parser, namespace, values, option_string=None):
@@ -137,20 +133,6 @@ if 'sd' in modules:
     # pipe.scheduler = KarrasVeScheduler.from_config(pipe.scheduler.config)
     sd_pipe.scheduler = EulerAncestralDiscreteScheduler.from_config(sd_pipe.scheduler.config)
 
-if 'poe' in modules:
-    import poe
-    poe.logger.disabled = True
-
-    # `with` support
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        self.disconnect_ws()
-    
-    poe.Client.__enter__ = __enter__
-    poe.Client.__exit__ = __exit__
-
 prompt_prefix = "best quality, absurdres, "
 neg_prompt = """lowres, bad anatomy, error body, error hair, error arm,
 error hands, bad hands, error fingers, bad fingers, missing fingers
@@ -173,8 +155,6 @@ app = Flask(__name__)
 CORS(app) # allow cross-domain requests
 app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024
 
-extensions = []
-
 
 def require_module(name):
     def wrapper(fn):
@@ -185,18 +165,6 @@ def require_module(name):
             return fn(*args, **kwargs)
         return decorated_view
     return wrapper
-
-
-def load_extensions():
-    for match in glob("./extensions/*/"):
-        manifest_path = os.path.join(match, 'manifest.json')
-        if os.path.exists(manifest_path):
-            name = os.path.basename(os.path.normpath(match))
-            with open(manifest_path, 'r', encoding='utf8') as f:
-                manifest_content = f.read()
-            manifest = json.loads(manifest_content)
-            if set(manifest['requires']).issubset(set(modules)):
-                extensions.append({'name': name, 'metadata': manifest})
 
 
 # AI stuff
@@ -280,26 +248,6 @@ def image_to_base64(image: Image):
     return img_str
 
 
-def poe_status(token: str) -> dict:
-    with poe.Client(token) as client:
-        return client.bot_names
-
-
-def poe_purge(token: str, bot: str, count: int):
-    with poe.Client(token) as client:
-        client.purge_conversation(bot, count)
-
-
-def poe_generate(token: str, bot: str, prompt: str) -> str:
-    print('## Prompt:', prompt, sep="\n")
-    with poe.Client(token) as client:
-        for chunk in client.send_message(bot, prompt):
-          pass
-        time.sleep(0.5)
-        print('## Reply:', chunk["text"], sep="\n")
-        return chunk["text"]
-
-
 @app.before_request
 # Request time measuring
 def before_request():
@@ -322,33 +270,19 @@ def index():
 
 @app.route('/api/extensions', methods=['GET'])
 def get_extensions():
-    return jsonify({'extensions': extensions})
-
-
-@app.route('/api/script/<name>', methods=['GET'])
-def get_script(name: str):
-    extension = [element for element in extensions if element['name'] == name]
-    if len(extension) == 0:
-        abort(404)
-    return send_from_directory(os.path.join('./extensions/', extension[0]['name']),  extension[0]['metadata']['js'])
-    
-
-@app.route('/api/style/<name>', methods=['GET'])
-def get_style(name: str):
-    extension = [element for element in extensions if element['name'] == name]
-    if len(extension) == 0:
-        abort(404)
-    return send_from_directory(os.path.join('./extensions/', extension[0]['name']),  extension[0]['metadata']['css'])
-
-
-@app.route('/api/asset/<name>/<asset>', methods=['GET'])
-def get_asset(name: str, asset: str):
-    extension = [element for element in extensions if element['name'] == name]
-    if len(extension) == 0:
-        abort(404)
-    if asset not in extension[0]['metadata']['assets']:
-        abort(404)
-    return send_from_directory(os.path.join('./extensions', extension[0]['name'], 'assets'), asset)
+    extensions = dict({
+        'extensions': [
+            {
+                'name': 'not-supported',
+                'metadata': {
+                        "display_name": """<span style="white-space:break-spaces;">Extensions serving using Extensions API is no longer supported. Please update the mod from: <a href="https://github.com/SillyLossy/TavernAI">https://github.com/SillyLossy/TavernAI</a></span>""",
+                        "requires": [],
+                        "assets": []
+                }
+            }
+        ]
+    })
+    return jsonify(extensions)
 
 
 @app.route('/api/caption', methods=['POST'])
@@ -448,68 +382,6 @@ def get_modules():
     return jsonify({'modules': modules})
 
 
-@app.route('/api/poe/status', methods=['POST'])
-@require_module('poe')
-def api_poe_status():
-    data = request.get_json()
-
-    if 'token' not in data or not isinstance(data['token'], str):
-        abort(400, '"token" is required')
-
-    token = data['token']
-    bot_names = poe_status(token)
-    return jsonify({'bot_names': bot_names})
-
-
-@app.route('/api/poe/purge', methods=['POST'])
-@require_module('poe')
-def api_poe_purge():
-    data = request.get_json()
-
-    if 'token' not in data or not isinstance(data['token'], str):
-        abort(400, '"token" is required')
-
-    if 'token' not in data or not isinstance(data['token'], str):
-        abort(400, '"token" is required')
-
-    token = data['token']
-    count = -1
-    bot = DEFAULT_POE_BOT
-
-    if 'bot' in data and isinstance(data['bot'], str):
-        bot = data['bot']
-
-    if 'count' in data and isinstance(data['count'], int):
-        count = data['count']
-
-    poe_purge(token, bot, count)
-    return jsonify({"ok": True})
-
-
-@app.route('/api/poe/generate', methods=['POST'])
-@require_module('poe')
-def api_poe_generate():
-    data = request.get_json()
-
-    if 'prompt' not in data or not isinstance(data['prompt'], str):
-        abort(400, '"prompt is required')
-
-    prompt = data['prompt']
-
-    if 'token' not in data or not isinstance(data['token'], str):
-        abort(400, '"token" is required')
-
-    token = data['token']
-
-    bot = DEFAULT_POE_BOT
-
-    if 'bot' in data and isinstance(data['bot'], str):
-        bot = data['bot']
-
-    reply = poe_generate(token, bot, prompt)
-    return jsonify({'reply': reply})
-
-
 if args.share:
     from flask_cloudflared import _run_cloudflared
     import inspect
@@ -522,5 +394,4 @@ if args.share:
         cloudflare = _run_cloudflared(port)
     print("Running on", cloudflare)
 
-load_extensions()
 app.run(host=host, port=port)

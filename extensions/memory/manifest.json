@@ -1,8 +1,0 @@
-{
-    "display_name": "Memory (obsolete)",
-    "requires": [
-        "summarize"
-    ],
-    "js": "index.js",
-    "css": "style.css"
-}

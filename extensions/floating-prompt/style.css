@@ -1,9 +1,0 @@
-.floating_prompt_settings {
-    display: flex;
-    flex-direction: column;
-}
-
-#extension_floating_counter {
-    font-weight: 600;
-    color: orange;
-}
