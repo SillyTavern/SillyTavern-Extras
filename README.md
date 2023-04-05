@@ -1,13 +1,13 @@
 # TavernAI - Extras
 ## What is this
-A set of unofficial APIs for various TavernAI extensions.
+A set of APIs for various SillyTavern extensions.
 
-**You need to run the lastest version of my TavernAI mod. Grab it here: [Direct link to ZIP](https://github.com/SillyLossy/TavernAI/archive/refs/heads/main.zip), [Git repository](https://github.com/SillyLossy/TavernAI)**
+**You need to run the lastest version of my TavernAI fork. Grab it here: [Direct link to ZIP](https://github.com/Cohee1207/SillyTavern/archive/refs/heads/main.zip), [Git repository](https://github.com/Cohee1207/SillyTavern)**
 
 All modules require at least 6 Gb of VRAM to run. With Stable Diffusion disabled, it will probably fit in 4 Gb.
 Alternatively, everything could also be run on the CPU.
 
-Try on Colab (runs KoboldAI backend and TavernAI Extras server alongside):  <a target="_blank" href="https://colab.research.google.com/github/SillyLossy/TavernAI-extras/blob/main/colab/GPU.ipynb">
+Try on Colab (runs KoboldAI backend and TavernAI Extras server alongside):  <a target="_blank" href="https://colab.research.google.com/github/Cohee1207/TavernAI-extras/blob/main/colab/GPU.ipynb">
   <img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"/>
 </a>
 
@@ -24,7 +24,7 @@ Try on Colab (runs KoboldAI backend and TavernAI Extras server alongside):  <a t
 * Select desired "extra" options and start the cell
 * Wait for it to finish
 * Get an API URL link from colab output under the `### TavernAI Extensions LINK ###` title
-* Start TavernAI with extensions support: set `enableExtensions` to `true` in [config.conf](https://github.com/SillyLossy/TavernAI/blob/dev/config.conf)
+* Start TavernAI with extensions support: set `enableExtensions` to `true` in [config.conf](https://github.com/Cohee1207/SillyTavern/blob/dev/config.conf)
 * Navigate to TavernAI settings and put in an API URL and tap "Connect" to load the extensions
 
 ### 💻 Locally
@@ -36,13 +36,13 @@ Try on Colab (runs KoboldAI backend and TavernAI Extras server alongside):  <a t
 conda create -n extras
 conda activate extras
 conda install pytorch torchvision torchaudio pytorch-cuda=11.7 git -c pytorch -c nvidia
-git clone https://github.com/SillyLossy/TavernAI-extras
+git clone https://github.com/Cohee1207/TavernAI-extras
 cd TavernAI-extras
 pip install -r requirements.txt
 ```
 * Run `python server.py --enable-modules=caption`
 * Get the API URL. Defaults to `http://localhost:5100` if you run locally.
-* Start TavernAI with extensions support: set `enableExtensions` to `true` in [config.conf](https://github.com/SillyLossy/TavernAI/blob/dev/config.conf)
+* Start TavernAI with extensions support: set `enableExtensions` to `true` in [config.conf](https://github.com/Cohee1207/SillyTavern/blob/dev/config.conf)
 * Navigate to TavernAI settings and put in an API URL and tap "Connect" to load the extensions
 * To run again, simply activate the environment and run the script:
 ```
@@ -54,29 +54,14 @@ python server.py
 * Install git: https://git-scm.com/downloads
 * Clone the repo:
 ```
-git clone https://github.com/SillyLossy/TavernAI-extras
+git clone https://github.com/Cohee1207/TavernAI-extras
 cd TavernAI-extras
 ```
 * Run `pip install -r requirements.txt`
 * Run `python server.py --enable-modules=caption`
 * Get the API URL. Defaults to `http://localhost:5100` if you run locally.
-* Start TavernAI with extensions support: set `enableExtensions` to `true` in [config.conf](https://github.com/SillyLossy/TavernAI/blob/dev/config.conf)
-* Navigate to TavernAI settings and put in an API URL and tap "Connect" to load the extensions
-
-### Settings menu ⚙️
-<img src="https://user-images.githubusercontent.com/18619528/222469130-84cf5784-7f0d-48b9-bf8d-3851f2c8cea0.png" style="width:500px">
-
-## UI Extensions 🚀
-
-### Will be moved to main project soon!!
-
-| Name             | Description                      | Required [Modules](#modules) | Screenshot |
-| ---------------- | ---------------------------------| ---------------------------- | ---------- |
-| Image Captioning | Send a cute picture to your bot!<br><br>Picture select option will appear beside "Message send" button. | `caption`                    | <img src="https://user-images.githubusercontent.com/18619528/224161576-ddfc51cd-995e-44ec-bf2d-d2477d603f0c.png" style="max-width:200px" />  |
-| Character Expressions | See your character reacting to your messages!<br><br>**You need to provide your own character images!**<br><br>1. Create a folder in TavernAI called `public/characters/<name>`, where `<name>` is a name of your character.<br>2. For base emotion classification model, put six PNG files there with the following names: `joy.png`, `anger.png`, `fear.png`, `love.png`, `sadness.png`, `surprise.png`. Other models may provide another options.<br>3. Images only display in desktop mode. | `classify` | <img style="max-width:200px" alt="image" src="https://user-images.githubusercontent.com/18619528/223765089-34968217-6862-47e0-85da-7357370f8de6.png"> |
-| Memory | Chatbot long-term memory simulation using automatic message context summarization. | `summarize` |  <img style="max-width:200px" alt="image" src="https://user-images.githubusercontent.com/18619528/223766279-88a46481-1fa6-40c5-9724-6cdd6f587233.png"> |
-| Floating Prompt | Adds a string to your scenario after certain amount of messages you send. Usage ideas: reinforce certain events during roleplay. Thanks @Ali឵#2222 for suggesting me that! | None | <img style="max-width:200px" src="https://user-images.githubusercontent.com/18619528/224158641-c317313c-b87d-42b2-9702-ea4ba896593e.png" /> | 
-
+* Start TavernAI with extensions support: set `enableExtensions` to `true` in [config.conf](https://github.com/Cohee1207/SillyTavern/blob/dev/config.conf)
+* Navigate to TavernAI extensions menu and put in an API URL and tap "Connect" to load the extensions
 
 ## Modules
 
