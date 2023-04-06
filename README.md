@@ -14,7 +14,7 @@ Try on Colab (runs KoboldAI backend and TavernAI Extras server alongside):  <a t
 Colab link:
 https://colab.research.google.com/github/Cohee1207/SillyTavern/blob/main/colab/GPU.ipynb
 
-Alternative link (legacy, not endorced):
+Alternative link (legacy, not endorsed):
 https://colab.research.google.com/github/SillyLossy/TavernAI-extras/blob/main/colab/GPU.ipynb
 
 ## How to run
