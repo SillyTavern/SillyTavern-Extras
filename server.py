@@ -13,6 +13,7 @@ from PIL import Image
 import base64
 from io import BytesIO
 from random import randint
+import webuiapi
 from colorama import Fore, Style, init as colorama_init
 
 colorama_init()
@@ -28,6 +29,8 @@ DEFAULT_CAPTIONING_MODEL = 'Salesforce/blip-image-captioning-large'
 DEFAULT_KEYPHRASE_MODEL = 'ml6team/keyphrase-extraction-distilbert-inspec'
 DEFAULT_PROMPT_MODEL = 'FredZhang7/anime-anything-promptgen-v2'
 DEFAULT_SD_MODEL = "ckpt/anything-v4.5-vae-swapped"
+DEFAULT_REMOTE_SD_HOST = "127.0.0.1"
+DEFAULT_REMOTE_SD_PORT = 7860
 #ALL_MODULES = ['caption', 'summarize', 'classify', 'keywords', 'prompt', 'sd']
 DEFAULT_SUMMARIZE_PARAMS = {
     'temperature': 1.0,
@@ -63,10 +66,25 @@ parser.add_argument('--keyphrase-model',
                     help="Load a custom keyphrase extraction model")
 parser.add_argument('--prompt-model',
                     help="Load a custom prompt generation model")
-parser.add_argument('--sd-model',
+
+sd_group = parser.add_mutually_exclusive_group()
+local_sd = sd_group.add_argument_group('sd-local')
+local_sd.add_argument('--sd-model',
                     help="Load a custom SD image generation model")
-parser.add_argument('--sd-cpu',
+local_sd.add_argument('--sd-cpu',
                     help="Force the SD pipeline to run on the CPU")
+remote_sd = sd_group.add_argument_group('sd-remote')
+remote_sd.add_argument('--sd-remote', action='store_true',
+                    help="Use a remote backend for SD")
+remote_sd.add_argument('--sd-remote-host', type=str,
+                    help="Specify the host of the remote SD backend")
+remote_sd.add_argument('--sd-remote-port', type=int,
+                    help="Specify the port of the remote SD backend")
+remote_sd.add_argument('--sd-remote-ssl', action='store_true',
+                    help="Use SSL for the remote SD backend")
+remote_sd.add_argument('--sd-remote-auth', type=str,
+                    help="Specify the username:password for the remote SD backend (if required)")
+
 parser.add_argument('--enable-modules', action=SplitArgs, default=[],
                     help="Override a list of enabled modules")
 
@@ -79,7 +97,14 @@ classification_model = args.classification_model if args.classification_model el
 captioning_model = args.captioning_model if args.captioning_model else DEFAULT_CAPTIONING_MODEL
 keyphrase_model = args.keyphrase_model if args.keyphrase_model else DEFAULT_KEYPHRASE_MODEL
 prompt_model = args.prompt_model if args.prompt_model else DEFAULT_PROMPT_MODEL
+
+sd_use_remote = False if args.sd_model else True
 sd_model = args.sd_model if args.sd_model else DEFAULT_SD_MODEL
+sd_remote_host = args.sd_remote_host if args.sd_remote_host else DEFAULT_REMOTE_SD_HOST
+sd_remote_port = args.sd_remote_port if args.sd_remote_port else DEFAULT_REMOTE_SD_PORT
+sd_remote_ssl = args.sd_remote_ssl
+sd_remote_auth = args.sd_remote_auth
+
 modules = args.enable_modules if args.enable_modules and len(args.enable_modules) > 0 else []
 
 if len(modules) == 0:
@@ -120,7 +145,7 @@ if 'prompt' in modules:
     gpt_model = AutoModelForCausalLM.from_pretrained(prompt_model)
     prompt_generator = pipeline('text-generation', model=gpt_model, tokenizer=gpt_tokenizer)
 
-if 'sd' in modules:
+if 'sd' in modules and not sd_use_remote:
     from diffusers import StableDiffusionPipeline
     from diffusers import EulerAncestralDiscreteScheduler
     print('Initializing Stable Diffusion pipeline')
@@ -132,6 +157,18 @@ if 'sd' in modules:
     sd_pipe.enable_attention_slicing()
     # pipe.scheduler = KarrasVeScheduler.from_config(pipe.scheduler.config)
     sd_pipe.scheduler = EulerAncestralDiscreteScheduler.from_config(sd_pipe.scheduler.config)
+elif 'sd' in modules and sd_use_remote:
+    print('Initializing Stable Diffusion connection')
+    try:
+        sd_remote = webuiapi.WebUIApi(host=sd_remote_host, port=sd_remote_port, use_https=sd_remote_ssl)
+        if sd_remote_auth:
+            username, password = sd_remote_auth.split(':')
+            sd_remote.set_auth(username, password)
+        sd_remote.util_wait_for_ready()
+    except Exception as e:
+        # remote sd from modules
+        print(f"{Fore.RED}{Style.BRIGHT}Could not connect to remote SD backend at http{'s' if sd_remote_ssl else ''}://{sd_remote_host}:{sd_remote_port}! Disabling SD module...{Style.RESET_ALL}")
+        modules.remove('sd')
 
 prompt_prefix = "best quality, absurdres, "
 neg_prompt = """lowres, bad anatomy, error body, error hair, error arm,
@@ -226,16 +263,29 @@ def generate_prompt(keywords: list, length: int = 100, num: int = 4) -> str:
     return [out['generated_text'] for out in outs]
 
 
-def generate_image(input: str, steps: int = 30, scale: int = 6) -> Image:
+def generate_image(input: str, steps: int = 30, scale: int = 6, sampler: str = 'DDIM', model: str = None) -> Image:
     prompt = normalize_string(f'{prompt_prefix}{input}')
     print(prompt)
 
-    image = sd_pipe(
-        prompt=prompt,
-        negative_prompt=neg_prompt,
-        num_inference_steps=steps,
-        guidance_scale=scale,
-    ).images[0]
+    if sd_use_remote:
+        if model is not None and model != sd_remote.util_get_current_model():
+            sd_remote.util_set_model(model, find_closest=False)
+            sd_remote.util_wait_for_ready()
+
+        image = sd_remote.txt2img(
+            prompt=prompt,
+            negative_prompt=neg_prompt,
+            sampler_name=sampler,
+            steps=steps,
+            cfg_scale=scale,
+        ).image
+    else:
+        image = sd_pipe(
+            prompt=prompt,
+            negative_prompt=neg_prompt,
+            num_inference_steps=steps,
+            guidance_scale=scale,
+        ).images[0]
 
     image.save("./debug.png")
     return image
@@ -371,11 +421,69 @@ def api_image():
 
     if 'prompt' not in data or not isinstance(data['prompt'], str):
         abort(400, '"prompt" is required')
+    if 'steps' not in data or not isinstance(data['steps'], int):
+        data['steps'] = 30
+    if 'scale' not in data or not isinstance(data['scale'], int):
+        data['scale'] = 6
+    if 'sampler' not in data or not isinstance(data['sampler'], str):
+        data['sampler'] = 'DDIM'
+    if 'model' not in data or not isinstance(data['model'], str):
+        data['model'] = None
 
-    image = generate_image(data['prompt'])
-    base64image = image_to_base64(image)
-    return jsonify({'image': base64image})
+    try:
+        image = generate_image(data['prompt'], data['steps'], data['scale'], data['sampler'], data['model'])
+        base64image = image_to_base64(image)
+        return jsonify({'image': base64image})
+    except RuntimeError as e:
+        abort(400, str(e))
 
+@app.route('/api/image/model', methods=['POST'])
+@require_module('sd')
+def api_image_model_set():
+    data = request.get_json()
+
+    if not sd_use_remote:
+        abort(400, 'Changing model for local sd is not supported.')
+    if 'model' not in data or not isinstance(data['model'], str):
+        abort(400, '"model" is required')
+
+    old_model = sd_remote.util_get_current_model()
+    sd_remote.util_set_model(data['model'], find_closest=False)
+    #sd_remote.util_set_model(data['model'])
+    sd_remote.util_wait_for_ready()
+    new_model = sd_remote.util_get_current_model()
+
+    return jsonify({'previous_model': old_model, 'current_model': new_model})
+
+@app.route('/api/image/model', methods=['GET'])
+@require_module('sd')
+def api_image_model_get():
+    model = sd_model
+
+    if sd_use_remote:
+        model = sd_remote.util_get_current_model()
+
+    return jsonify({'model': model})
+
+@app.route('/api/image/models', methods=['GET'])
+@require_module('sd')
+def api_image_models():
+    models = [sd_model]
+
+    if sd_use_remote:
+        models = sd_remote.util_get_model_names()
+    
+    return jsonify({'models': models})
+
+@app.route('/api/image/samplers', methods=['GET'])
+@require_module('sd')
+def api_image_samplers():
+    samplers = ['Euler a']
+    
+    if sd_use_remote:
+        samplers = [sampler['name'] for sampler in sd_remote.get_samplers()]
+    
+    return jsonify({'samplers': samplers})
 
 @app.route('/api/modules', methods=['GET'])
 def get_modules():
