@@ -238,8 +238,8 @@ File content
 | `--prompt-model`         | Load a custom prompt generation model.<br>Expects a HuggingFace model ID.<br>Default: [FredZhang7/anime-anything-promptgen-v2](https://huggingface.co/FredZhang7/anime-anything-promptgen-v2) |
 | `--sd-model`             | Load a custom Stable Diffusion image generation model.<br>Expects a HuggingFace model ID.<br>Default: [ckpt/anything-v4.5-vae-swapped](https://huggingface.co/ckpt/anything-v4.5-vae-swapped)<br>*Must have VAE pre-baked in PyTorch format or the output will look drab!* |
 | `--sd-cpu`               | Force the Stable Diffusion generation pipeline to run on the CPU.<br>**SLOW!** |
-| `--sd-remote`            | Use a remote SD backend.<br>**Supported APIs: [sd-webui](https://github.com/AUTOMATIC1111/stable-diffusion-webui)** |
+| `--sd-remote`            | Use a remote SD backend.<br>**Supported APIs: [sd-webui](https://github.com/AUTOMATIC1111/stable-diffusion-webui)**  |
 | `--sd-remote-host`       | Specify the host of the remote SD backend<br>Default: 127.0.0.1 |
 | `--sd-remote-port`       | Specify the port of the remote SD backend<br>Default: 7860 |
-| `--sd-remote-username`   | If using authentication on the remote SD backend, specify the username<br>Default: None |
-| `--sd-remote-password`   | If using authentication on the remote SD backend, specify the password<br>Default: None |
+| `--sd-remote-ssl`        | Use SSL for the remote SD backend<br>Default: False |
+| `--sd-remote-auth`       | Specify the username:password for the remote SD backend (if required)<br>Default: None |
