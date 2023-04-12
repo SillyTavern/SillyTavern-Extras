@@ -216,11 +216,46 @@ File content
 `POST /api/image`
 #### **Input**
 ```
-{ "prompt": "prompt to be generated" }
+{ "prompt": "prompt to be generated", "sampler": "DDIM", "steps": 20, "scale": 6, "model": "model_name" }
 ```
 #### **Output**
 ```
 { "image": "base64 encoded image" }
+```
+> **NOTES**
+> 1. Only the "prompt" parameter is required
+> 2. Both "sampler" and "model" parameters only work when using a remote SD backend
+
+### Get available Stable Diffusion models
+`GET /api/image/models`
+#### **Output**
+```
+{ "models": [list of all availabe model names] }
+```
+
+### Get available Stable Diffusion samplers
+`GET /api/image/samplers`
+#### **Output**
+```
+{ "samplers": [list of all availabe sampler names] }
+```
+
+### Get currently loaded Stable Diffusion model
+`GET /api/image/model`
+#### **Output**
+```
+{ "model": "name of the current loaded model" }
+```
+
+### Load a Stable Diffusion model (remote)
+`POST /api/image/model`
+#### **Input**
+```
+{ "model": "name of the model to load" }
+```
+#### **Output**
+```
+{ "previous_model": "name of the previous model", "current_model": "name of the newly loaded model" }
 ```
 
 ## Additional options
@@ -239,7 +274,7 @@ File content
 | `--sd-model`             | Load a custom Stable Diffusion image generation model.<br>Expects a HuggingFace model ID.<br>Default: [ckpt/anything-v4.5-vae-swapped](https://huggingface.co/ckpt/anything-v4.5-vae-swapped)<br>*Must have VAE pre-baked in PyTorch format or the output will look drab!* |
 | `--sd-cpu`               | Force the Stable Diffusion generation pipeline to run on the CPU.<br>**SLOW!** |
 | `--sd-remote`            | Use a remote SD backend.<br>**Supported APIs: [sd-webui](https://github.com/AUTOMATIC1111/stable-diffusion-webui)**  |
-| `--sd-remote-host`       | Specify the host of the remote SD backend<br>Default: 127.0.0.1 |
-| `--sd-remote-port`       | Specify the port of the remote SD backend<br>Default: 7860 |
-| `--sd-remote-ssl`        | Use SSL for the remote SD backend<br>Default: False |
-| `--sd-remote-auth`       | Specify the username:password for the remote SD backend (if required)<br>Default: None |
+| `--sd-remote-host`       | Specify the host of the remote SD backend<br>Default: **127.0.0.1** |
+| `--sd-remote-port`       | Specify the port of the remote SD backend<br>Default: **7860** |
+| `--sd-remote-ssl`        | Use SSL for the remote SD backend<br>Default: **False** |
+| `--sd-remote-auth`       | Specify the `username:password` for the remote SD backend (if required) |
