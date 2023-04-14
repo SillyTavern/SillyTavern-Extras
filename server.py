@@ -206,7 +206,7 @@ def require_module(name):
 
 # AI stuff
 def classify_text(text: str) -> list:
-    output = classification_pipe(text)[0]
+    output = classification_pipe(text, truncation=True, max_length=classification_pipe.model.config.max_position_embeddings)[0]
     return sorted(output, key=lambda x: x['score'], reverse=True)
 
 
