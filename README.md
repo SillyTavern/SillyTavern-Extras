@@ -46,7 +46,7 @@ git clone https://github.com/Cohee1207/TavernAI-extras
 cd TavernAI-extras
 pip install -r requirements.txt
 ```
-* Run `python server.py --enable-modules=caption`
+* Run `python server.py --enable-modules=caption,summarize,classify`
 * Get the API URL. Defaults to `http://localhost:5100` if you run locally.
 * Start TavernAI with extensions support: set `enableExtensions` to `true` in [config.conf](https://github.com/Cohee1207/SillyTavern/blob/dev/config.conf)
 * Navigate to TavernAI settings and put in an API URL and tap "Connect" to load the extensions
@@ -64,7 +64,7 @@ git clone https://github.com/Cohee1207/TavernAI-extras
 cd TavernAI-extras
 ```
 * Run `pip install -r requirements.txt`
-* Run `python server.py --enable-modules=caption`
+* Run `python server.py --enable-modules=caption,summarize,classify`
 * Get the API URL. Defaults to `http://localhost:5100` if you run locally.
 * Start TavernAI with extensions support: set `enableExtensions` to `true` in [config.conf](https://github.com/Cohee1207/SillyTavern/blob/dev/config.conf)
 * Navigate to TavernAI extensions menu and put in an API URL and tap "Connect" to load the extensions
