@@ -80,6 +80,28 @@ cd TavernAI-extras
 | `prompt`    | SD prompt generation from text    | ✔️ Yes     |
 | `sd`        | Stable Diffusion image generation | :x: No (✔️ remote)      |
 
+
+## Additional options
+| Flag                     | Description                                                            |
+| ------------------------ | ---------------------------------------------------------------------- |
+| `--enable-modules`       | **Required option**. Provide a list of enabled modules.<br>Expects a comma-separated list of module names. See [Modules](#modules)<br>Example: `--enable-modules=caption,sd` |
+| `--port`                 | Specify the port on which the application is hosted. Default: **5100** |
+| `--listen`               | Host the app on the local network                                      |
+| `--share`                | Share the app on CloudFlare tunnel                                     |
+| `--cpu`                  | Run the models on the CPU instead of CUDA                              |
+| `--summarization-model`  | Load a custom summarization model.<br>Expects a HuggingFace model ID.<br>Default: [Qiliang/bart-large-cnn-samsum-ChatGPT_v3](https://huggingface.co/Qiliang/bart-large-cnn-samsum-ChatGPT_v3) |
+| `--classification-model` | Load a custom sentiment classification model.<br>Expects a HuggingFace model ID.<br>Default (6 emotions): [bhadresh-savani/distilbert-base-uncased-emotion](https://huggingface.co/bhadresh-savani/distilbert-base-uncased-emotion)<br>Other solid option is (28 emotions): [joeddav/distilbert-base-uncased-go-emotions-student](https://huggingface.co/joeddav/distilbert-base-uncased-go-emotions-student) |
+| `--captioning-model`     | Load a custom captioning model.<br>Expects a HuggingFace model ID.<br>Default: [Salesforce/blip-image-captioning-large](https://huggingface.co/Salesforce/blip-image-captioning-large) |
+| `--keyphrase-model`      | Load a custom key phrase extraction model.<br>Expects a HuggingFace model ID.<br>Default: [ml6team/keyphrase-extraction-distilbert-inspec](https://huggingface.co/ml6team/keyphrase-extraction-distilbert-inspec) |
+| `--prompt-model`         | Load a custom prompt generation model.<br>Expects a HuggingFace model ID.<br>Default: [FredZhang7/anime-anything-promptgen-v2](https://huggingface.co/FredZhang7/anime-anything-promptgen-v2) |
+| `--sd-model`             | Load a custom Stable Diffusion image generation model.<br>Expects a HuggingFace model ID.<br>Default: [ckpt/anything-v4.5-vae-swapped](https://huggingface.co/ckpt/anything-v4.5-vae-swapped)<br>*Must have VAE pre-baked in PyTorch format or the output will look drab!* |
+| `--sd-cpu`               | Force the Stable Diffusion generation pipeline to run on the CPU.<br>**SLOW!** |
+| `--sd-remote`            | Use a remote SD backend.<br>**Supported APIs: [sd-webui](https://github.com/AUTOMATIC1111/stable-diffusion-webui)**  |
+| `--sd-remote-host`       | Specify the host of the remote SD backend<br>Default: **127.0.0.1** |
+| `--sd-remote-port`       | Specify the port of the remote SD backend<br>Default: **7860** |
+| `--sd-remote-ssl`        | Use SSL for the remote SD backend<br>Default: **False** |
+| `--sd-remote-auth`       | Specify the `username:password` for the remote SD backend (if required) |
+
 ## API Endpoints
 ### Get active list
 `GET /api/modules`
@@ -237,23 +259,3 @@ None
 { "previous_model": "name of the previous model", "current_model": "name of the newly loaded model" }
 ```
 
-## Additional options
-| Flag                     | Description                                                            |
-| ------------------------ | ---------------------------------------------------------------------- |
-| `--enable-modules`       | **Required option**. Provide a list of enabled modules.<br>Expects a comma-separated list of module names. See [Modules](#modules)<br>Example: `--enable-modules=caption,sd` |
-| `--port`                 | Specify the port on which the application is hosted. Default: **5100** |
-| `--listen`               | Host the app on the local network                                      |
-| `--share`                | Share the app on CloudFlare tunnel                                     |
-| `--cpu`                  | Run the models on the CPU instead of CUDA                              |
-| `--summarization-model`  | Load a custom summarization model.<br>Expects a HuggingFace model ID.<br>Default: [Qiliang/bart-large-cnn-samsum-ChatGPT_v3](https://huggingface.co/Qiliang/bart-large-cnn-samsum-ChatGPT_v3) |
-| `--classification-model` | Load a custom sentiment classification model.<br>Expects a HuggingFace model ID.<br>Default (6 emotions): [bhadresh-savani/distilbert-base-uncased-emotion](https://huggingface.co/bhadresh-savani/distilbert-base-uncased-emotion)<br>Other solid option is (28 emotions): [joeddav/distilbert-base-uncased-go-emotions-student](https://huggingface.co/joeddav/distilbert-base-uncased-go-emotions-student) |
-| `--captioning-model`     | Load a custom captioning model.<br>Expects a HuggingFace model ID.<br>Default: [Salesforce/blip-image-captioning-large](https://huggingface.co/Salesforce/blip-image-captioning-large) |
-| `--keyphrase-model`      | Load a custom key phrase extraction model.<br>Expects a HuggingFace model ID.<br>Default: [ml6team/keyphrase-extraction-distilbert-inspec](https://huggingface.co/ml6team/keyphrase-extraction-distilbert-inspec) |
-| `--prompt-model`         | Load a custom prompt generation model.<br>Expects a HuggingFace model ID.<br>Default: [FredZhang7/anime-anything-promptgen-v2](https://huggingface.co/FredZhang7/anime-anything-promptgen-v2) |
-| `--sd-model`             | Load a custom Stable Diffusion image generation model.<br>Expects a HuggingFace model ID.<br>Default: [ckpt/anything-v4.5-vae-swapped](https://huggingface.co/ckpt/anything-v4.5-vae-swapped)<br>*Must have VAE pre-baked in PyTorch format or the output will look drab!* |
-| `--sd-cpu`               | Force the Stable Diffusion generation pipeline to run on the CPU.<br>**SLOW!** |
-| `--sd-remote`            | Use a remote SD backend.<br>**Supported APIs: [sd-webui](https://github.com/AUTOMATIC1111/stable-diffusion-webui)**  |
-| `--sd-remote-host`       | Specify the host of the remote SD backend<br>Default: **127.0.0.1** |
-| `--sd-remote-port`       | Specify the port of the remote SD backend<br>Default: **7860** |
-| `--sd-remote-ssl`        | Use SSL for the remote SD backend<br>Default: **False** |
-| `--sd-remote-auth`       | Specify the `username:password` for the remote SD backend (if required) |
