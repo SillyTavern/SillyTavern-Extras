@@ -48,8 +48,8 @@ pip install -r requirements.txt
 ```
 * Run `python server.py --enable-modules=caption,summarize,classify`
 * Get the API URL. Defaults to `http://localhost:5100` if you run locally.
-* Start TavernAI with extensions support: set `enableExtensions` to `true` in [config.conf](https://github.com/Cohee1207/SillyTavern/blob/dev/config.conf)
-* Navigate to TavernAI settings and put in an API URL and tap "Connect" to load the extensions
+* Start SillyTavern with extensions support: set `enableExtensions` to `true` in [config.conf](https://github.com/Cohee1207/SillyTavern/blob/dev/config.conf)
+* Navigate to SillyTavern extensions menu and put in an API URL and tap "Connect" to load the extensions
 * To run again, simply activate the environment and run the script:
 ```
 conda activate extras
@@ -66,8 +66,8 @@ cd TavernAI-extras
 * Run `pip install -r requirements.txt`
 * Run `python server.py --enable-modules=caption,summarize,classify`
 * Get the API URL. Defaults to `http://localhost:5100` if you run locally.
-* Start TavernAI with extensions support: set `enableExtensions` to `true` in [config.conf](https://github.com/Cohee1207/SillyTavern/blob/dev/config.conf)
-* Navigate to TavernAI extensions menu and put in an API URL and tap "Connect" to load the extensions
+* Start SillyTavern with extensions support: set `enableExtensions` to `true` in [config.conf](https://github.com/Cohee1207/SillyTavern/blob/dev/config.conf)
+* Navigate to SillyTavern extensions menu and put in an API URL and tap "Connect" to load the extensions
 
 ## Modules
 
@@ -81,35 +81,14 @@ cd TavernAI-extras
 | `sd`        | Stable Diffusion image generation | :x: No (✔️ remote)      |
 
 ## API Endpoints
-### Get UI extensions list
-`GET /api/extensions`
+### Get active list
+`GET /api/modules`
 #### **Input**
 None
 #### **Output**
 ```
-{"extensions":[{"metadata":{"css":"file.css","display_name":"human-friendly name","js":"file.js","requires":["module_id"]},"name":"extension_name"}]}
+{"modules":["caption", "classify", "summarize"]}
 ```
-
-### Get UI extension JS script
-`GET /api/script/<name>`
-#### **Input**
-Extension name in a route
-#### **Output**
-File content
-
-### Get UI extension CSS stylesheet
-`GET /api/style/<name>`
-#### **Input**
-Extension name in a route
-#### **Output**
-File content
-
-### Get UI extension static asset
-`GET /api/asset/<name>/<asset>`
-#### **Input**
-Extension name and assert name in a route
-#### **Output**
-File content
 
 ### Image captioning
 `POST /api/caption`
