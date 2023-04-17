@@ -336,7 +336,7 @@ def get_extensions():
             {
                 'name': 'not-supported',
                 'metadata': {
-                        "display_name": """<span style="white-space:break-spaces;">Extensions serving using Extensions API is no longer supported. Please update the mod from: <a href="https://github.com/SillyLossy/TavernAI">https://github.com/SillyLossy/TavernAI</a></span>""",
+                        "display_name": """<span style="white-space:break-spaces;">Extensions serving using Extensions API is no longer supported. Please update the mod from: <a href="https://github.com/Cohee1207/SillyTavern">https://github.com/Cohee1207/SillyTavern</a></span>""",
                         "requires": [],
                         "assets": []
                 }
@@ -356,6 +356,7 @@ def api_caption():
 
     image = Image.open(BytesIO(base64.b64decode(data['image'])))
     caption = caption_image(image)
+    print('Caption:', caption, sep="\n")
     return jsonify({'caption': caption})
 
 
@@ -372,7 +373,9 @@ def api_summarize():
     if 'params' in data and isinstance(data['params'], dict):
         params.update(data['params'])
 
+    print('Summary input:', data['text'], sep="\n")
     summary = summarize_chunks(data['text'], params)
+    print('Summary output:', summary, sep="\n")
     return jsonify({'summary': summary})
 
 
@@ -384,7 +387,9 @@ def api_classify():
     if 'text' not in data or not isinstance(data['text'], str):
         abort(400, '"text" is required')
 
+    print('Classification input:', data['text'], sep="\n")
     classification = classify_text(data['text'])
+    print('Classification output:', classification, sep="\n")
     return jsonify({'classification': classification})
 
 
@@ -404,7 +409,9 @@ def api_keywords():
     if 'text' not in data or not isinstance(data['text'], str):
         abort(400, '"text" is required')
 
+    print('Keywords input:', data['text'], sep="\n")
     keywords = extract_keywords(data['text'])
+    print('Keywords output:', keywords, sep="\n")
     return jsonify({'keywords': keywords})
 
 
@@ -421,7 +428,9 @@ def api_prompt():
     if 'name' in data and isinstance(data['name'], str):
         keywords.insert(0, data['name'])
 
+    print('Prompt input:', data['text'], sep="\n")
     prompts = generate_prompt(keywords)
+    print('Prompt output:', prompts, sep="\n")
     return jsonify({'prompts': prompts})
 
 
@@ -442,6 +451,7 @@ def api_image():
         data['model'] = None
 
     try:
+        print('SD inputs:', data, sep="\n")
         image = generate_image(data['prompt'], data['steps'], data['scale'], data['sampler'], data['model'])
         base64image = image_to_base64(image)
         return jsonify({'image': base64image})
