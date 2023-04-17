@@ -302,10 +302,10 @@ def generate_image(input: str, steps: int = 30, scale: int = 6, sampler: str = '
     return image
 
 
-def image_to_base64(image: Image):
+def image_to_base64(image: Image, quality: int = 75) -> str:
     buffered = BytesIO()
-    image.save(buffered, format="JPEG")
-    img_str = base64.b64encode(buffered.getvalue()).decode("utf-8") 
+    image.save(buffered, format="JPEG", quality=quality)
+    img_str = base64.b64encode(buffered.getvalue()).decode("utf-8")
     return img_str
 
 
@@ -355,9 +355,12 @@ def api_caption():
         abort(400, '"image" is required')
 
     image = Image.open(BytesIO(base64.b64decode(data['image'])))
+    image = image.convert('RGB')
+    image.thumbnail((512, 512))
     caption = caption_image(image)
+    thumbnail = image_to_base64(image)
     print('Caption:', caption, sep="\n")
-    return jsonify({'caption': caption})
+    return jsonify({'caption': caption, 'thumbnail': thumbnail})
 
 
 @app.route('/api/summarize', methods=['POST'])
