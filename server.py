@@ -9,6 +9,7 @@ from transformers import BlipForConditionalGeneration, GPT2Tokenizer
 import unicodedata
 import torch
 import time
+import gc
 from PIL import Image
 import base64
 from io import BytesIO
@@ -378,6 +379,7 @@ def api_caption():
     caption = caption_image(image)
     thumbnail = image_to_base64(image)
     print('Caption:', caption, sep="\n")
+    gc.collect()
     return jsonify({'caption': caption, 'thumbnail': thumbnail})
 
 
@@ -397,6 +399,7 @@ def api_summarize():
     print('Summary input:', data['text'], sep="\n")
     summary = summarize_chunks(data['text'], params)
     print('Summary output:', summary, sep="\n")
+    gc.collect()
     return jsonify({'summary': summary})
 
 
@@ -411,6 +414,7 @@ def api_classify():
     print('Classification input:', data['text'], sep="\n")
     classification = classify_text(data['text'])
     print('Classification output:', classification, sep="\n")
+    gc.collect()
     return jsonify({'classification': classification})
 
 
