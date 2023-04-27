@@ -38,7 +38,7 @@ https://colab.research.google.com/github/Cohee1207/SillyTavern/blob/main/colab/G
 * _(Important!) Read how to use Conda: https://conda.io/projects/conda/en/latest/user-guide/getting-started.html_
 * Install git: https://git-scm.com/downloads
 
-**EXECUTE THIS COMMANDS ONE BY ONE IN THE _CONDA COMMAND PROMPT_**
+**EXECUTE THIS COMMANDS ONE BY ONE IN THE _CONDA COMMAND PROMPT_. TYPE EACH COMMAND, HIT ENTER AND WAIT FOR IT TO FINISH**
 
 * Before the first run, create an environment (let's call it `extras`):
 ```
