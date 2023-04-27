@@ -68,9 +68,10 @@ pip install -r requirements.txt
 ```
 python server.py --enable-modules=caption,summarize,classify
 ```
-* Get the API URL. Defaults to `http://localhost:5100` if you run locally.
-* Start SillyTavern with extensions support. Make sure that extensions support is enabled: set `enableExtensions` to `true` in [config.conf](https://github.com/Cohee1207/SillyTavern/blob/dev/config.conf) file in SillyTavern root.
-* Navigate to SillyTavern extensions menu and put in an API URL and tap "Connect" to load the extensions
+* Copy the Extra's server API URL listed in the console window after it finishes loading up. On local installs, this defaults to `http://localhost:5100`.
+* Open your SillyTavern [config.conf](https://github.com/Cohee1207/SillyTavern/blob/dev/config.conf) file (located in the base install folder), and look for a line "`const enableExtensions`". Make sure that line has "`= true`", and not "`= false`". 
+* Start your SillyTavern server
+* Open the Extensions panel (via the 'Stacked Blocks' icon at the top of the page), paste the API URL into the input box, and click "Connect" to connect to the Extras extension server.
 * To run again, simply activate the environment and run these commands. Be sure to the additional options for server.py (see below) that your setup requires.
 ```
 conda activate extras
