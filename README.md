@@ -32,22 +32,46 @@ https://colab.research.google.com/github/Cohee1207/SillyTavern/blob/main/colab/G
 
 ### 💻 Locally
 #### Option 1 - Conda (recommended) 🐍
+
+**PREREQUISITES**
 * Install Miniconda: https://docs.conda.io/en/latest/miniconda.html
+* _(Important!) Read how to use Conda: https://conda.io/projects/conda/en/latest/user-guide/getting-started.html_
 * Install git: https://git-scm.com/downloads
+
+**EXECUTE THIS COMMANDS ONE BY ONE IN THE _CONDA COMMAND PROMPT_**
+
 * Before the first run, create an environment (let's call it `extras`):
 ```
 conda create -n extras
+```
+* Now activate the newly created env
+```
 conda activate extras
+```
+* Install the required system packages
+```
 conda install pytorch torchvision torchaudio pytorch-cuda=11.7 git -c pytorch -c nvidia
+```
+* Clone this repository
+```
 git clone https://github.com/Cohee1207/TavernAI-extras
+```
+* Navigated to the freshly cloned repository
+```
 cd TavernAI-extras
+```
+* Install the project requirements
+```
 pip install -r requirements.txt
 ```
-* Run `python server.py --enable-modules=caption,summarize,classify`
+* Run the Extensions API server
+```
+python server.py --enable-modules=caption,summarize,classify
+```
 * Get the API URL. Defaults to `http://localhost:5100` if you run locally.
-* Start SillyTavern with extensions support: set `enableExtensions` to `true` in [config.conf](https://github.com/Cohee1207/SillyTavern/blob/dev/config.conf)
+* Start SillyTavern with extensions support. Make sure that extensions support is enabled: set `enableExtensions` to `true` in [config.conf](https://github.com/Cohee1207/SillyTavern/blob/dev/config.conf) file in SillyTavern root.
 * Navigate to SillyTavern extensions menu and put in an API URL and tap "Connect" to load the extensions
-* To run again, simply activate the environment and run the script:
+* To run again, simply activate the environment and run these commands:
 ```
 conda activate extras
 python server.py
