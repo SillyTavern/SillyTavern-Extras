@@ -71,11 +71,12 @@ python server.py --enable-modules=caption,summarize,classify
 * Get the API URL. Defaults to `http://localhost:5100` if you run locally.
 * Start SillyTavern with extensions support. Make sure that extensions support is enabled: set `enableExtensions` to `true` in [config.conf](https://github.com/Cohee1207/SillyTavern/blob/dev/config.conf) file in SillyTavern root.
 * Navigate to SillyTavern extensions menu and put in an API URL and tap "Connect" to load the extensions
-* To run again, simply activate the environment and run these commands:
+* To run again, simply activate the environment and run these commands. Be sure to the additional options for server.py (see below) that your setup requires.
 ```
 conda activate extras
 python server.py
 ```
+
 #### Option 2 - Vanilla 🍦
 * Install Python 3.10: https://www.python.org/downloads/release/python-31010/
 * Install git: https://git-scm.com/downloads
