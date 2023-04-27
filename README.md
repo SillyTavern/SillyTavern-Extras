@@ -60,7 +60,7 @@ python server.py
 git clone https://github.com/Cohee1207/TavernAI-extras
 cd TavernAI-extras
 ```
-* Run `pip install -r requirements.txt`
+* Run `python -m pip install -r requirements.txt`
 * Run `python server.py --enable-modules=caption,summarize,classify`
 * Get the API URL. Defaults to `http://localhost:5100` if you run locally.
 * Start SillyTavern with extensions support: set `enableExtensions` to `true` in [config.conf](https://github.com/Cohee1207/SillyTavern/blob/dev/config.conf)
