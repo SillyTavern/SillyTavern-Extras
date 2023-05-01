@@ -30,6 +30,14 @@ https://colab.research.google.com/github/Cohee1207/SillyTavern/blob/main/colab/G
 * Start TavernAI with extensions support: set `enableExtensions` to `true` in [config.conf](https://github.com/Cohee1207/SillyTavern/blob/dev/config.conf)
 * Navigate to TavernAI settings and put in an API URL and tap "Connect" to load the extensions
 
+### What about mobile/Android/Termux? 🤔
+
+There are some folks in the community having success running Extras on their phones via Ubuntu on Termux. This project wasn't made with mobile support in mind, so this guide is provided strictly for your information only: https://rentry.org/STAI-Termux#downloading-and-running-tai-extras
+
+#### ❗ IMPORTANT!
+
+I will not provide any support for running this on Android. Direct all your questions to the creator of this guide.
+
 ### 💻 Locally
 #### Option 1 - Conda (recommended) 🐍
 
