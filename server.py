@@ -294,7 +294,7 @@ def generate_prompt(keywords: list, length: int = 100, num: int = 4) -> str:
 
 
 def generate_image(data: dict) -> Image:
-    prompt = normalize_string(f'{data["prompt_prefix"]}{data["prompt"]}')
+    prompt = normalize_string(f'{data["prompt_prefix"]} {data["prompt"]}')
     print(prompt)
 
     if sd_use_remote:
