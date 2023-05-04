@@ -189,8 +189,8 @@ elif 'sd' in modules and sd_use_remote:
         print(f"{Fore.RED}{Style.BRIGHT}Could not connect to remote SD backend at http{'s' if sd_remote_ssl else ''}://{sd_remote_host}:{sd_remote_port}! Disabling SD module...{Style.RESET_ALL}")
         modules.remove('sd')
 
-prompt_prefix = "best quality, absurdres, "
-neg_prompt = """lowres, bad anatomy, error body, error hair, error arm,
+PROMPT_PREFIX = "best quality, absurdres, "
+NEGATIVE_PROMPT = """lowres, bad anatomy, error body, error hair, error arm,
 error hands, bad hands, error fingers, bad fingers, missing fingers
 error legs, bad legs, multiple legs, missing legs, error lighting,
 error shadow, error reflection, text, error, extra digit, fewer digits,
@@ -293,28 +293,32 @@ def generate_prompt(keywords: list, length: int = 100, num: int = 4) -> str:
     return [out['generated_text'] for out in outs]
 
 
-def generate_image(input: str, steps: int = 30, scale: int = 6, sampler: str = 'DDIM', model: str = None) -> Image:
-    prompt = normalize_string(f'{prompt_prefix}{input}')
+def generate_image(data: dict) -> Image:
+    prompt = normalize_string(f'{data["prompt_prefix"]}{data["prompt"]}')
     print(prompt)
 
     if sd_use_remote:
-        if model is not None and model != sd_remote.util_get_current_model():
-            sd_remote.util_set_model(model, find_closest=False)
+        if data['model'] is not None and data['model'] != sd_remote.util_get_current_model():
+            sd_remote.util_set_model(data['model'], find_closest=False)
             sd_remote.util_wait_for_ready()
 
         image = sd_remote.txt2img(
             prompt=prompt,
-            negative_prompt=neg_prompt,
-            sampler_name=sampler,
-            steps=steps,
-            cfg_scale=scale,
+            negative_prompt=data['negative_prompt'],
+            sampler_name=data['sampler'],
+            steps=data['steps'],
+            cfg_scale=data['scale'],
+            width=data['width'],
+            height=data['height'],
         ).image
     else:
         image = sd_pipe(
             prompt=prompt,
-            negative_prompt=neg_prompt,
-            num_inference_steps=steps,
-            guidance_scale=scale,
+            negative_prompt=data['negative_prompt'],
+            num_inference_steps=data['steps'],
+            guidance_scale=data['scale'],
+            width=data['width'],
+            height=data['height'],
         ).images[0]
 
     image.save("./debug.png")
@@ -462,22 +466,36 @@ def api_prompt():
 @app.route('/api/image', methods=['POST'])
 @require_module('sd')
 def api_image():
+    required_fields = {
+        'prompt': str, 
+    }
+
+    optional_fields = {
+        'steps': 30, 
+        'scale': 6,
+        'sampler': 'DDIM',
+        'model': None,
+        'width': 512,
+        'height': 512,
+        'prompt_prefix': PROMPT_PREFIX,
+        'negative_prompt': NEGATIVE_PROMPT
+    }
+
     data = request.get_json()
 
-    if 'prompt' not in data or not isinstance(data['prompt'], str):
-        abort(400, '"prompt" is required')
-    if 'steps' not in data or not isinstance(data['steps'], int):
-        data['steps'] = 30
-    if 'scale' not in data or not isinstance(data['scale'], int):
-        data['scale'] = 6
-    if 'sampler' not in data or not isinstance(data['sampler'], str):
-        data['sampler'] = 'DDIM'
-    if 'model' not in data or not isinstance(data['model'], str):
-        data['model'] = None
+    # Check required fields
+    for field, field_type in required_fields.items():
+        if field not in data or not isinstance(data[field], field_type):
+            abort(400, f'"{field}" is required')
+
+    # Set optional fields to default values if not provided
+    for field, default_value in optional_fields.items():
+        if field not in data or not isinstance(data[field], type(default_value)):
+            data[field] = default_value
 
     try:
         print('SD inputs:', data, sep="\n")
-        image = generate_image(data['prompt'], data['steps'], data['scale'], data['sampler'], data['model'])
+        image = generate_image(data)
         base64image = image_to_base64(image)
         return jsonify({'image': base64image})
     except RuntimeError as e:
