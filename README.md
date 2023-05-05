@@ -1,4 +1,4 @@
-# TavernAI - Extras
+# SillyTavern - Extras
 ## What is this
 A set of APIs for various SillyTavern extensions.
 
@@ -27,8 +27,8 @@ https://colab.research.google.com/github/Cohee1207/SillyTavern/blob/main/colab/G
 * Select desired "extra" options and start the cell
 * Wait for it to finish
 * Get an API URL link from colab output under the `### TavernAI Extensions LINK ###` title
-* Start TavernAI with extensions support: set `enableExtensions` to `true` in [config.conf](https://github.com/Cohee1207/SillyTavern/blob/dev/config.conf)
-* Navigate to TavernAI settings and put in an API URL and tap "Connect" to load the extensions
+* Start SillyTavern with extensions support: set `enableExtensions` to `true` in [config.conf](https://github.com/Cohee1207/SillyTavern/blob/dev/config.conf)
+* Navigate to SillyTavern extensions menu and put in an API URL and tap "Connect" to load the extensions
 
 ### What about mobile/Android/Termux? 🤔
 
