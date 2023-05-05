@@ -7,7 +7,7 @@ A set of APIs for various SillyTavern extensions.
 All modules require at least 6 Gb of VRAM to run. With Stable Diffusion disabled, it will probably fit in 4 Gb.
 Alternatively, everything could also be run on the CPU.
 
-Try on Colab (runs KoboldAI backend and TavernAI Extras server alongside):  <a target="_blank" href="https://colab.research.google.com/github/Cohee1207/SillyTavern/blob/main/colab/GPU.ipynb">
+Try on Colab (runs KoboldAI backend and SillyTavern Extras server alongside):  <a target="_blank" href="https://colab.research.google.com/github/Cohee1207/SillyTavern/blob/main/colab/GPU.ipynb">
   <img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"/>
 </a>
 
@@ -26,7 +26,7 @@ https://colab.research.google.com/github/Cohee1207/SillyTavern/blob/main/colab/G
 * Open colab link
 * Select desired "extra" options and start the cell
 * Wait for it to finish
-* Get an API URL link from colab output under the `### TavernAI Extensions LINK ###` title
+* Get an API URL link from colab output under the `### SillyTavern Extensions LINK ###` title
 * Start SillyTavern with extensions support: set `enableExtensions` to `true` in [config.conf](https://github.com/Cohee1207/SillyTavern/blob/dev/config.conf)
 * Navigate to SillyTavern extensions menu and put in an API URL and tap "Connect" to load the extensions
 
@@ -64,11 +64,11 @@ conda install pytorch torchvision torchaudio pytorch-cuda=11.7 git -c pytorch -c
 ```
 * Clone this repository
 ```
-git clone https://github.com/Cohee1207/TavernAI-extras
+git clone https://github.com/Cohee1207/SillyTavern-extras
 ```
 * Navigated to the freshly cloned repository
 ```
-cd TavernAI-extras
+cd SillyTavern-extras
 ```
 * Install the project requirements
 ```
@@ -93,8 +93,8 @@ python server.py
 * Install git: https://git-scm.com/downloads
 * Clone the repo:
 ```
-git clone https://github.com/Cohee1207/TavernAI-extras
-cd TavernAI-extras
+git clone https://github.com/Cohee1207/SillyTavern-extras
+cd SillyTavern-extras
 ```
 * Run `python -m pip install -r requirements.txt`
 * Run `python server.py --enable-modules=caption,summarize,classify`
