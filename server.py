@@ -295,13 +295,8 @@ def generate_prompt(keywords: list, length: int = 100, num: int = 4) -> str:
 
 def generate_image(data: dict) -> Image:
     prompt = normalize_string(f'{data["prompt_prefix"]} {data["prompt"]}')
-    print(prompt)
 
     if sd_use_remote:
-        if data['model'] is not None and data['model'] != sd_remote.util_get_current_model():
-            sd_remote.util_set_model(data['model'], find_closest=False)
-            sd_remote.util_wait_for_ready()
-
         image = sd_remote.txt2img(
             prompt=prompt,
             negative_prompt=data['negative_prompt'],
@@ -478,7 +473,6 @@ def api_image():
         'steps': 30, 
         'scale': 6,
         'sampler': 'DDIM',
-        'model': None,
         'width': 512,
         'height': 512,
         'prompt_prefix': PROMPT_PREFIX,
