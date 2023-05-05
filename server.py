@@ -310,6 +310,10 @@ def generate_image(data: dict) -> Image:
             cfg_scale=data['scale'],
             width=data['width'],
             height=data['height'],
+            save_images=True,
+            send_images=True,
+            do_not_save_grid=False,
+            do_not_save_samples=False,
         ).image
     else:
         image = sd_pipe(
