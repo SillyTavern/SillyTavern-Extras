@@ -60,7 +60,7 @@ conda activate extras
 ```
 * Install the required system packages
 ```
-conda install pytorch torchvision torchaudio pytorch-cuda=11.7 git -c pytorch -c nvidia
+conda install pytorch=2.0.0 torchvision=0.15.0 torchaudio=2.0.0 pytorch-cuda=11.7 git -c pytorch -c nvidia
 ```
 * Clone this repository
 ```
