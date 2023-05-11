@@ -112,6 +112,7 @@ cd SillyTavern-extras
 | `keywords`  | Text key phrases extraction       | ✔️ Yes      |
 | `prompt`    | SD prompt generation from text    | ✔️ Yes     |
 | `sd`        | Stable Diffusion image generation | :x: No (✔️ remote)      |
+| `tts`       | [Silero TTS server](https://github.com/ouoertheo/silero-api-server) | :x: |
 
 
 ## Additional options
@@ -292,3 +293,29 @@ None
 { "previous_model": "name of the previous model", "current_model": "name of the newly loaded model" }
 ```
 
+### Generate TTS voice
+`POST /api/tts/generate`
+#### **Input**
+```
+{ "speaker": "speaker voice_id", "text": "text to narrate" }
+```
+#### **Output**
+WAV audio file.
+
+### Get TTS voices
+`GET /api/tts/speakers`
+#### **Output**
+```
+[
+    {
+        "name": "en_0",
+        "preview_url": "http://127.0.0.1:5100/api/tts/sample/en_0",
+        "voice_id": "en_0"
+    }
+]
+```
+
+### Get TTS voice sample
+`GET /api/tts/sample/<voice_id>`
+#### **Output**
+WAV audio file.

@@ -11,4 +11,5 @@ torchvision==0.15.1
 torchaudio==2.0.1
 accelerate
 transformers==4.28.1
-git+https://github.com/huggingface/diffusers
+diffusers==0.16.1
+silero-api-server
