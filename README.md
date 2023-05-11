@@ -7,7 +7,7 @@ A set of APIs for various SillyTavern extensions.
 All modules require at least 6 Gb of VRAM to run. With Stable Diffusion disabled, it will probably fit in 4 Gb.
 Alternatively, everything could also be run on the CPU.
 
-Try on Colab (runs KoboldAI backend and SillyTavern Extras server alongside):  <a target="_blank" href="https://colab.research.google.com/github/Cohee1207/SillyTavern/blob/main/colab/GPU.ipynb">
+Try on Colab (will give you a link to Extras API):  <a target="_blank" href="https://colab.research.google.com/github/Cohee1207/SillyTavern/blob/main/colab/GPU.ipynb">
   <img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"/>
 </a>
 
