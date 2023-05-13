@@ -132,3 +132,4 @@ debug.png
 test.wav
 /tts_samples
 model.pt
+.DS_Store
