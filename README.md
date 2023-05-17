@@ -361,23 +361,20 @@ WAV audio file.
 ```
 #### **Output**
 ```
-{
-    "chat_id": "chat1 - 2023-12-31",
-    "messages": [
-        {
-            "id": "633a4bd1-8350-46b5-9ef2-f5d27acdecb7", 
-            "date": 1684164339877,
-            "role": "user",
-            "content": "Hello, AI world!",
-            "distance": 0.31
-        },
-        {
-            "id": "8a2ed36b-c212-4a1b-84a3-0ffbe0896506", 
-            "date": 1684164411759,
-            "role": "assistant",
-            "content": "Hello, Hooman!",
-            "distance": 0.29
-        },
-    ] 
-}
+[
+    {
+        "id": "633a4bd1-8350-46b5-9ef2-f5d27acdecb7", 
+        "date": 1684164339877,
+        "role": "user",
+        "content": "Hello, AI world!",
+        "distance": 0.31
+    },
+    {
+        "id": "8a2ed36b-c212-4a1b-84a3-0ffbe0896506", 
+        "date": 1684164411759,
+        "role": "assistant",
+        "content": "Hello, Hooman!",
+        "distance": 0.29
+    },
+]
 ```
