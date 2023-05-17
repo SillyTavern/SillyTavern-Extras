@@ -509,7 +509,7 @@ def api_image():
     try:
         print('SD inputs:', data, sep="\n")
         image = generate_image(data)
-        base64image = image_to_base64(image)
+        base64image = image_to_base64(image, quality=90)
         return jsonify({'image': base64image})
     except RuntimeError as e:
         abort(400, str(e))
