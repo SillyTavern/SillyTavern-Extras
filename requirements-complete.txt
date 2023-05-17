@@ -13,3 +13,4 @@ accelerate
 transformers==4.28.1
 diffusers==0.16.1
 silero-api-server
+chromadb
