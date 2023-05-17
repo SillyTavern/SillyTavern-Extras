@@ -677,8 +677,6 @@ def chromadb_query():
         n_results=n_results,
     )
 
-    print(query_result)
-
     documents = query_result['documents'][0]
     ids = query_result['ids'][0]
     metadatas = query_result['metadatas'][0]
