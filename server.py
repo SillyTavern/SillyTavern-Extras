@@ -640,7 +640,7 @@ def chromadb_add_messages():
 
     documents = [m['content'] for m in data['messages']]
     ids = [m['id'] for m in data['messages']]
-    metadatas = [{'role': m['role'], 'date': m['date']} for m in data['messages']]
+    metadatas = [{'role': m['role'], 'date': m['date'], 'meta': m.get('meta', '')} for m in data['messages']]
 
     collection.upsert(
         ids=ids,
@@ -687,6 +687,7 @@ def chromadb_query():
             'id': ids[i],
             'date': metadatas[i]['date'],
             'role': metadatas[i]['role'],
+            'meta': metadatas[i]['meta'],
             'content': documents[i],
             'distance': distances[i]
         } for i in range(len(ids))

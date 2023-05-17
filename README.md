@@ -333,7 +333,8 @@ WAV audio file.
             "id": "633a4bd1-8350-46b5-9ef2-f5d27acdecb7", 
             "date": 1684164339877,
             "role": "user",
-            "content": "Hello, AI world!"
+            "content": "Hello, AI world!",
+            "meta": "this is meta"
         },
         {
             "id": "8a2ed36b-c212-4a1b-84a3-0ffbe0896506", 
@@ -367,7 +368,8 @@ WAV audio file.
         "date": 1684164339877,
         "role": "user",
         "content": "Hello, AI world!",
-        "distance": 0.31
+        "distance": 0.31,
+        "meta": "this is meta"
     },
     {
         "id": "8a2ed36b-c212-4a1b-84a3-0ffbe0896506", 
