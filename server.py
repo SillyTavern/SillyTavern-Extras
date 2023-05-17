@@ -502,7 +502,8 @@ def api_image():
 
     # Set optional fields to default values if not provided
     for field, default_value in optional_fields.items():
-        if field not in data or not isinstance(data[field], type(default_value)):
+        type_match = (int, float) if isinstance(default_value, (int, float)) else type(default_value)
+        if field not in data or not isinstance(data[field], type_match):
             data[field] = default_value
 
     try:
