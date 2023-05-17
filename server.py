@@ -319,6 +319,8 @@ def generate_image(data: dict) -> Image:
             cfg_scale=data['scale'],
             width=data['width'],
             height=data['height'],
+            restore_faces=data['restore_faces'],
+            enable_hr=data['enable_hr'],
             save_images=True,
             send_images=True,
             do_not_save_grid=False,
@@ -489,6 +491,8 @@ def api_image():
         'sampler': 'DDIM',
         'width': 512,
         'height': 512,
+        'restore_faces': False,
+        'enable_hr': False,
         'prompt_prefix': PROMPT_PREFIX,
         'negative_prompt': NEGATIVE_PROMPT
     }
