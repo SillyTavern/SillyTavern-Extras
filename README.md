@@ -2,7 +2,7 @@
 ## What is this
 A set of APIs for various SillyTavern extensions.
 
-**You need to run the lastest version of my TavernAI fork. Grab it here: [Direct link to ZIP](https://github.com/Cohee1207/SillyTavern/archive/refs/heads/main.zip), [Git repository](https://github.com/Cohee1207/SillyTavern)**
+**You need to run the latest version of my TavernAI fork. Grab it here: [Direct link to ZIP](https://github.com/Cohee1207/SillyTavern/archive/refs/heads/main.zip), [Git repository](https://github.com/Cohee1207/SillyTavern)**
 
 All modules require at least 6 Gb of VRAM to run. With Stable Diffusion disabled, it will probably fit in 4 Gb.
 Alternatively, everything could also be run on the CPU.
@@ -267,14 +267,14 @@ None
 `GET /api/image/models`
 #### **Output**
 ```
-{ "models": [list of all availabe model names] }
+{ "models": [list of all available model names] }
 ```
 
 ### Get available Stable Diffusion samplers
 `GET /api/image/samplers`
 #### **Output**
 ```
-{ "samplers": [list of all availabe sampler names] }
+{ "samplers": [list of all available sampler names] }
 ```
 
 ### Get currently loaded Stable Diffusion model
