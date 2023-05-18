@@ -39,7 +39,7 @@ class Chat:
 class Capture:
     def __init__(self, jsonl: str, pfp_user=None, pfp_char=None) -> None:
         self.jsonl = jsonl
-        self.jsonl_to_array()
+        self.jsonl_to_enumerable()
         self.extract_data()
         self.font_size = 16
         self.bold_font_size = 18  # Increased font size for the name
@@ -56,8 +56,8 @@ class Capture:
         self.calculate_chat_height()
         self.prepare_image()
 
-    def jsonl_to_array(self):
-        self.data = [loads(line) for line in self.jsonl.splitlines()]
+    def jsonl_to_enumerable(self):
+        self.data = (loads(line) for line in self.jsonl.splitlines())
 
     def extract_data(self):
         chat = Chat()
@@ -75,10 +75,10 @@ class Capture:
                 )
 
         self.chat = chat
-        return jsonify(self.chat.export())
 
     def calculate_chat_height(self, padding=10):
         total_height = padding
+        self.message_heights = []
 
         for message in self.chat.messages:
             text = message.message
@@ -94,8 +94,16 @@ class Capture:
             # Add separation line height
             total_height += self.line_spacing
 
+            # Store the height of each message separately
+            message_height = (
+                wrapped_text_height
+                + self.bold_font.getsize(" ")[1]
+                + 2 * self.line_spacing
+            )
+            self.message_heights.append(message_height)
+
         # Calculate the profile picture heights
-        total_height += len(self.chat.messages) * (self.line_spacing)
+        total_height += len(self.chat.messages) * self.line_spacing
 
         # Add padding at the top and bottom
         total_height += padding * 2
