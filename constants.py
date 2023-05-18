@@ -51,7 +51,7 @@ signature, watermark, username, blurry"""
 
 
 # list of key phrases to be looking for in text (unused for now)
-indicator_list = [
+INDICATOR_LIST = [
     "female",
     "girl",
     "male",
