@@ -380,3 +380,10 @@ WAV audio file.
     },
 ]
 ```
+
+### Delete the messages from chromadb
+`POST /api/chromadb/purge`
+#### **Input**
+```
+{ "chat_id": "chat1 - 2023-04-12" }
+```
