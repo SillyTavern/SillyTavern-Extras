@@ -757,6 +757,62 @@ def chromadb_query():
     return jsonify(messages)
 
 
+@app.route("/api/chromadb/export", methods=["POST"])
+@require_module("chromadb")
+def chromadb_export():
+    data = request.get_json()
+    if "chat_id" not in data or not isinstance(data["chat_id"], str):
+        abort(400, '"chat_id" is required')
+        
+    chat_id_md5 = hashlib.md5(data["chat_id"].encode()).hexdigest()
+    collection = chromadb_client.get_or_create_collection(
+        name=f"chat-{chat_id_md5}", embedding_function=chromadb_embed_fn
+    )
+    collection_content = collection.get()
+    documents = collection_content.get('documents', [])
+    ids = collection_content.get('ids', [])
+    metadatas = collection_content.get('metadatas', [])
+        
+    content = [
+        {
+            "id": ids[i],
+            "metadata": metadatas[i],
+            "document": documents[i],
+        }
+        for i in range(len(ids))
+    ]
+    
+    export = {
+    "chat_id": data["chat_id"],
+    "content": content
+    }
+    
+
+    return jsonify(export)
+
+@app.route("/api/chromadb/import", methods=["POST"])
+@require_module("chromadb")
+def chromadb_import():
+    data = request.get_json()
+    content = data['content']
+    if "chat_id" not in data or not isinstance(data["chat_id"], str):
+        abort(400, '"chat_id" is required')
+
+    chat_id_md5 = hashlib.md5(data["chat_id"].encode()).hexdigest()
+    collection = chromadb_client.get_or_create_collection(
+        name=f"chat-{chat_id_md5}", embedding_function=chromadb_embed_fn
+    )
+
+    documents = [item['document'] for item in content]
+    metadatas = [item['metadata'] for item in content]
+    ids = [item['id'] for item in content]
+
+
+    collection.upsert(documents=documents, metadatas=metadatas, ids=ids)
+
+    return jsonify({"count": len(ids)})
+
+
 if args.share:
     from flask_cloudflared import _run_cloudflared
     import inspect
