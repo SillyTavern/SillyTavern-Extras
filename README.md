@@ -29,7 +29,10 @@ Installing chromadb package requires one of the following:
 1. Have Visual C++ build tools installed: https://visualstudio.microsoft.com/visual-cpp-build-tools/
 2. Installing hnswlib from conda: `conda install -c conda-forge hnswlib`
 
+### Missing modules reported by SillyTavern extensions menu?
+
 You must specify a list of module names to be run in the `--enable-modules` command (`caption` provided as an example). See [Modules](#modules) section.
+
 ### ☁️ Colab
 * Open colab link
 * Select desired "extra" options and start the cell
