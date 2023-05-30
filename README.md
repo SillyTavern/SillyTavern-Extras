@@ -16,12 +16,20 @@ https://colab.research.google.com/github/Cohee1207/SillyTavern/blob/main/colab/G
 
 ## How to run
 ### :exclamation: **IMPORTANT!**
-> Default **requirements.txt** contains only basic packages for text processing
+ Default **requirements.txt** contains only basic packages for text processing
 
+If you want to use the most advanced features (like Stable Diffusion, TTS), change that to **requirements-complete.txt** in commands below. See [Modules](#modules) section for more details.
 
-> If you want to use the most advanced features (like Stable Diffusion, TTS), change that to **requirements-complete.txt** in commands below. See [Modules](#modules) section for more details.
+### Getting an error when installing from requirements-complete.txt?
 
-> You must specify a list of module names to be run in the `--enable-modules` command (`caption` provided as an example). See [Modules](#modules) section.
+> ERROR: Could not build wheels for hnswlib, which is required to install pyproject.toml-based projects
+
+Installing chromadb package requires one of the following:
+
+1. Have Visual C++ build tools installed: https://visualstudio.microsoft.com/visual-cpp-build-tools/
+2. Installing hnswlib from conda: `conda install -c conda-forge hnswlib`
+
+You must specify a list of module names to be run in the `--enable-modules` command (`caption` provided as an example). See [Modules](#modules) section.
 ### ☁️ Colab
 * Open colab link
 * Select desired "extra" options and start the cell
