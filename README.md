@@ -130,6 +130,8 @@ cd SillyTavern-extras
 | `--keyphrase-model`      | Load a custom key phrase extraction model.<br>Expects a HuggingFace model ID.<br>Default: [ml6team/keyphrase-extraction-distilbert-inspec](https://huggingface.co/ml6team/keyphrase-extraction-distilbert-inspec) |
 | `--prompt-model`         | Load a custom prompt generation model.<br>Expects a HuggingFace model ID.<br>Default: [FredZhang7/anime-anything-promptgen-v2](https://huggingface.co/FredZhang7/anime-anything-promptgen-v2) |
 | `--embedding-model`      | Load a custom text embedding model.<br>Expects a HuggingFace model ID.<br>Default: [sentence-transformers/all-mpnet-base-v2](https://huggingface.co/sentence-transformers/all-mpnet-base-v2) |
+| `--chroma-host`          | Specifies a host IP for a remote ChromaDB server. |
+| `--chroma-port`          | Specifies an HTTP port for a remote ChromaDB server.<br>Default: `8000` |
 | `--sd-model`             | Load a custom Stable Diffusion image generation model.<br>Expects a HuggingFace model ID.<br>Default: [ckpt/anything-v4.5-vae-swapped](https://huggingface.co/ckpt/anything-v4.5-vae-swapped)<br>*Must have VAE pre-baked in PyTorch format or the output will look drab!* |
 | `--sd-cpu`               | Force the Stable Diffusion generation pipeline to run on the CPU.<br>**SLOW!** |
 | `--sd-remote`            | Use a remote SD backend.<br>**Supported APIs: [sd-webui](https://github.com/AUTOMATIC1111/stable-diffusion-webui)**  |
@@ -137,6 +139,35 @@ cd SillyTavern-extras
 | `--sd-remote-port`       | Specify the port of the remote SD backend<br>Default: **7860** |
 | `--sd-remote-ssl`        | Use SSL for the remote SD backend<br>Default: **False** |
 | `--sd-remote-auth`       | Specify the `username:password` for the remote SD backend (if required) |
+
+## ChromaDB
+ChromaDB is a blazing fast and open source database that is used for long-term memory when chatting with characters. It can be run in-memory or on a local server on your LAN.
+
+NOTE: You should **NOT** run ChromaDB on a cloud server. There are no methods for authentication (yet), so unless you want to expose an unauthenticated ChromaDB to the world, run this on a local server in your LAN.
+
+### In-memory setup
+Run the extras server with the `chromadb` module enabled.
+
+### Remote setup
+Prerequisites: Docker, Docker compose (make sure you're running in rootless mode with the systemd service enabled if on Linux)
+
+Steps:
+
+1. Run `git clone https://github.com/chroma-core/chroma chromadb` and `cd chromadb`
+2. Run `docker-compose up -d --build` to build ChromaDB. This may take a long time depending on your system
+3. Once the build process is finished, ChromaDB should be running in the background. You can check with the command `docker ps`
+4. On your client machine, specify your local server ip in the `--chroma-host` argument (ex. `--chroma-host=192.168.1.10`)
+  
+
+If you are running ChromaDB on the same machine as SillyTavern, you will have to change the port of one of the services. To do this for ChromaDB:
+
+1. Run `docker ps` to get the container ID and then `docker container stop <container ID>`
+2. Enter the ChromaDB git repository `cd chromadb`
+3. Open `docker-compose.yml` and look for the line starting with `uvicorn chromadb.app:app`
+4. Change the `--port` argument to whatever port you want.
+5. Look for the `ports` category and change the occurrences of `8000` to whatever port you chose in step 4.
+6. Save and exit. Then run `docker-compose up --detach`
+7. On your client machine, make sure to specity the `--chroma-port` argument (ex. `--chroma-port=<your-port-here>`) along with the `--chroma-host` argument.
 
 ## API Endpoints
 ### Get active list
