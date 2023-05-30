@@ -62,6 +62,8 @@ parser.add_argument(
 )
 parser.add_argument("--prompt-model", help="Load a custom prompt generation model")
 parser.add_argument("--embedding-model", help="Load a custom text embedding model")
+parser.add_argument("--chroma-host", help="Host IP for a remote ChromaDB instance")
+parser.add_argument("--chroma-port", help="HTTP port for a remote ChromaDB instance (defaults to 8000)")
 
 sd_group = parser.add_mutually_exclusive_group()
 
@@ -241,12 +243,35 @@ if "chromadb" in modules:
     from chromadb.config import Settings
     from sentence_transformers import SentenceTransformer
 
-    # disable chromadb telemetry
+    # Assume that the user wants in-memory unless a host is specified
+    # Also disable chromadb telemetry
     posthog.capture = lambda *args, **kwargs: None
-    chromadb_client = chromadb.Client(Settings(anonymized_telemetry=False))
+    if args.chroma_host is None:
+        chromadb_client = chromadb.Client(Settings(anonymized_telemetry=False))
+        print("ChromaDB is running in-memory. It will be cleared when the server is restarted!")
+    else:
+        chroma_port=(
+            args.chroma_port if args.chroma_port else DEFAULT_CHROMA_PORT
+        )
+        chromadb_client = chromadb.Client(
+            Settings(
+                anonymized_telemetry=False,
+                chroma_api_impl="rest",
+                chroma_server_host=args.chroma_host,
+                chroma_server_http_port=chroma_port
+            )
+        )
+        print(f"ChromaDB is remotely configured at {args.chroma_host}:{chroma_port}")
+
     chromadb_embedder = SentenceTransformer(embedding_model)
     chromadb_embed_fn = chromadb_embedder.encode
 
+    # Check if the db is connected and running, otherwise tell the user
+    try:
+        chromadb_client.heartbeat()
+        print("Successfully pinged ChromaDB! Your client is successfully connected.")
+    except:
+        print("Could not ping ChromaDB! If you are running remotely, please check your host and port!")
 
 # Flask init
 app = Flask(__name__)
