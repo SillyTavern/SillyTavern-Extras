@@ -134,3 +134,4 @@ test.wav
 model.pt
 .DS_Store
 .chroma
+/.chroma_db
