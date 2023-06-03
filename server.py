@@ -13,7 +13,7 @@ import markdown
 import argparse
 from transformers import AutoTokenizer, AutoProcessor, pipeline
 from transformers import AutoModelForCausalLM, AutoModelForSeq2SeqLM
-from transformers import BlipForConditionalGeneration, GPT2Tokenizer
+from transformers import BlipForConditionalGeneration
 import unicodedata
 import torch
 import time
@@ -41,7 +41,7 @@ class SplitArgs(argparse.Action):
 
 # Script arguments
 parser = argparse.ArgumentParser(
-    prog="TavernAI Extras", description="Web API for transformers models"
+    prog="SillyTavern Extras", description="Web API for transformers models"
 )
 parser.add_argument(
     "--port", type=int, help="Specify the port on which the application is hosted"
@@ -58,10 +58,6 @@ parser.add_argument(
     "--classification-model", help="Load a custom text classification model"
 )
 parser.add_argument("--captioning-model", help="Load a custom captioning model")
-parser.add_argument(
-    "--keyphrase-model", help="Load a custom keyphrase extraction model"
-)
-parser.add_argument("--prompt-model", help="Load a custom prompt generation model")
 parser.add_argument("--embedding-model", help="Load a custom text embedding model")
 parser.add_argument("--chroma-host", help="Host IP for a remote ChromaDB instance")
 parser.add_argument("--chroma-port", help="HTTP port for a remote ChromaDB instance (defaults to 8000)")
@@ -119,10 +115,6 @@ classification_model = (
 captioning_model = (
     args.captioning_model if args.captioning_model else DEFAULT_CAPTIONING_MODEL
 )
-keyphrase_model = (
-    args.keyphrase_model if args.keyphrase_model else DEFAULT_KEYPHRASE_MODEL
-)
-prompt_model = args.prompt_model if args.prompt_model else DEFAULT_PROMPT_MODEL
 embedding_model = (
     args.embedding_model if args.embedding_model else DEFAULT_EMBEDDING_MODEL
 )
@@ -176,21 +168,6 @@ if "classify" in modules:
         top_k=None,
         device=device,
         torch_dtype=torch_dtype,
-    )
-
-if "keywords" in modules:
-    print("Initializing a keyword extraction pipeline...")
-    import pipelines as pipelines
-
-    keyphrase_pipe = pipelines.KeyphraseExtractionPipeline(keyphrase_model)
-
-if "prompt" in modules:
-    print("Initializing a prompt generator")
-    gpt_tokenizer = GPT2Tokenizer.from_pretrained("distilgpt2")
-    gpt_tokenizer.add_special_tokens({"pad_token": "[PAD]"})
-    gpt_model = AutoModelForCausalLM.from_pretrained(prompt_model)
-    prompt_generator = pipeline(
-        "text-generation", model=gpt_model, tokenizer=gpt_tokenizer
     )
 
 if "sd" in modules and not sd_use_remote:
@@ -362,29 +339,6 @@ def normalize_string(input: str) -> str:
     return output
 
 
-def extract_keywords(text: str) -> list:
-    punctuation = "(){}[]\n\r<>"
-    trans = str.maketrans(punctuation, " " * len(punctuation))
-    text = text.translate(trans)
-    text = normalize_string(text)
-    return list(keyphrase_pipe(text))
-
-
-def generate_prompt(keywords: list, length: int = 100, num: int = 4) -> str:
-    prompt = ", ".join(keywords)
-    outs = prompt_generator(
-        prompt,
-        max_length=length,
-        num_return_sequences=num,
-        do_sample=True,
-        repetition_penalty=1.2,
-        temperature=0.7,
-        top_k=4,
-        early_stopping=True,
-    )
-    return [out["generated_text"] for out in outs]
-
-
 def generate_image(data: dict) -> Image:
     prompt = normalize_string(f'{data["prompt_prefix"]} {data["prompt"]}')
 
@@ -550,39 +504,6 @@ def api_classify_labels():
     classification = classify_text("")
     labels = [x["label"] for x in classification]
     return jsonify({"labels": labels})
-
-
-@app.route("/api/keywords", methods=["POST"])
-@require_module("keywords")
-def api_keywords():
-    data = request.get_json()
-
-    if "text" not in data or not isinstance(data["text"], str):
-        abort(400, '"text" is required')
-
-    print("Keywords input:", data["text"], sep="\n")
-    keywords = extract_keywords(data["text"])
-    print("Keywords output:", keywords, sep="\n")
-    return jsonify({"keywords": keywords})
-
-
-@app.route("/api/prompt", methods=["POST"])
-@require_module("prompt")
-def api_prompt():
-    data = request.get_json()
-
-    if "text" not in data or not isinstance(data["text"], str):
-        abort(400, '"text" is required')
-
-    keywords = extract_keywords(data["text"])
-
-    if "name" in data and isinstance(data["name"], str):
-        keywords.insert(0, data["name"])
-
-    print("Prompt input:", data["text"], sep="\n")
-    prompts = generate_prompt(keywords)
-    print("Prompt output:", prompts, sep="\n")
-    return jsonify({"prompts": prompts})
 
 
 @app.route("/api/image", methods=["POST"])

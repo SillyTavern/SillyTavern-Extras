@@ -120,8 +120,6 @@ cd SillyTavern-extras
 | `caption`   | Image captioning                  | ✔️ Yes        |
 | `summarize` | Text summarization                | ✔️ Yes    |
 | `classify`  | Text sentiment classification     | ✔️ Yes      |
-| `keywords`  | Text key phrases extraction       | ✔️ Yes      |
-| `prompt`    | SD prompt generation from text    | ✔️ Yes     |
 | `sd`        | Stable Diffusion image generation | :x: No (✔️ remote)      |
 | `tts`       | [Silero TTS server](https://github.com/ouoertheo/silero-api-server) | :x: No |
 | `chromadb`  | Infinity context server           | :x: No |
@@ -263,34 +261,6 @@ None
 > 1. Sorted by descending score order
 > 2. List of categories defined by the summarization model
 > 3. Value range from 0.0 to 1.0
-
-### Key phrase extraction
-`POST /api/keywords`
-#### **Input**
-```
-{ "text": "text to be scanned for key phrases" }
-```
-#### **Output**
-```
-{
-    "keywords": [
-        "array of",
-        "extracted",
-        "keywords",
-    ]
-}
-```
-
-### Stable Diffusion prompt generation
-`POST /api/prompt`
-#### **Input**
-```
-{ "name": "character name (optional)", "text": "textual summary of a character" }
-```
-#### **Output**
-```
-{ "prompts": [ "array of generated prompts" ] }
-```
 
 ### Stable Diffusion image generation
 `POST /api/image`
