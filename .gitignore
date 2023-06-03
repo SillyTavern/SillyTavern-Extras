@@ -135,3 +135,4 @@ model.pt
 .DS_Store
 .chroma
 /.chroma_db
+api_key.txt

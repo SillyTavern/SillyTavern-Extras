@@ -19,6 +19,7 @@ import torch
 import time
 import os
 import gc
+import secrets
 from PIL import Image
 import base64
 from io import BytesIO
@@ -65,6 +66,9 @@ parser.add_argument("--embedding-model", help="Load a custom text embedding mode
 parser.add_argument("--chroma-host", help="Host IP for a remote ChromaDB instance")
 parser.add_argument("--chroma-port", help="HTTP port for a remote ChromaDB instance (defaults to 8000)")
 parser.add_argument("--chroma-folder", help="Path for chromadb persistence folder", default='.chroma_db')
+parser.add_argument(
+    "--secure", action="store_true", help="Enforces the use of an API key"
+)
 
 sd_group = parser.add_mutually_exclusive_group()
 
@@ -420,11 +424,38 @@ def image_to_base64(image: Image, quality: int = 75) -> str:
     img_str = base64.b64encode(buffered.getvalue()).decode("utf-8")
     return img_str
 
+# Reads an API key from an already existing file. If that file doesn't exist, create it.
+if args.secure:
+    try:
+        with open("api_key.txt", "r") as txt:
+            api_key = txt.read().replace('\n', '')
+    except:
+        api_key = secrets.token_hex(5)
+        with open("api_key.txt", "w") as txt:
+            txt.write(api_key)
+
+    print(f"Your API key is {api_key}")
+elif args.share and args.secure != True:
+    print("WARNING: This instance is publicly exposed without an API key! It is highly recommended to restart with the \"--secure\" argument!")
+else:
+    print("No API key given because you are running locally.")
 
 @app.before_request
-# Request time measuring
 def before_request():
+    # Request time measuring
     request.start_time = time.time()
+
+    # Checks if an API key is present and valid, otherwise return unauthorized
+    # The options check is required so CORS doesn't get angry
+    try:
+        if request.method != 'OPTIONS' and args.secure and request.authorization.token != api_key:
+            print(f"WARNING: Unauthorized API key access from {request.remote_addr}")
+            response = jsonify({ 'error': '401: Invalid API key' })
+            response.status_code = 401
+            return response
+    except Exception as e:
+        print(f"API key check error: {e}")
+        return "401 Unauthorized\n{}\n\n".format(e), 401
 
 
 @app.after_request

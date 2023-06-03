@@ -134,6 +134,7 @@ cd SillyTavern-extras
 | `--port`                 | Specify the port on which the application is hosted. Default: **5100** |
 | `--listen`               | Host the app on the local network                                      |
 | `--share`                | Share the app on CloudFlare tunnel                                     |
+| `--secure`               | Adds API key authentication requirements. Highly recommended when paired with share! |
 | `--cpu`                  | Run the models on the CPU instead of CUDA                              |
 | `--summarization-model`  | Load a custom summarization model.<br>Expects a HuggingFace model ID.<br>Default: [Qiliang/bart-large-cnn-samsum-ChatGPT_v3](https://huggingface.co/Qiliang/bart-large-cnn-samsum-ChatGPT_v3) |
 | `--classification-model` | Load a custom sentiment classification model.<br>Expects a HuggingFace model ID.<br>Default (6 emotions): [nateraw/bert-base-uncased-emotion](https://huggingface.co/nateraw/bert-base-uncased-emotion)<br>Other solid option is (28 emotions): [joeddav/distilbert-base-uncased-go-emotions-student](https://huggingface.co/joeddav/distilbert-base-uncased-go-emotions-student)<br>For Chinese language: [touch20032003/xuyuan-trial-sentiment-bert-chinese](https://huggingface.co/touch20032003/xuyuan-trial-sentiment-bert-chinese) |
