@@ -28,5 +28,5 @@ def generate_audio(text: str, voice: str) -> bytes:
 
     for chunk in chunks:
         buffer.write(chunk)
-    
+
     return buffer.getvalue()

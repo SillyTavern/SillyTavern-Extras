@@ -90,7 +90,7 @@ pip install -r requirements.txt
 python server.py --enable-modules=caption,summarize,classify
 ```
 * Copy the Extra's server API URL listed in the console window after it finishes loading up. On local installs, this defaults to `http://localhost:5100`.
-* Open your SillyTavern [config.conf](https://github.com/Cohee1207/SillyTavern/blob/dev/config.conf) file (located in the base install folder), and look for a line "`const enableExtensions`". Make sure that line has "`= true`", and not "`= false`". 
+* Open your SillyTavern [config.conf](https://github.com/Cohee1207/SillyTavern/blob/dev/config.conf) file (located in the base install folder), and look for a line "`const enableExtensions`". Make sure that line has "`= true`", and not "`= false`".
 * Start your SillyTavern server
 * Open the Extensions panel (via the 'Stacked Blocks' icon at the top of the page), paste the API URL into the input box, and click "Connect" to connect to the Extras extension server.
 * To run again, simply activate the environment and run these commands. Be sure to the additional options for server.py (see below) that your setup requires.
@@ -168,7 +168,7 @@ Steps:
 2. Run `docker-compose up -d --build` to build ChromaDB. This may take a long time depending on your system
 3. Once the build process is finished, ChromaDB should be running in the background. You can check with the command `docker ps`
 4. On your client machine, specify your local server ip in the `--chroma-host` argument (ex. `--chroma-host=192.168.1.10`)
-  
+
 
 If you are running ChromaDB on the same machine as SillyTavern, you will have to change the port of one of the services. To do this for ChromaDB:
 
@@ -344,19 +344,19 @@ WAV audio file.
     "chat_id": "chat1 - 2023-12-31",
     "messages": [
         {
-            "id": "633a4bd1-8350-46b5-9ef2-f5d27acdecb7", 
+            "id": "633a4bd1-8350-46b5-9ef2-f5d27acdecb7",
             "date": 1684164339877,
             "role": "user",
             "content": "Hello, AI world!",
             "meta": "this is meta"
         },
         {
-            "id": "8a2ed36b-c212-4a1b-84a3-0ffbe0896506", 
+            "id": "8a2ed36b-c212-4a1b-84a3-0ffbe0896506",
             "date": 1684164411759,
             "role": "assistant",
             "content": "Hello, Hooman!"
         },
-    ] 
+    ]
 }
 ```
 #### **Output**
@@ -378,7 +378,7 @@ WAV audio file.
 ```
 [
     {
-        "id": "633a4bd1-8350-46b5-9ef2-f5d27acdecb7", 
+        "id": "633a4bd1-8350-46b5-9ef2-f5d27acdecb7",
         "date": 1684164339877,
         "role": "user",
         "content": "Hello, AI world!",
@@ -386,7 +386,7 @@ WAV audio file.
         "meta": "this is meta"
     },
     {
-        "id": "8a2ed36b-c212-4a1b-84a3-0ffbe0896506", 
+        "id": "8a2ed36b-c212-4a1b-84a3-0ffbe0896506",
         "date": 1684164411759,
         "role": "assistant",
         "content": "Hello, Hooman!",

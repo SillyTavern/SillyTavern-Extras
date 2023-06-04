@@ -785,7 +785,7 @@ def chromadb_export():
     data = request.get_json()
     if "chat_id" not in data or not isinstance(data["chat_id"], str):
         abort(400, '"chat_id" is required')
-    
+
     chat_id_md5 = hashlib.md5(data["chat_id"].encode()).hexdigest()
     collection = chromadb_client.get_or_create_collection(
         name=f"chat-{chat_id_md5}", embedding_function=chromadb_embed_fn
@@ -794,7 +794,7 @@ def chromadb_export():
     documents = collection_content.get('documents', [])
     ids = collection_content.get('ids', [])
     metadatas = collection_content.get('metadatas', [])
-        
+
     content = [
         {
             "id": ids[i],
@@ -803,12 +803,12 @@ def chromadb_export():
         }
         for i in range(len(ids))
     ]
-    
+
     export = {
     "chat_id": data["chat_id"],
     "content": content
     }
-    
+
 
     return jsonify(export)
 
