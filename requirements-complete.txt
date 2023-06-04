@@ -15,3 +15,4 @@ diffusers==0.16.1
 silero-api-server
 chromadb
 sentence_transformers
+edge-tts

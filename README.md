@@ -121,7 +121,8 @@ cd SillyTavern-extras
 | `summarize` | Text summarization                | ✔️ Yes    |
 | `classify`  | Text sentiment classification     | ✔️ Yes      |
 | `sd`        | Stable Diffusion image generation | :x: No (✔️ remote)      |
-| `tts`       | [Silero TTS server](https://github.com/ouoertheo/silero-api-server) | :x: No |
+| `silero-tts`       | [Silero TTS server](https://github.com/ouoertheo/silero-api-server) | :x: No |
+| `edge-tts` | [Microsoft Edge TTS client](https://github.com/rany2/edge-tts) | ✔️ Yes |
 | `chromadb`  | Infinity context server           | :x: No |
 
 
@@ -308,7 +309,7 @@ None
 { "previous_model": "name of the previous model", "current_model": "name of the newly loaded model" }
 ```
 
-### Generate TTS voice
+### Generate Silero TTS voice
 `POST /api/tts/generate`
 #### **Input**
 ```
@@ -317,7 +318,7 @@ None
 #### **Output**
 WAV audio file.
 
-### Get TTS voices
+### Get Silero TTS voices
 `GET /api/tts/speakers`
 #### **Output**
 ```
@@ -330,7 +331,7 @@ WAV audio file.
 ]
 ```
 
-### Get TTS voice sample
+### Get Silero TTS voice sample
 `GET /api/tts/sample/<voice_id>`
 #### **Output**
 WAV audio file.
@@ -400,3 +401,19 @@ WAV audio file.
 ```
 { "chat_id": "chat1 - 2023-04-12" }
 ```
+
+### Get a list of Edge TTS voices
+`GET /api/edge-tts/list`
+#### **Output**
+```
+[{'Name': 'Microsoft Server Speech Text to Speech Voice (af-ZA, AdriNeural)', 'ShortName': 'af-ZA-AdriNeural', 'Gender': 'Female', 'Locale': 'af-ZA', 'SuggestedCodec': 'audio-24khz-48kbitrate-mono-mp3', 'FriendlyName': 'Microsoft Adri Online (Natural) - Afrikaans (South Africa)', 'Status': 'GA', 'VoiceTag': {'ContentCategories': ['General'], 'VoicePersonalities': ['Friendly', 'Positive']}}]
+```
+
+### Generate Edge TTS voice
+`POST /api/edge-tts/generate`
+#### **Input**
+```
+{ "text": "Text to narrate", "voice": "af-ZA-AdriNeural" }
+```
+#### **Output**
+MP3 audio file.

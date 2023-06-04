@@ -3,6 +3,7 @@ from flask import (
     Flask,
     jsonify,
     request,
+    Response,
     render_template_string,
     abort,
     send_from_directory,
@@ -207,6 +208,12 @@ elif "sd" in modules and sd_use_remote:
         modules.remove("sd")
 
 if "tts" in modules:
+    print("tts module is deprecated. Please use silero-tts instead.")
+    modules.remove("tts")
+    modules.append("silero-tts")
+
+
+if "silero-tts" in modules:
     if not os.path.exists(SILERO_SAMPLES_PATH):
         os.makedirs(SILERO_SAMPLES_PATH)
     print("Initializing Silero TTS server")
@@ -217,6 +224,12 @@ if "tts" in modules:
         print("Generating Silero TTS samples...")
         tts_service.update_sample_text(SILERO_SAMPLE_TEXT)
         tts_service.generate_samples()
+
+
+if "edge-tts" in modules:
+    print("Initializing Edge TTS client")
+    import tts_edge as edge
+
 
 if "chromadb" in modules:
     print("Initializing ChromaDB")
@@ -609,6 +622,7 @@ def get_modules():
 
 
 @app.route("/api/tts/speakers", methods=["GET"])
+@require_module("silero-tts")
 def tts_speakers():
     voices = [
         {
@@ -622,6 +636,7 @@ def tts_speakers():
 
 
 @app.route("/api/tts/generate", methods=["POST"])
+@require_module("silero-tts")
 def tts_generate():
     voice = request.get_json()
     if "text" not in voice or not isinstance(voice["text"], str):
@@ -639,8 +654,34 @@ def tts_generate():
 
 
 @app.route("/api/tts/sample/<speaker>", methods=["GET"])
+@require_module("silero-tts")
 def tts_play_sample(speaker: str):
     return send_from_directory(SILERO_SAMPLES_PATH, f"{speaker}.wav")
+
+
+@app.route("/api/edge-tts/list", methods=["GET"])
+@require_module("edge-tts")
+def edge_tts_list():
+    voices = edge.get_voices()
+    return jsonify(voices)
+
+
+@app.route("/api/edge-tts/generate", methods=["POST"])
+@require_module("edge-tts")
+def edge_tts_generate():
+    data = request.get_json()
+    if "text" not in data or not isinstance(data["text"], str):
+        abort(400, '"text" is required')
+    if "voice" not in data or not isinstance(data["voice"], str):
+        abort(400, '"voice" is required')
+    # Remove asterisks
+    data["text"] = data["text"].replace("*", "")
+    try:
+        audio = edge.generate_audio(text=data["text"], voice=data["voice"])
+        return Response(audio, mimetype="audio/mpeg")
+    except Exception as e:
+        print(e)
+        abort(500, data["voice"])
 
 
 @app.route("/api/chromadb", methods=["POST"])
