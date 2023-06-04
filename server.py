@@ -10,6 +10,7 @@ from flask import (
     send_file,
 )
 from flask_cors import CORS
+from flask_compress import Compress
 import markdown
 import argparse
 from transformers import AutoTokenizer, AutoProcessor, pipeline
@@ -271,6 +272,7 @@ if "chromadb" in modules:
 # Flask init
 app = Flask(__name__)
 CORS(app)  # allow cross-domain requests
+Compress(app) # compress responses
 app.config["MAX_CONTENT_LENGTH"] = 100 * 1024 * 1024
 
 
