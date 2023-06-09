@@ -2,17 +2,19 @@
 ## What is this
 A set of APIs for various SillyTavern extensions.
 
-**You need to run the latest version of my TavernAI fork. Grab it here: [Direct link to ZIP](https://github.com/Cohee1207/SillyTavern/archive/refs/heads/main.zip), [Git repository](https://github.com/Cohee1207/SillyTavern)**
+**You need to run the latest version of SillyTavern.
+
+Grab it here: [How to install](https://docs.sillytavern.app/installation/windows/), [Git repository](https://github.com/SillyTavern/SillyTavern)**
 
 All modules require at least 6 Gb of VRAM to run. With Stable Diffusion disabled, it will probably fit in 4 Gb.
 Alternatively, everything could also be run on the CPU.
 
-Try on Colab (will give you a link to Extras API):  <a target="_blank" href="https://colab.research.google.com/github/Cohee1207/SillyTavern/blob/main/colab/GPU.ipynb">
+Try on Colab (will give you a link to Extras API):  <a target="_blank" href="https://colab.research.google.com/github/SillyTavern/SillyTavern/blob/main/colab/GPU.ipynb">
   <img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"/>
 </a>
 
 Colab link:
-https://colab.research.google.com/github/Cohee1207/SillyTavern/blob/main/colab/GPU.ipynb
+https://colab.research.google.com/github/SillyTavern/SillyTavern/blob/main/colab/GPU.ipynb
 
 ## How to run
 ### :exclamation: **IMPORTANT!**
@@ -47,7 +49,7 @@ There are some folks in the community having success running Extras on their pho
 
 #### ❗ IMPORTANT!
 
-I will not provide any support for running this on Android. Direct all your questions to the creator of this guide.
+We will NOT provide any support for running this on Android. Direct all your questions to the creator of this guide.
 
 ### 💻 Locally
 #### Option 1 - Conda (recommended) 🐍
@@ -75,7 +77,7 @@ conda install pytorch=2.0.0 torchvision=0.15.0 torchaudio=2.0.0 pytorch-cuda=11.
 ```
 * Clone this repository
 ```
-git clone https://github.com/Cohee1207/SillyTavern-extras
+git clone https://github.com/SillyTavern/SillyTavern-extras
 ```
 * Navigated to the freshly cloned repository
 ```
@@ -90,7 +92,7 @@ pip install -r requirements.txt
 python server.py --enable-modules=caption,summarize,classify
 ```
 * Copy the Extra's server API URL listed in the console window after it finishes loading up. On local installs, this defaults to `http://localhost:5100`.
-* Open your SillyTavern [config.conf](https://github.com/Cohee1207/SillyTavern/blob/dev/config.conf) file (located in the base install folder), and look for a line "`const enableExtensions`". Make sure that line has "`= true`", and not "`= false`".
+* Open your SillyTavern [config.conf](https://github.com/SillyTavern/SillyTavern/blob/dev/config.conf) file (located in the base install folder), and look for a line "`const enableExtensions`". Make sure that line has "`= true`", and not "`= false`".
 * Start your SillyTavern server
 * Open the Extensions panel (via the 'Stacked Blocks' icon at the top of the page), paste the API URL into the input box, and click "Connect" to connect to the Extras extension server.
 * To run again, simply activate the environment and run these commands. Be sure to the additional options for server.py (see below) that your setup requires.
@@ -104,7 +106,7 @@ python server.py
 * Install git: https://git-scm.com/downloads
 * Clone the repo:
 ```
-git clone https://github.com/Cohee1207/SillyTavern-extras
+git clone https://github.com/SillyTavern/SillyTavern-extras
 cd SillyTavern-extras
 ```
 * Run `python -m pip install -r requirements.txt`
@@ -157,10 +159,14 @@ ChromaDB is a blazing fast and open source database that is used for long-term m
 NOTE: You should **NOT** run ChromaDB on a cloud server. There are no methods for authentication (yet), so unless you want to expose an unauthenticated ChromaDB to the world, run this on a local server in your LAN.
 
 ### In-memory setup
-Run the extras server with the `chromadb` module enabled.
+
+Run the extras server with the `chromadb` module enabled (recommended).
 
 ### Remote setup
-Prerequisites: Docker, Docker compose (make sure you're running in rootless mode with the systemd service enabled if on Linux)
+
+Use this if you want to use ChromaDB with docker or host it remotely. If you don't know what that means and only want to use ChromaDB with ST on your local device, use the 'in-memory' instructions instead.
+
+Prerequisites: Docker, Docker compose (make sure you're running in rootless mode with the systemd service enabled if on Linux).
 
 Steps:
 
