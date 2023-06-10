@@ -419,7 +419,7 @@ WAV audio file.
 `POST /api/edge-tts/generate`
 #### **Input**
 ```
-{ "text": "Text to narrate", "voice": "af-ZA-AdriNeural" }
+{ "text": "Text to narrate", "voice": "af-ZA-AdriNeural", "rate": 0 }
 ```
 #### **Output**
 MP3 audio file.

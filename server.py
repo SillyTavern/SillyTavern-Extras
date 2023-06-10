@@ -676,10 +676,14 @@ def edge_tts_generate():
         abort(400, '"text" is required')
     if "voice" not in data or not isinstance(data["voice"], str):
         abort(400, '"voice" is required')
+    if "rate" in data and isinstance(data['rate'], int):
+        rate = data['rate']
+    else:
+        rate = 0
     # Remove asterisks
     data["text"] = data["text"].replace("*", "")
     try:
-        audio = edge.generate_audio(text=data["text"], voice=data["voice"])
+        audio = edge.generate_audio(text=data["text"], voice=data["voice"], rate=rate)
         return Response(audio, mimetype="audio/mpeg")
     except Exception as e:
         print(e)

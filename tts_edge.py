@@ -21,8 +21,10 @@ async def _async_generator_to_list(async_gen):
     return result
 
 
-def generate_audio(text: str, voice: str) -> bytes:
-    audio = edge_tts.Communicate(text, voice)
+def generate_audio(text: str, voice: str, rate: int) -> bytes:
+    sign = '+' if rate > 0 else '-'
+    rate = f'{sign}{abs(rate)}%'
+    audio = edge_tts.Communicate(text=text, voice=voice, rate=rate)
     chunks = asyncio.run(_async_generator_to_list(_iterate_chunks(audio)))
     buffer = io.BytesIO()
 
