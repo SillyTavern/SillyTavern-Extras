@@ -388,9 +388,10 @@ def generate_image(data: dict) -> Image:
 
 
 def image_to_base64(image: Image, quality: int = 75) -> str:
-    buffered = BytesIO()
-    image.save(buffered, format="JPEG", quality=quality)
-    img_str = base64.b64encode(buffered.getvalue()).decode("utf-8")
+    buffer = BytesIO()
+    image.convert("RGB")
+    image.save(buffer, format="JPEG", quality=quality)
+    img_str = base64.b64encode(buffer.getvalue()).decode("utf-8")
     return img_str
 
 # Reads an API key from an already existing file. If that file doesn't exist, create it.
