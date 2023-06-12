@@ -16,6 +16,9 @@ Try on Colab (will give you a link to Extras API):  <a target="_blank" href="htt
 Colab link:
 https://colab.research.google.com/github/SillyTavern/SillyTavern/blob/main/colab/GPU.ipynb
 
+Documentation:
+https://docs.sillytavern.app/
+
 ## How to run
 ### :exclamation: **IMPORTANT!**
  Default **requirements.txt** contains only basic packages for text processing
