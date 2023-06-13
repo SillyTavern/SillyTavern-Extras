@@ -2,9 +2,7 @@
 ## What is this
 A set of APIs for various SillyTavern extensions.
 
-**You need to run the latest version of SillyTavern.
-
-Grab it here: [How to install](https://docs.sillytavern.app/installation/windows/), [Git repository](https://github.com/SillyTavern/SillyTavern)**
+**You need to run the latest version of SillyTavern. Grab it here: [How to install](https://docs.sillytavern.app/installation/windows/), [Git repository](https://github.com/SillyTavern/SillyTavern)**
 
 All modules require at least 6 Gb of VRAM to run. With Stable Diffusion disabled, it will probably fit in 4 Gb.
 Alternatively, everything could also be run on the CPU.
@@ -15,6 +13,9 @@ Try on Colab (will give you a link to Extras API):  <a target="_blank" href="htt
 
 Colab link:
 https://colab.research.google.com/github/SillyTavern/SillyTavern/blob/main/colab/GPU.ipynb
+
+Documentation:
+https://docs.sillytavern.app/
 
 ## How to run
 ### :exclamation: **IMPORTANT!**
