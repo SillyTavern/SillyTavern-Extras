@@ -64,6 +64,7 @@ parser.add_argument("--embedding-model", help="Load a custom text embedding mode
 parser.add_argument("--chroma-host", help="Host IP for a remote ChromaDB instance")
 parser.add_argument("--chroma-port", help="HTTP port for a remote ChromaDB instance (defaults to 8000)")
 parser.add_argument("--chroma-folder", help="Path for chromadb persistence folder", default='.chroma_db')
+parser.add_argument('--chroma-persist', help="Chromadb persistence", default=True, action=argparse.BooleanOptionalAction)
 parser.add_argument(
     "--secure", action="store_true", help="Enforces the use of an API key"
 )
@@ -243,8 +244,12 @@ if "chromadb" in modules:
     # Also disable chromadb telemetry
     posthog.capture = lambda *args, **kwargs: None
     if args.chroma_host is None:
-        chromadb_client = chromadb.Client(Settings(anonymized_telemetry=False, persist_directory=args.chroma_folder, chroma_db_impl='duckdb+parquet'))
-        print(f"ChromaDB is running in-memory with persistence. Persistence is stored in {args.chroma_folder}. Can be cleared by deleting the folder or purging db.")
+        if args.chroma_persist:
+            chromadb_client = chromadb.Client(Settings(anonymized_telemetry=False, persist_directory=args.chroma_folder, chroma_db_impl='duckdb+parquet'))
+            print(f"ChromaDB is running in-memory with persistence. Persistence is stored in {args.chroma_folder}. Can be cleared by deleting the folder or purging db.")
+        else:
+            chromadb_client = chromadb.Client(Settings(anonymized_telemetry=False))            
+            print(f"ChromaDB is running in-memory without persistence.")
     else:
         chroma_port=(
             args.chroma_port if args.chroma_port else DEFAULT_CHROMA_PORT
