@@ -248,7 +248,6 @@ if "chromadb" in modules:
             chromadb_client = chromadb.Client(Settings(anonymized_telemetry=False, persist_directory=args.chroma_folder, chroma_db_impl='duckdb+parquet'))
             print(f"ChromaDB is running in-memory with persistence. Persistence is stored in {args.chroma_folder}. Can be cleared by deleting the folder or purging db.")
         else:
-
             chromadb_client = chromadb.Client(Settings(anonymized_telemetry=False))            
             print(f"ChromaDB is running in-memory without persistence.")
     else:
