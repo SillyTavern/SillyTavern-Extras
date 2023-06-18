@@ -4,8 +4,7 @@ A set of APIs for various SillyTavern extensions.
 
 **You need to run the latest version of SillyTavern. Grab it here: [How to install](https://docs.sillytavern.app/installation/windows/), [Git repository](https://github.com/SillyTavern/SillyTavern)**
 
-All modules require at least 6 Gb of VRAM to run. With Stable Diffusion disabled, it will probably fit in 4 Gb.
-Alternatively, everything could also be run on the CPU.
+All modules, except for Stable Diffusion, run on the CPU by default. However, they can alternatively be configured to use CUDA (with `--cpu=false` command line option). When running all modules simultaneously, you can expect a usage of approximately 6 GB of RAM. Loading Stable Diffusion adds an additional couple of GB to the memory usage.
 
 Try on Colab (will give you a link to Extras API):  <a target="_blank" href="https://colab.research.google.com/github/SillyTavern/SillyTavern/blob/main/colab/GPU.ipynb">
   <img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"/>
@@ -137,7 +136,7 @@ cd SillyTavern-extras
 | `--listen`               | Host the app on the local network                                      |
 | `--share`                | Share the app on CloudFlare tunnel                                     |
 | `--secure`               | Adds API key authentication requirements. Highly recommended when paired with share! |
-| `--cpu`                  | Run the models on the CPU instead of CUDA                              |
+| `--cpu`                  | Run the models on the CPU instead of CUDA. Enabled by default. Set to false to force running on the GPU. |
 | `--summarization-model`  | Load a custom summarization model.<br>Expects a HuggingFace model ID.<br>Default: [Qiliang/bart-large-cnn-samsum-ChatGPT_v3](https://huggingface.co/Qiliang/bart-large-cnn-samsum-ChatGPT_v3) |
 | `--classification-model` | Load a custom sentiment classification model.<br>Expects a HuggingFace model ID.<br>Default (6 emotions): [nateraw/bert-base-uncased-emotion](https://huggingface.co/nateraw/bert-base-uncased-emotion)<br>Other solid option is (28 emotions): [joeddav/distilbert-base-uncased-go-emotions-student](https://huggingface.co/joeddav/distilbert-base-uncased-go-emotions-student)<br>For Chinese language: [touch20032003/xuyuan-trial-sentiment-bert-chinese](https://huggingface.co/touch20032003/xuyuan-trial-sentiment-bert-chinese) |
 | `--captioning-model`     | Load a custom captioning model.<br>Expects a HuggingFace model ID.<br>Default: [Salesforce/blip-image-captioning-large](https://huggingface.co/Salesforce/blip-image-captioning-large) |
