@@ -809,7 +809,7 @@ def chromadb_export():
     ids = collection_content.get('ids', [])
     metadatas = collection_content.get('metadatas', [])
 
-    content = [
+    unsorted_content = [
         {
             "id": ids[i],
             "metadata": metadatas[i],
@@ -817,12 +817,13 @@ def chromadb_export():
         }
         for i in range(len(ids))
     ]
+    
+    sorted_content = sorted(unsorted_content, key=lambda x: x['metadata']['date'])
 
     export = {
-    "chat_id": data["chat_id"],
-    "content": content
+        "chat_id": data["chat_id"],
+        "content": sorted_content
     }
-
 
     return jsonify(export)
 
