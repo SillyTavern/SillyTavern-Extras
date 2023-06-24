@@ -54,7 +54,9 @@ parser.add_argument(
 parser.add_argument(
     "--share", action="store_true", help="Share the app on CloudFlare tunnel"
 )
-parser.add_argument("--cpu", action="store_true", help="Run the models on the CPU", default=True)
+parser.add_argument("--cpu", action="store_true", help="Run the models on the CPU")
+parser.add_argument("--cuda", action="store_false", dest="cpu", help="Run the models on the GPU")
+parser.set_defaults(cpu=True)
 parser.add_argument("--summarization-model", help="Load a custom summarization model")
 parser.add_argument(
     "--classification-model", help="Load a custom text classification model"
@@ -143,6 +145,9 @@ if len(modules) == 0:
 device_string = "cuda:0" if torch.cuda.is_available() and not args.cpu else "cpu"
 device = torch.device(device_string)
 torch_dtype = torch.float32 if device_string == "cpu" else torch.float16
+
+if not torch.cuda.is_available() and not args.cpu:
+    print(f"{Fore.YELLOW}{Style.BRIGHT}torch-cuda is not supported on this device. Defaulting to CPU mode.{Style.RESET_ALL}")
 
 print(f"{Fore.GREEN}{Style.BRIGHT}Using torch device: {device_string}{Style.RESET_ALL}")
 
@@ -820,7 +825,7 @@ def chromadb_export():
     ids = collection_content.get('ids', [])
     metadatas = collection_content.get('metadatas', [])
 
-    content = [
+    unsorted_content = [
         {
             "id": ids[i],
             "metadata": metadatas[i],
@@ -829,11 +834,12 @@ def chromadb_export():
         for i in range(len(ids))
     ]
 
-    export = {
-    "chat_id": data["chat_id"],
-    "content": content
-    }
+    sorted_content = sorted(unsorted_content, key=lambda x: x['metadata']['date'])
 
+    export = {
+        "chat_id": data["chat_id"],
+        "content": sorted_content
+    }
 
     return jsonify(export)
 
