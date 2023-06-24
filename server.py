@@ -401,6 +401,7 @@ def image_to_base64(image: Image, quality: int = 75) -> str:
     img_str = base64.b64encode(buffer.getvalue()).decode("utf-8")
     return img_str
 
+ignore_auth = []
 # Reads an API key from an already existing file. If that file doesn't exist, create it.
 if args.secure:
     try:
@@ -417,6 +418,16 @@ elif args.share and args.secure != True:
 else:
     print("No API key given because you are running locally.")
 
+
+def is_authorize_ignored(request):
+    view_func = app.view_functions.get(request.endpoint)
+
+    if view_func is not None:
+        if view_func in ignore_auth:
+            return True
+    return False
+
+
 @app.before_request
 def before_request():
     # Request time measuring
@@ -425,7 +436,7 @@ def before_request():
     # Checks if an API key is present and valid, otherwise return unauthorized
     # The options check is required so CORS doesn't get angry
     try:
-        if request.method != 'OPTIONS' and args.secure and request.authorization.token != api_key:
+        if request.method != 'OPTIONS' and args.secure and is_authorize_ignored(request) == False and getattr(request.authorization, 'token', '') != api_key:
             print(f"WARNING: Unauthorized API key access from {request.remote_addr}")
             response = jsonify({ 'error': '401: Invalid API key' })
             response.status_code = 401
@@ -866,4 +877,5 @@ if args.share:
         cloudflare = _run_cloudflared(port)
     print("Running on", cloudflare)
 
+ignore_auth.append(tts_play_sample)
 app.run(host=host, port=port)
