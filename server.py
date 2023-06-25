@@ -862,7 +862,7 @@ def chromadb_multiquery():
 
             messages.extend(chat_messages)
         except Exception as e:
-            print(e)    
+            print(e)
 
     #remove duplicate msgs, filter down to the right number
     seen = set()
@@ -918,7 +918,7 @@ def chromadb_import():
     collection = chromadb_client.get_or_create_collection(
         name=f"chat-{chat_id_md5}", embedding_function=chromadb_embed_fn
     )
-    
+
     documents = [item['document'] for item in content]
     metadatas = [item['metadata'] for item in content]
     ids = [item['id'] for item in content]
