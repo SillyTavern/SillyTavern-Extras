@@ -864,9 +864,10 @@ def chromadb_multiquery():
         except Exception as e:
             print(e)    
 
-    #remove duplicate msgs
+    #remove duplicate msgs, filter down to the right number
     seen = set()
     messages = [d for d in messages if not (d['content'] in seen or seen.add(d['content']))]
+    messages = sorted(messages, key=lambda x: x['distance'])[0:n_results]
 
     return jsonify(messages)
 
