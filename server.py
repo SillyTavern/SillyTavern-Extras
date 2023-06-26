@@ -56,6 +56,7 @@ parser.add_argument(
 )
 parser.add_argument("--cpu", action="store_true", help="Run the models on the CPU")
 parser.add_argument("--cuda", action="store_false", dest="cpu", help="Run the models on the GPU")
+parser.add_argument("--cuda-device", help="Specify the CUDA device to use")
 parser.set_defaults(cpu=True)
 parser.add_argument("--summarization-model", help="Load a custom summarization model")
 parser.add_argument(
@@ -142,7 +143,8 @@ if len(modules) == 0:
     print(f"Example: --enable-modules=caption,summarize{Style.RESET_ALL}")
 
 # Models init
-device_string = "cuda:0" if torch.cuda.is_available() and not args.cpu else "cpu"
+cuda_device = DEFAULT_CUDA_DEVICE if not args.cuda_device else args.cuda_device
+device_string = cuda_device if torch.cuda.is_available() and not args.cpu else "cpu"
 device = torch.device(device_string)
 torch_dtype = torch.float32 if device_string == "cpu" else torch.float16
 

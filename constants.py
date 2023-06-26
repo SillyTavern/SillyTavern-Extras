@@ -1,4 +1,5 @@
 # Constants
+DEFAULT_CUDA_DEVICE = "cuda:0"
 # Also try: 'Qiliang/bart-large-cnn-samsum-ElectrifAi_v10'
 DEFAULT_SUMMARIZATION_MODEL = "Qiliang/bart-large-cnn-samsum-ChatGPT_v3"
 # Also try: 'joeddav/distilbert-base-uncased-go-emotions-student'
