@@ -1,0 +1,16 @@
+flask
+flask-cloudflared
+flask-cors
+flask-compress
+markdown
+Pillow
+colorama
+torch
+transformers==4.28.1
+webuiapi
+edge-tts
+silero-api-server
+torchvision
+torchaudio
+diffusers
+accelerate
