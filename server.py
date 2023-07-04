@@ -72,6 +72,7 @@ parser.add_argument('--chroma-persist', help="ChromaDB persistence", default=Tru
 parser.add_argument(
     "--secure", action="store_true", help="Enforces the use of an API key"
 )
+parser.add_argument("--vosk-stt-model-path", help="Load a custom vosk speech-to-text streaming model")
 
 sd_group = parser.add_mutually_exclusive_group()
 
@@ -132,6 +133,12 @@ sd_remote_host = args.sd_remote_host if args.sd_remote_host else DEFAULT_REMOTE_
 sd_remote_port = args.sd_remote_port if args.sd_remote_port else DEFAULT_REMOTE_SD_PORT
 sd_remote_ssl = args.sd_remote_ssl
 sd_remote_auth = args.sd_remote_auth
+
+vosk_model_path = (
+    args.vosk_stt_model_path
+    if args.vosk_stt_model_path
+    else None
+)
 
 modules = (
     args.enable_modules if args.enable_modules and len(args.enable_modules) > 0 else []
@@ -285,6 +292,18 @@ if "chromadb" in modules:
     except:
         print("Could not ping ChromaDB! If you are running remotely, please check your host and port!")
 
+if "vosk-stt" in modules:
+    print("Initializing Vosk STT streaming")
+    from vosk import Model, KaldiRecognizer
+    import pyaudio
+
+    if vosk_model_path is None:
+        print("Error: no vosk STT model path given, please add --vosk-stt-model-path=path_to_model in argument, no recording possible without model.")
+    else:
+        vosk_model = Model(vosk_model_path)
+        vosk_recognizer = KaldiRecognizer(vosk_model, 16000)
+        vosk_mic = pyaudio.PyAudio()
+
 # Flask init
 app = Flask(__name__)
 CORS(app)  # allow cross-domain requests
@@ -410,6 +429,22 @@ def image_to_base64(image: Image, quality: int = 75) -> str:
     img_str = base64.b64encode(buffer.getvalue()).decode("utf-8")
     return img_str
 
+def vosk_record(recognizer, stream) -> str:
+    text = ""
+    max_loop = 1000
+    loop_id = 1
+    while loop_id <= max_loop:
+        data = stream.read(4096)
+        
+        if recognizer.AcceptWaveform(data):
+            text = recognizer.Result()
+            print(text)
+            return text[14:-3]
+        loop_id += 1
+
+    print("Max loop reached, restart recording to avoid input overflow")
+    return ""
+
 ignore_auth = []
 # Reads an API key from an already existing file. If that file doesn't exist, create it.
 if args.secure:
@@ -435,6 +470,7 @@ def is_authorize_ignored(request):
         if view_func in ignore_auth:
             return True
     return False
+
 
 
 @app.before_request
@@ -932,6 +968,56 @@ def chromadb_import():
 
     return jsonify({"count": len(ids)})
 
+""" DEBUG: no persistence of variable when api call?
+@app.route("/api/vosk-stt/load", methods=["POST"])
+@require_module("vosk-stt")
+def vosk_stt_load_model():
+    data = request.get_json()
+    if "model_path" not in data or not isinstance(data["model_path"], str):
+        abort(400, '"model_path" is required')
+
+    try:
+        vosk_model_path = data["model_path"]
+        vosk_model = Model(vosk_model_path)
+        vosk_recognizer = KaldiRecognizer(vosk_model, 16000)
+        print("Vosk STT model loaded")
+        return jsonify({"success": True})
+    except Exception as e:
+        print("Failed Vosk STT model loading")
+        print(e)
+        abort(500, data["model_path"])
+
+
+@app.route("/api/vosk-stt/enable", methods=["POST"])
+@require_module("vosk-stt")
+def vosk_stt_enable():
+    stt_enabled = True
+    print("STATUS:",stt_enabled)
+    return jsonify({"success": True})
+
+@app.route("/api/vosk-stt/disable", methods=["POST"])
+@require_module("vosk-stt")
+def vosk_stt_disable():
+    stt_enabled = False
+    return jsonify({"success": True})
+"""
+
+@app.route("/api/vosk-stt/record", methods=["POST"])
+@require_module("vosk-stt")
+def vosk_stt_record():
+
+    try:
+        print("Start recording")
+        vosk_stream = vosk_mic.open(format=pyaudio.paInt16, channels=1, rate=16000, input=True, frames_per_buffer=8192)
+        vosk_stream.start_stream()
+        transcript = vosk_record(vosk_recognizer, vosk_stream)
+        vosk_stream.stop_stream()
+        print("Transcripted voice:", "\""+transcript+"\"")
+        gc.collect()
+        return jsonify({"transcript": transcript})
+    except Exception as e:
+        print(e)
+        abort(500, "Exception occurs while recording with vosk-stt module")
 
 if args.share:
     from flask_cloudflared import _run_cloudflared
