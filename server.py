@@ -40,6 +40,16 @@ class SplitArgs(argparse.Action):
             namespace, self.dest, values.replace('"', "").replace("'", "").split(",")
         )
 
+#Setting Root Folders for Silero Generations so it is compatible with STSL, should not effect regular runs. - Rolyat
+parent_dir = os.path.dirname(os.path.abspath(__file__))
+SILERO_SAMPLES_PATH = os.path.join(parent_dir, "tts_samples")
+SILERO_SAMPLE_TEXT = os.path.join(parent_dir)
+
+# Create directories if they don't exist
+if not os.path.exists(SILERO_SAMPLES_PATH):
+    os.makedirs(SILERO_SAMPLES_PATH)
+if not os.path.exists(SILERO_SAMPLE_TEXT):
+    os.makedirs(SILERO_SAMPLE_TEXT)
 
 # Script arguments
 parser = argparse.ArgumentParser(
@@ -677,7 +687,10 @@ def tts_generate():
     voice["text"] = voice["text"].replace("*", "")
     try:
         audio = tts_service.generate(voice["speaker"], voice["text"])
-        return send_file(audio, mimetype="audio/x-wav")
+        #Added absolute path for audio file for STSL compatibility - Rolyat
+        audio_file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), os.path.basename(audio))
+        os.rename(audio, audio_file_path)
+        return send_file(audio_file_path, mimetype="audio/x-wav")
     except Exception as e:
         print(e)
         abort(500, voice["speaker"])
