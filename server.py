@@ -897,9 +897,14 @@ def chromadb_export():
         abort(400, '"chat_id" is required')
 
     chat_id_md5 = hashlib.md5(data["chat_id"].encode()).hexdigest()
-    collection = chromadb_client.get_collection(
-        name=f"chat-{chat_id_md5}", embedding_function=chromadb_embed_fn
-    )
+    try:
+        collection = chromadb_client.get_collection(
+            name=f"chat-{chat_id_md5}", embedding_function=chromadb_embed_fn
+        )
+    except Exception as e:
+        print(e)
+        abort(400, "Chat collection not found in chromadb")
+     
     collection_content = collection.get()
     documents = collection_content.get('documents', [])
     ids = collection_content.get('ids', [])
