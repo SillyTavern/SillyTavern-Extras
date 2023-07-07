@@ -674,7 +674,7 @@ def tts_speakers():
     ]
     return jsonify(voices)
 
-
+# Added fix for Silero not working as new files were unable to be created if one already existed. - Rolyat 7/7/23
 @app.route("/api/tts/generate", methods=["POST"])
 @require_module("silero-tts")
 def tts_generate():
@@ -687,8 +687,12 @@ def tts_generate():
     voice["text"] = voice["text"].replace("*", "")
     try:
         audio = tts_service.generate(voice["speaker"], voice["text"])
-        #Added absolute path for audio file for STSL compatibility - Rolyat
         audio_file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), os.path.basename(audio))
+
+        # Remove the destination file if it already exists
+        if os.path.exists(audio_file_path):
+            os.remove(audio_file_path)
+
         os.rename(audio, audio_file_path)
         return send_file(audio_file_path, mimetype="audio/x-wav")
     except Exception as e:
