@@ -956,7 +956,7 @@ def chromadb_import():
 
 
     collection.upsert(documents=documents, metadatas=metadatas, ids=ids)
-    print(f"Imported {len(ids)} content entries into {repr(data['chat_id'])}")
+    print(f"Imported {len(ids)} (total {collection.count()}) content entries into {repr(data['chat_id'])}")
 
     return jsonify({"count": len(ids)})
 
