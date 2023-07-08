@@ -804,6 +804,11 @@ def chromadb_query():
         name=f"chat-{chat_id_md5}", embedding_function=chromadb_embed_fn
     )
 
+    if collection.count() == 0:
+        print(f"Queried empty/missing collection for {repr(data['chat_id'])}.")
+        return jsonify([])
+
+
     n_results = min(collection.count(), n_results)
     query_result = collection.query(
         query_texts=[data["query"]],
@@ -951,6 +956,7 @@ def chromadb_import():
 
 
     collection.upsert(documents=documents, metadatas=metadatas, ids=ids)
+    print(f"Imported {len(ids)} content entries into {repr(data['chat_id'])}")
 
     return jsonify({"count": len(ids)})
 
