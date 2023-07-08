@@ -72,7 +72,7 @@ parser.add_argument('--chroma-persist', help="ChromaDB persistence", default=Tru
 parser.add_argument(
     "--secure", action="store_true", help="Enforces the use of an API key"
 )
-parser.add_argument("--vosk-stt-model-path", help="Load a custom vosk speech-to-text streaming model")
+parser.add_argument("--vosk-stt-model-path", help="Load a custom vosk speech-to-text model")
 
 sd_group = parser.add_mutually_exclusive_group()
 
