@@ -19,3 +19,4 @@ sentence_transformers
 edge-tts
 vosk
 sounddevice
+whisper

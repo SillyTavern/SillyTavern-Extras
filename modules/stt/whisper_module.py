@@ -1,15 +1,16 @@
 """
-Speech-to-text module based on Vosk for SillyTavern Extras
-    - Vosk website: https://alphacephei.com/vosk/
-    - Vosk api: https://github.com/alphacep/vosk-api
+Speech-to-text module based on Whisper for SillyTavern Extras
+    - Whisper github: https://github.com/openai/whisper
 
 Authors:
     - Tony Ribeiro (https://github.com/Tony-sama)
 
-Models are saved into user cache folder, example: C:/Users/toto/.cache/vosk
+Models are saved into user cache folder, example: C:/Users/toto/.cache/whisper
 
 References:
-    - Code adapted from: https://github.com/alphacep/vosk-api/blob/master/python/example/test_microphone.py
+    - Code adapted from:
+        - whisper github: https://github.com/openai/whisper
+        - oobabooga text-generation-webui github: https://github.com/oobabooga/text-generation-webui
 """
 from flask import jsonify, abort
 
@@ -18,11 +19,13 @@ import sys
 import sounddevice as sd
 import soundfile as sf
 
-from vosk import Model, KaldiRecognizer
+import vosk
+import whisper
 
-DEBUG_PREFIX = "<stt vosk module>"
+DEBUG_PREFIX = "<stt whisper module>"
 
-model = None
+whisper_model = None
+vosk_model = None
 device = None
 
 def load_model(file_path=None):
@@ -32,17 +35,17 @@ def load_model(file_path=None):
     """
 
     if file_path is None:
-        return Model(lang="en-us")
+        return (whisper.load_model("base.en"), vosk.Model(lang="en-us"))
     else:
-        return Model(file_path)
+        return (whisper.load_model(file_path), vosk.Model(lang="en-us"))
 
 def record_mic():
     """
     Continuously record from mic and transcript voice.
     Return the transcript once no more voice is detected.
     """
-    if model is None:
-        print(DEBUG_PREFIX,"Vosk model not initialized yet.")
+    if whisper_model is None:
+        print(DEBUG_PREFIX,"Whisper model not initialized yet.")
         return ""
     
     q = queue.Queue()
@@ -64,7 +67,7 @@ def record_mic():
 
         with sd.RawInputStream(samplerate=samplerate, blocksize = 8000, device=device, dtype="int16", channels=1, callback=callback):
 
-            rec = KaldiRecognizer(model, samplerate)
+            rec = vosk.KaldiRecognizer(vosk_model, samplerate)
             full_recording = bytearray()
             while True:
                 data = q.get()
@@ -76,7 +79,7 @@ def record_mic():
                 if rec.AcceptWaveform(data):
                     # Extract transcript string
                     transcript = rec.Result()[14:-3]
-                    print(DEBUG_PREFIX, "Transcripted from microphone (streaming):", transcript)
+                    print(DEBUG_PREFIX, "Transcripted from microphone stream (vosk):", transcript)
 
                     # ----------------------------------
                     # DEBUG: save recording to wav file
@@ -84,6 +87,11 @@ def record_mic():
                     output_file = convert_bytearray_to_wav_ndarray(input_bytearray=full_recording, sampling_rate=samplerate)
                     sf.write(file=DEBUG_OUTPUT_FILE, data=output_file, samplerate=samplerate)
                     print(DEBUG_PREFIX, "Recorded message saved to", DEBUG_OUTPUT_FILE)
+                    
+                    # Whisper HACK
+                    result = whisper_model.transcribe(DEBUG_OUTPUT_FILE)
+                    transcript = result["text"]
+                    print(DEBUG_PREFIX, "Transcripted from audio file (whisper):", transcript)
                     # ----------------------------------
 
                     return jsonify({"transcript": transcript})
