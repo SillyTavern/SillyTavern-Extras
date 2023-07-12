@@ -743,12 +743,12 @@ def tts_generate():
     # Remove asterisks
     voice["text"] = voice["text"].replace("*", "")
     try:
+        # Remove the destination file if it already exists
+        if os.path.exists('test.wav'):
+            os.remove('test.wav')
+
         audio = tts_service.generate(voice["speaker"], voice["text"])
         audio_file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), os.path.basename(audio))
-
-        # Remove the destination file if it already exists
-        #if os.path.exists(audio_file_path):
-        #    os.remove(audio_file_path)
 
         os.rename(audio, audio_file_path)
         return send_file(audio_file_path, mimetype="audio/x-wav")
@@ -970,7 +970,7 @@ def chromadb_export():
     except Exception as e:
         print(e)
         abort(400, "Chat collection not found in chromadb")
-     
+
     collection_content = collection.get()
     documents = collection_content.get('documents', [])
     ids = collection_content.get('ids', [])
