@@ -451,19 +451,23 @@ def is_authorize_ignored(request):
 def before_request():
     # Request time measuring
     request.start_time = time.time()
-
+    
     # Checks if an API key is present and valid, otherwise return unauthorized
     # The options check is required so CORS doesn't get angry
     try:
-        if request.method != 'OPTIONS' and args.secure and is_authorize_ignored(request) == False and getattr(request.authorization, 'token', '') != api_key:
-            print(f"WARNING: Unauthorized API key access from {request.remote_addr}")
-            response = jsonify({ 'error': '401: Invalid API key' })
-            response.status_code = 401
-            return response
+        if request.method != 'OPTIONS' and args.secure and is_authorize_ignored(request) == False:
+            # Gets the authorization token
+            api_key_value = request.headers.get('Authorization')
+            # Adds "Bearer" prefix to authorization token
+            api_key_bearer = "Bearer " + api_key
+            if api_key_bearer != api_key_value:
+                print(f"WARNING: Unauthorized API key access from {request.remote_addr}")
+                response = jsonify({'error': '401: Invalid API key'})
+                response.status_code = 401
+                return response
     except Exception as e:
         print(f"API key check error: {e}")
         return "401 Unauthorized\n{}\n\n".format(e), 401
-
 
 @app.after_request
 def after_request(response):
