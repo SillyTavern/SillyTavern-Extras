@@ -136,3 +136,7 @@ model.pt
 .chroma
 /.chroma_db
 api_key.txt
+run.bat
+UpdateAndStart.bat
+package-lock.json
+public/
