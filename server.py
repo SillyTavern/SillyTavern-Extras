@@ -285,7 +285,7 @@ if "chromadb" in modules:
         )
         print(f"ChromaDB is remotely configured at {args.chroma_host}:{chroma_port}")
 
-    chromadb_embedder = SentenceTransformer(embedding_model)
+    chromadb_embedder = SentenceTransformer(embedding_model, device=device_string)
     chromadb_embed_fn = lambda *args, **kwargs: chromadb_embedder.encode(*args, **kwargs).tolist()
 
     # Check if the db is connected and running, otherwise tell the user
