@@ -73,6 +73,10 @@ conda create -n extras
 ```
 conda activate extras
 ```
+* Install Python 3.10
+```
+conda install python=3.10
+```
 * Install the required system packages
 ```
 conda install pytorch=2.0.0 torchvision=0.15.0 torchaudio=2.0.0 pytorch-cuda=11.7 git -c pytorch -c nvidia
