@@ -1,4 +1,9 @@
 # SillyTavern - Extras
+
+## Recent news
+
+* July 25 2023 - Now extras require Python 3.11 to run. To migrate using conda, please remove old environment using `conda remove --name extras --all` and reinstall using the instructions below.
+
 ## What is this
 A set of APIs for various SillyTavern extensions.
 
@@ -42,7 +47,7 @@ You must specify a list of module names to be run in the `--enable-modules` comm
 * Select desired "extra" options and start the cell
 * Wait for it to finish
 * Get an API URL link from colab output under the `### SillyTavern Extensions LINK ###` title
-* Start SillyTavern with extensions support: set `enableExtensions` to `true` in [config.conf](https://github.com/Cohee1207/SillyTavern/blob/dev/config.conf)
+* Start SillyTavern with extensions support: set `enableExtensions` to `true` in config.conf
 * Navigate to SillyTavern extensions menu and put in an API URL and tap "Connect" to load the extensions
 
 ### What about mobile/Android/Termux? 🤔
@@ -73,13 +78,13 @@ conda create -n extras
 ```
 conda activate extras
 ```
-* Install Python 3.10
+* Install Python 3.11
 ```
-conda install python=3.10
+conda install python=3.11
 ```
 * Install the required system packages
 ```
-conda install pytorch=2.0.0 torchvision=0.15.0 torchaudio=2.0.0 pytorch-cuda=11.7 git -c pytorch -c nvidia
+conda install git
 ```
 * Clone this repository
 ```
@@ -98,7 +103,7 @@ pip install -r requirements.txt
 python server.py --enable-modules=caption,summarize,classify
 ```
 * Copy the Extra's server API URL listed in the console window after it finishes loading up. On local installs, this defaults to `http://localhost:5100`.
-* Open your SillyTavern [config.conf](https://github.com/SillyTavern/SillyTavern/blob/dev/config.conf) file (located in the base install folder), and look for a line "`const enableExtensions`". Make sure that line has "`= true`", and not "`= false`".
+* Open your SillyTavern config.conf file (located in the base install folder), and look for a line "`const enableExtensions`". Make sure that line has "`= true`", and not "`= false`".
 * Start your SillyTavern server
 * Open the Extensions panel (via the 'Stacked Blocks' icon at the top of the page), paste the API URL into the input box, and click "Connect" to connect to the Extras extension server.
 * To run again, simply activate the environment and run these commands. Be sure to the additional options for server.py (see below) that your setup requires.
@@ -108,7 +113,7 @@ python server.py
 ```
 
 #### Option 2 - Vanilla 🍦
-* Install Python 3.10: https://www.python.org/downloads/release/python-31010/
+* Install Python 3.11: https://www.python.org/downloads/release/python-3114/
 * Install git: https://git-scm.com/downloads
 * Clone the repo:
 ```
@@ -118,7 +123,7 @@ cd SillyTavern-extras
 * Run `python -m pip install -r requirements.txt`
 * Run `python server.py --enable-modules=caption,summarize,classify`
 * Get the API URL. Defaults to `http://localhost:5100` if you run locally.
-* Start SillyTavern with extensions support: set `enableExtensions` to `true` in [config.conf](https://github.com/Cohee1207/SillyTavern/blob/dev/config.conf)
+* Start SillyTavern with extensions support: set `enableExtensions` to `true` in config.conf
 * Navigate to SillyTavern extensions menu and put in an API URL and tap "Connect" to load the extensions
 
 ## Modules
