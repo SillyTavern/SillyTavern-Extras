@@ -10,3 +10,4 @@ torch==2.0.0+cu117
 transformers==4.28.1
 webuiapi
 edge-tts
+TTS
