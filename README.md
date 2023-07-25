@@ -1,4 +1,9 @@
 # SillyTavern - Extras
+
+# Recent news
+
+* We're migrating SillyTavern - Extras to Python 3.11, some of the modules new will be incompatible with old Python 3.10 installs. Stay tuned.
+
 ## What is this
 A set of APIs for various SillyTavern extensions.
 
@@ -131,7 +136,6 @@ cd SillyTavern-extras
 | `sd`        | Stable Diffusion image generation | :x: No (✔️ remote)      |
 | `silero-tts`       | [Silero TTS server](https://github.com/ouoertheo/silero-api-server) | :x: No |
 | `edge-tts` | [Microsoft Edge TTS client](https://github.com/rany2/edge-tts) | ✔️ Yes |
-| `coqui-tts` | [Coqui TTS server](https://github.com/coqui-ai/TTS) | :x: No |
 | `chromadb`  | Infinity context server           | :x: No |
 
 
@@ -147,7 +151,6 @@ cd SillyTavern-extras
 | `--mps` or `--m1`        | Run the models on Apple Silicon. Only for M1 and M2 processors. |
 | `--cuda`                 | Uses CUDA (GPU+VRAM) to run modules if it is available. Otherwise, falls back to using CPU. |
 | `--cuda-device`          | Specifies a CUDA device to use. Defaults to `cuda:0` (first available GPU). |
-| `--coqui-gpu`            | Uses GPU for coqui TTS (if available). |
 | `--summarization-model`  | Load a custom summarization model.<br>Expects a HuggingFace model ID.<br>Default: [Qiliang/bart-large-cnn-samsum-ChatGPT_v3](https://huggingface.co/Qiliang/bart-large-cnn-samsum-ChatGPT_v3) |
 | `--classification-model` | Load a custom sentiment classification model.<br>Expects a HuggingFace model ID.<br>Default (6 emotions): [nateraw/bert-base-uncased-emotion](https://huggingface.co/nateraw/bert-base-uncased-emotion)<br>Other solid option is (28 emotions): [joeddav/distilbert-base-uncased-go-emotions-student](https://huggingface.co/joeddav/distilbert-base-uncased-go-emotions-student)<br>For Chinese language: [touch20032003/xuyuan-trial-sentiment-bert-chinese](https://huggingface.co/touch20032003/xuyuan-trial-sentiment-bert-chinese) |
 | `--captioning-model`     | Load a custom captioning model.<br>Expects a HuggingFace model ID.<br>Default: [Salesforce/blip-image-captioning-large](https://huggingface.co/Salesforce/blip-image-captioning-large) |
