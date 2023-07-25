@@ -17,4 +17,3 @@ accelerate
 chromadb
 sentence_transformers
 edge-tts
-TTS

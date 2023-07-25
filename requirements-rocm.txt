@@ -17,4 +17,3 @@ silero-api-server
 chromadb
 sentence_transformers
 edge-tts
-TTS
