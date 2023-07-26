@@ -83,7 +83,6 @@ parser.add_argument(
     "--secure", action="store_true", help="Enforces the use of an API key"
 )
 
-parser.add_argument("--stt-microphone-id", help="Set the device to use for recording voice")
 parser.add_argument("--stt-vosk-model-path", help="Load a custom vosk speech-to-text model")
 parser.add_argument("--stt-whisper-model-path", help="Load a custom vosk speech-to-text model")
 
@@ -313,24 +312,10 @@ if "vosk-stt" in modules:
     if args.stt_vosk_model_path
     else None)
 
-    stt_microphone_id  =(
-    args.stt_microphone_id
-    if args.stt_microphone_id
-    else None)
-
     import modules.stt.vosk_module as vosk_module
 
-    if stt_microphone_id is None:
-        import sounddevice
-        print("Warning no microphone device id given, will try to detect mic automatically (see > bellow), if it does not work please set it with stt-microphone-id, choose one from:")
-        print("-"*50)
-        print(sounddevice.query_devices())
-        print("-"*50)
-    else:
-        vosk_module.device = int(stt_microphone_id)
-
     vosk_module.model = vosk_module.load_model(file_path=vosk_model_path)
-    app.add_url_rule("/api/stt/vosk/record", view_func=vosk_module.record_mic, methods=["POST"])
+    app.add_url_rule("/api/stt/vosk/process-audio", view_func=vosk_module.process_audio, methods=["POST"])
 
 if "whisper-stt" in modules:
     print("Initializing Whisper STT streaming")
@@ -339,24 +324,10 @@ if "whisper-stt" in modules:
     if args.stt_whisper_model_path
     else None)
 
-    stt_microphone_id  =(
-    args.stt_microphone_id
-    if args.stt_microphone_id
-    else None)
-
     import modules.stt.whisper_module as whisper_module
 
-    if stt_microphone_id is None:
-        import sounddevice
-        print("Warning no microphone device id given, will try to detect mic automatically (see > bellow), if it does not work please set it with stt-microphone-id, choose one from:")
-        print("-"*50)
-        print(sounddevice.query_devices())
-        print("-"*50)
-    else:
-        whisper_module.device = int(stt_microphone_id)
-
-    whisper_module.whisper_model, whisper_module.vosk_model = whisper_module.load_model(file_path=whisper_model_path)
-    app.add_url_rule("/api/stt/whisper/record", view_func=whisper_module.record_mic, methods=["POST"])
+    whisper_module.model = whisper_module.load_model(file_path=whisper_model_path)
+    app.add_url_rule("/api/stt/whisper/process-audio", view_func=whisper_module.process_audio, methods=["POST"])
 
 def require_module(name):
     def wrapper(fn):

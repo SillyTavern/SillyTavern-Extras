@@ -9,21 +9,20 @@ Authors:
 Models are saved into user cache folder, example: C:/Users/toto/.cache/vosk
 
 References:
-    - Code adapted from: https://github.com/alphacep/vosk-api/blob/master/python/example/test_microphone.py
+    - Code adapted from: https://github.com/alphacep/vosk-api/blob/master/python/example/test_simple.py
 """
-from flask import jsonify, abort
+from flask import jsonify, abort, request
 
-import queue
-import sys
-import sounddevice as sd
-import soundfile as sf
-
-from vosk import Model, KaldiRecognizer
+import wave
+from vosk import Model, KaldiRecognizer, SetLogLevel
+import soundfile
 
 DEBUG_PREFIX = "<stt vosk module>"
+RECORDING_FILE_PATH = "stt_test.wav"
 
 model = None
-device = None
+
+SetLogLevel(-1)
 
 def load_model(file_path=None):
     """
@@ -36,81 +35,43 @@ def load_model(file_path=None):
     else:
         return Model(file_path)
 
-def record_mic():
+def process_audio():
     """
-    Continuously record from mic and transcript voice.
-    Return the transcript once no more voice is detected.
+    Transcript request audio file to text using Whisper
     """
+
     if model is None:
         print(DEBUG_PREFIX,"Vosk model not initialized yet.")
         return ""
-    
-    q = queue.Queue()
-    stream_errors = list()
 
-    def callback(indata, frames, time, status):
-        """This is called (from a separate thread) for each audio block."""
-        if status:
-            print(status, file=sys.stderr)
-            stream_errors.append(status)
-        q.put(bytes(indata))
+    try:    
+        file = request.files.get('AudioFile')
+        file.save(RECORDING_FILE_PATH)
 
-    try:
-        device_info = sd.query_devices(device, "input")
-        # soundfile expects an int, sounddevice provides a float:
-        samplerate = int(device_info["default_samplerate"])
+        # Read and rewrite the file with soundfile
+        data, samplerate = soundfile.read(RECORDING_FILE_PATH)
+        soundfile.write(RECORDING_FILE_PATH, data, samplerate)
 
-        print(DEBUG_PREFIX, "Start recording from:", device_info["name"], "with samplerate", samplerate)
+        wf = wave.open(RECORDING_FILE_PATH, "rb")
+        if wf.getnchannels() != 1 or wf.getsampwidth() != 2 or wf.getcomptype() != "NONE":
+            print("Audio file must be WAV format mono PCM.")
+            abort(500, DEBUG_PREFIX+" Audio file must be WAV format mono PCM.")
 
-        with sd.RawInputStream(samplerate=samplerate, blocksize = 8000, device=device, dtype="int16", channels=1, callback=callback):
+        rec = KaldiRecognizer(model, wf.getframerate())
+        #rec.SetWords(True)
+        #rec.SetPartialWords(True)
 
-            rec = KaldiRecognizer(model, samplerate)
-            full_recording = bytearray()
-            while True:
-                data = q.get()
-                if len(stream_errors) > 0:
-                    raise Exception(DEBUG_PREFIX+" Stream errors: "+str(stream_errors))
-                
-                full_recording.extend(data)
-
-                if rec.AcceptWaveform(data):
-                    # Extract transcript string
-                    transcript = rec.Result()[14:-3]
-                    print(DEBUG_PREFIX, "Transcripted from microphone (streaming):", transcript)
-
-                    # ----------------------------------
-                    # DEBUG: save recording to wav file
-                    # ----------------------------------
-                    output_file = convert_bytearray_to_wav_ndarray(input_bytearray=full_recording, sampling_rate=samplerate)
-                    sf.write(file=DEBUG_OUTPUT_FILE, data=output_file, samplerate=samplerate)
-                    print(DEBUG_PREFIX, "Recorded message saved to", DEBUG_OUTPUT_FILE)
-                    # ----------------------------------
-
-                    return jsonify({"transcript": transcript})
-                #else:
-                #    print(rec.PartialResult())
+        while True:
+            data = wf.readframes(4000)
+            if len(data) == 0:
+                break
+            if rec.AcceptWaveform(data):
+                break
+        
+        transcript = rec.Result()[14:-3]
+        print(DEBUG_PREFIX, "Transcripted from request audio file:", transcript)
+        return jsonify({"transcript": transcript})
 
     except Exception as e: # No exception observed during test but we never know
         print(e)
         abort(500, DEBUG_PREFIX+" Exception occurs while recording")
-
-# ----------------------------------
-# DEBUG: For checking audio quality
-# ----------------------------------
-import io
-import numpy as np
-from scipy.io.wavfile import write
-
-def convert_bytearray_to_wav_ndarray(input_bytearray: bytes, sampling_rate=16000):
-    """
-    Convert a bytearray to wav format to output in a file for quality check debuging
-    """
-    bytes_wav = bytes()
-    byte_io = io.BytesIO(bytes_wav)
-    write(byte_io, sampling_rate, np.frombuffer(input_bytearray, dtype=np.int16))
-    output_wav = byte_io.read()
-    output, _ = sf.read(io.BytesIO(output_wav))
-    return output
-
-DEBUG_OUTPUT_FILE = "stt_test.wav"
-# ----------------------------------
