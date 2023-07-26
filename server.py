@@ -83,6 +83,7 @@ parser.add_argument(
     "--secure", action="store_true", help="Enforces the use of an API key"
 )
 parser.add_argument("--coqui-gpu", action="store_false", help="Run the voice models on the GPU (CPU is default)")
+parser.add_argument("--coqui-model", help="Load a custom Coqui TTS model")
 sd_group = parser.add_mutually_exclusive_group()
 
 local_sd = sd_group.add_argument_group("sd-local")
@@ -253,6 +254,8 @@ if "coqui-tts" in modules:
     print("Initializing Coqui TTS client in " + mode + " mode")
     import tts_coqui as coqui
     from tts_coqui import *
+    if args.coqui_model is not None:
+        coqui.coqui_modeldownload(args.coqui_model)
 
 if "edge-tts" in modules:
     print("Initializing Edge TTS client")
