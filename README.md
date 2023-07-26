@@ -167,6 +167,28 @@ cd SillyTavern-extras
 | `--sd-remote-ssl`        | Use SSL for the remote SD backend<br>Default: **False** |
 | `--sd-remote-auth`       | Specify the `username:password` for the remote SD backend (if required) |
 
+## Coqui TTS
+
+### Running on Mac M1
+
+#### ImportError: symbol not found
+
+If you're getting the following error when running coqui-tts module on M1 Mac:
+
+```
+ImportError: dlopen(/Users/user/.../lib/python3.11/site-packages/MeCab/_MeCab.cpython-311-darwin.so, 0x0002): symbol not found in flat namespace '__ZN5MeCab11createModelEPKc'
+```
+
+Do the following:
+
+1. Install homebrew: https://brew.sh/
+2. Build and install the `mecab` package
+
+```
+brew install --build-from-source mecab
+ARCHFLAGS='-arch arm64' pip install --no-binary :all: --compile --use-pep517 --no-cache-dir --force mecab-python3
+```
+
 ## ChromaDB
 ChromaDB is a blazing fast and open source database that is used for long-term memory when chatting with characters. It can be run in-memory or on a local server on your LAN.
 

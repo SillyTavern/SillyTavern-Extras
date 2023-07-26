@@ -54,7 +54,7 @@ def load_model(_model, _gpu, _progress):
 
     status = None
 
-    _model_directory, _file = os.path.split(_model) 
+    _model_directory, _file = os.path.split(_model)
 
     if _model_directory == "": #make it assign vars correctly if no filename provioded
         _model_directory = _file
@@ -63,10 +63,10 @@ def load_model(_model, _gpu, _progress):
     if _model is None:
         status = "ERROR: Invalid model name or path."
     else:
-        try: 
+        try:
             if _gpu == True: #Reclaim memory
-                    del tts 
-                    try:  
+                    del tts
+                    try:
                         import gc
                         gc.collect()
                         torch.cuda.empty_cache()
@@ -120,7 +120,7 @@ def load_model(_model, _gpu, _progress):
                 print("Continuing with other parts of the code...")
         else:
             pass
-        
+
         type = model_type(_config_path)
         print("Type: ", type)
 
@@ -128,7 +128,7 @@ def load_model(_model, _gpu, _progress):
         status = "Unknown error occurred"
     if type is None:
         type = "Unknown"
-    
+
     return status
 
 def is_multi_speaker_model():
@@ -136,15 +136,16 @@ def is_multi_speaker_model():
     global type
     global spkdirectory
     global multspeakjson
+    global tts
 
     if tts is None:
         multspeak = "None"
         return multspeak
     try:
-        
+
 
         if type == "bark":
-            _target_directory = ModelManager().output_prefix 
+            _target_directory = ModelManager().output_prefix
             # Convert _target_directory to a string and remove the trailing backslash if present
             _target_directory_str = str(_target_directory)
             if _target_directory_str.endswith("\\"):
@@ -179,6 +180,7 @@ def is_multi_speaker_model():
 
 def is_multi_lang_model():
     global multlang
+    global tts
     if tts is None:
         multlang = "None"
         return multlang
@@ -194,7 +196,7 @@ def is_multi_lang_model():
     except Exception as e:
         print("Error:", e)
         multlang = "None"
-    
+
     return multlang
 
 def get_coqui_models(): #DROPDOWN MODELS
@@ -281,7 +283,7 @@ def get_coqui_download_models(): #Avail voices list
 
     json_data = json.dumps(formatted_list, indent=4)
     return json_data
-        
+
 def coqui_modeldownload(_modeldownload): #Avail voices function
     print(_modeldownload)
     try:
@@ -317,32 +319,32 @@ def coqui_tts(text, speaker_id, mspker_id, style_wav, language_id):
     print("mspker_id: ", mspker_id)
     print("language_id: ", language_id)
 
-  
+
 
     try: #see is values passed in URL
         if language_id is not None:
-            float(language_id)  
+            float(language_id)
             multlang = float(language_id)
         else:
             pass
-    except ValueError: 
+    except ValueError:
         pass
 
 
     try:
         if mspker_id is not None:
-            float(mspker_id)  
+            float(mspker_id)
             multspeak = float(mspker_id)
         else:
             pass
-    except ValueError: 
+    except ValueError:
         pass
 
 
     if loadedModel != speaker_id:
         print("MODEL NOT LOADED!!! Loading... ", loadedModel, speaker_id)
         load_model(speaker_id, True, True) #use GPU and progress bar?
-        
+
 
     audio_buffer = io.BytesIO()
 
@@ -381,8 +383,7 @@ def coqui_tts(text, speaker_id, mspker_id, style_wav, language_id):
     audio_buffer.seek(0)
     response = send_file(audio_buffer, mimetype="audio/wav")
 
-    #reset for next dynamic tts 
+    #reset for next dynamic tts
     multlang = None
     multspeak = None
     return response
-    
