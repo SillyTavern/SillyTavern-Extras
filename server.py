@@ -84,6 +84,8 @@ parser.add_argument(
 )
 parser.add_argument("--coqui-gpu", action="store_false", help="Run the voice models on the GPU (CPU is default)")
 parser.add_argument("--coqui-model", help="Load a custom Coqui TTS model")
+parser.add_argument("--stt-vosk-model-path", help="Load a custom vosk speech-to-text model")
+parser.add_argument("--stt-whisper-model-path", help="Load a custom vosk speech-to-text model")
 sd_group = parser.add_mutually_exclusive_group()
 
 local_sd = sd_group.add_argument_group("sd-local")
@@ -309,6 +311,29 @@ CORS(app)  # allow cross-domain requests
 Compress(app) # compress responses
 app.config["MAX_CONTENT_LENGTH"] = 100 * 1024 * 1024
 
+if "vosk-stt" in modules:
+    print("Initializing Vosk STT streaming")
+    vosk_model_path = (
+    args.stt_vosk_model_path
+    if args.stt_vosk_model_path
+    else None)
+
+    import modules.speech_recognition.vosk_module as vosk_module
+
+    vosk_module.model = vosk_module.load_model(file_path=vosk_model_path)
+    app.add_url_rule("/api/speech-recognition/vosk/process-audio", view_func=vosk_module.process_audio, methods=["POST"])
+
+if "whisper-stt" in modules:
+    print("Initializing Whisper STT streaming")
+    whisper_model_path = (
+    args.stt_whisper_model_path
+    if args.stt_whisper_model_path
+    else None)
+
+    import modules.speech_recognition.whisper_module as whisper_module
+
+    whisper_module.model = whisper_module.load_model(file_path=whisper_model_path)
+    app.add_url_rule("/api/speech-recognition/whisper/process-audio", view_func=whisper_module.process_audio, methods=["POST"])
 
 def require_module(name):
     def wrapper(fn):
