@@ -74,4 +74,4 @@ def process_audio():
 
     except Exception as e: # No exception observed during test but we never know
         print(e)
-        abort(500, DEBUG_PREFIX+" Exception occurs while recording")
+        abort(500, DEBUG_PREFIX+" Exception occurs while processing audio")

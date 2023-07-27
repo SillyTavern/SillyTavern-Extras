@@ -312,10 +312,10 @@ if "vosk-stt" in modules:
     if args.stt_vosk_model_path
     else None)
 
-    import modules.stt.vosk_module as vosk_module
+    import modules.speech_recognition.vosk_module as vosk_module
 
     vosk_module.model = vosk_module.load_model(file_path=vosk_model_path)
-    app.add_url_rule("/api/stt/vosk/process-audio", view_func=vosk_module.process_audio, methods=["POST"])
+    app.add_url_rule("/api/speech-recognition/vosk/process-audio", view_func=vosk_module.process_audio, methods=["POST"])
 
 if "whisper-stt" in modules:
     print("Initializing Whisper STT streaming")
@@ -324,10 +324,10 @@ if "whisper-stt" in modules:
     if args.stt_whisper_model_path
     else None)
 
-    import modules.stt.whisper_module as whisper_module
+    import modules.speech_recognition.whisper_module as whisper_module
 
     whisper_module.model = whisper_module.load_model(file_path=whisper_model_path)
-    app.add_url_rule("/api/stt/whisper/process-audio", view_func=whisper_module.process_audio, methods=["POST"])
+    app.add_url_rule("/api/speech-recognition/whisper/process-audio", view_func=whisper_module.process_audio, methods=["POST"])
 
 def require_module(name):
     def wrapper(fn):
