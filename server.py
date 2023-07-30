@@ -88,11 +88,11 @@ parser.add_argument("--stt-vosk-model-path", help="Load a custom vosk speech-to-
 parser.add_argument("--stt-whisper-model-path", help="Load a custom vosk speech-to-text model")
 sd_group = parser.add_mutually_exclusive_group()
 
-local_sd = sd_group.add_argument_group("sd-local")
+local_sd = parser.add_argument_group("sd-local")
 local_sd.add_argument("--sd-model", help="Load a custom SD image generation model")
 local_sd.add_argument("--sd-cpu", help="Force the SD pipeline to run on the CPU", action="store_true")
 
-remote_sd = sd_group.add_argument_group("sd-remote")
+remote_sd = parser.add_argument_group("sd-remote")
 remote_sd.add_argument(
     "--sd-remote", action="store_true", help="Use a remote backend for SD"
 )
@@ -169,6 +169,27 @@ if not torch.cuda.is_available() and not args.cpu:
 
 
 print(f"{Fore.GREEN}{Style.BRIGHT}Using torch device: {device_string}{Style.RESET_ALL}")
+
+if "live2d" in modules:
+    print("Initializing live2d pipeline...")
+    import sys
+    import threading
+    
+    live2d_path = os.path.abspath(os.path.join(os.getcwd(), "live2d")) 
+    sys.path.append(live2d_path) # Add the path to the 'tha3' module to the sys.path list
+
+    try:
+        import live2d.tha3.app.app as live2d
+        from live2d import *
+        def launch_live2d_gui():
+            live2d.launch_gui("cuda", "separable_float")  
+        #choices=['standard_float', 'separable_float', 'standard_half', 'separable_half'],
+        #choices='The device to use for PyTorch ("cuda" for GPU, "cpu" for CPU).'
+        live2d_thread = threading.Thread(target=launch_live2d_gui)
+        live2d_thread.start()  # Start the launch_live2d function in a separate thread to prevent lock-ups
+        
+    except ModuleNotFoundError:
+        print("Error: Could not import the 'live2d' module.")
 
 if "caption" in modules:
     print("Initializing an image captioning model...")
@@ -582,7 +603,27 @@ def api_classify():
 def api_classify_labels():
     classification = classify_text("")
     labels = [x["label"] for x in classification]
+    if "live2d" in modules:
+        labels.append('live2d')  # Add 'live2d' to the labels list
     return jsonify({"labels": labels})
+
+@app.route("/api/live2d/load", methods=["GET"])
+def live_load():
+    loadchar = request.args.get('loadchar')
+    url = loadchar.replace('.png', '/live2d.png')
+    return live2d.live2d_load_url(url)
+
+@app.route('/api/live2d/start_talking')
+def start_talking():
+    return live2d.start_talking()
+
+@app.route('/api/live2d/stop_talking')
+def stop_talking():
+    return live2d.stop_talking()
+
+@app.route('/api/live2d/result_feed')
+def result_feed():
+    return live2d.result_feed()
 
 @app.route("/api/coqui-tts/load", methods=["GET"])
 @require_module("coqui-tts")
