@@ -265,7 +265,7 @@ if "chromadb" in modules:
     posthog.capture = lambda *args, **kwargs: None
     if args.chroma_host is None:
         if args.chroma_persist:
-            chromadb_client = chromadb.PersistentClient(path=args.chroma_folder, chroma_db_impl='duckdb+parquet', settings=Settings(anonymized_telemetry=False))
+            chromadb_client = chromadb.PersistentClient(path=args.chroma_folder, settings=Settings(anonymized_telemetry=False))
             print(f"ChromaDB is running in-memory with persistence. Persistence is stored in {args.chroma_folder}. Can be cleared by deleting the folder or purging db.")
         else:
             chromadb_client = chromadb.EphemeralClient(settings=Settings(anonymized_telemetry=False))
