@@ -256,8 +256,8 @@ if "edge-tts" in modules:
 if "chromadb" in modules:
     print("Initializing ChromaDB")
     import chromadb
-    from chromadb.config import Settings
     import posthog
+    from chromadb.config import Settings
     from sentence_transformers import SentenceTransformer
 
     # Assume that the user wants in-memory unless a host is specified
@@ -268,18 +268,13 @@ if "chromadb" in modules:
             chromadb_client = chromadb.PersistentClient(path=args.chroma_folder, settings=Settings(anonymized_telemetry=False))
             print(f"ChromaDB is running in-memory with persistence. Persistence is stored in {args.chroma_folder}. Can be cleared by deleting the folder or purging db.")
         else:
-            chromadb_client = chromadb.EphemeralClient(settings=Settings(anonymized_telemetry=False))
+            chromadb_client = chromadb.EphemeralClient(Settings(anonymized_telemetry=False))
             print(f"ChromaDB is running in-memory without persistence.")
     else:
         chroma_port=(
             args.chroma_port if args.chroma_port else DEFAULT_CHROMA_PORT
         )
-        chromadb_client = chromadb.HttpClient(
-                chroma_api_impl="rest",
-                chroma_server_host=args.chroma_host,
-                chroma_server_http_port=chroma_port,
-                settings=Settings(anonymized_telemetry=False)
-        )
+        chromadb_client = chromadb.HttpClient(host=args.chroma_host, port=chroma_port, settings=Settings(anonymized_telemetry=False))
         print(f"ChromaDB is remotely configured at {args.chroma_host}:{chroma_port}")
 
     chromadb_embedder = SentenceTransformer(embedding_model, device=device_string)
