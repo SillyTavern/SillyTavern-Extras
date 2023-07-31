@@ -257,7 +257,6 @@ if "chromadb" in modules:
     print("Initializing ChromaDB")
     import chromadb
     import posthog
-    from chromadb.config import Settings
     from sentence_transformers import SentenceTransformer
 
     # Assume that the user wants in-memory unless a host is specified
@@ -265,22 +264,20 @@ if "chromadb" in modules:
     posthog.capture = lambda *args, **kwargs: None
     if args.chroma_host is None:
         if args.chroma_persist:
-            chromadb_client = chromadb.Client(Settings(anonymized_telemetry=False, persist_directory=args.chroma_folder, chroma_db_impl='duckdb+parquet'))
+            chromadb_client = chromadb.PersistentClient(anonymized_telemetry=False, persist_directory=args.chroma_folder, chroma_db_impl='duckdb+parquet')
             print(f"ChromaDB is running in-memory with persistence. Persistence is stored in {args.chroma_folder}. Can be cleared by deleting the folder or purging db.")
         else:
-            chromadb_client = chromadb.Client(Settings(anonymized_telemetry=False))
+            chromadb_client = chromadb.EphemeralClient(anonymized_telemetry=False)
             print(f"ChromaDB is running in-memory without persistence.")
     else:
         chroma_port=(
             args.chroma_port if args.chroma_port else DEFAULT_CHROMA_PORT
         )
-        chromadb_client = chromadb.Client(
-            Settings(
+        chromadb_client = chromadb.HttpClient(
                 anonymized_telemetry=False,
                 chroma_api_impl="rest",
                 chroma_server_host=args.chroma_host,
                 chroma_server_http_port=chroma_port
-            )
         )
         print(f"ChromaDB is remotely configured at {args.chroma_host}:{chroma_port}")
 
