@@ -21,4 +21,4 @@ TTS
 vosk
 sounddevice
 openai-whisper
-fastapi==0.99.1
+fastapi
