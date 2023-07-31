@@ -18,4 +18,4 @@ chromadb
 sentence_transformers
 edge-tts
 TTS
-fastapi==0.99.1
+fastapi

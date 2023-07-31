@@ -12,7 +12,6 @@ References:
         - whisper github: https://github.com/openai/whisper
         - oobabooga text-generation-webui github: https://github.com/oobabooga/text-generation-webui
 """
-from random import sample
 from flask import jsonify, abort, request
 
 import whisper
