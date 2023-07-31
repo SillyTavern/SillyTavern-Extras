@@ -326,7 +326,7 @@ Compress(app) # compress responses
 app.config["MAX_CONTENT_LENGTH"] = 100 * 1024 * 1024
 
 if "vosk-stt" in modules:
-    print("Initializing Vosk STT streaming")
+    print("Initializing Vosk speech-recognition (from ST request file)")
     vosk_model_path = (
     args.stt_vosk_model_path
     if args.stt_vosk_model_path
@@ -338,7 +338,7 @@ if "vosk-stt" in modules:
     app.add_url_rule("/api/speech-recognition/vosk/process-audio", view_func=vosk_module.process_audio, methods=["POST"])
 
 if "whisper-stt" in modules:
-    print("Initializing Whisper STT streaming")
+    print("Initializing Whisper speech-recognition (from ST request file)")
     whisper_model_path = (
     args.stt_whisper_model_path
     if args.stt_whisper_model_path
@@ -348,6 +348,18 @@ if "whisper-stt" in modules:
 
     whisper_module.model = whisper_module.load_model(file_path=whisper_model_path)
     app.add_url_rule("/api/speech-recognition/whisper/process-audio", view_func=whisper_module.process_audio, methods=["POST"])
+
+if "streaming-stt" in modules:
+    print("Initializing vosk/whisper speech-recognition (from extras server microphone)")
+    whisper_model_path = (
+    args.stt_whisper_model_path
+    if args.stt_whisper_model_path
+    else None)
+
+    import modules.speech_recognition.streaming_module as streaming_module
+
+    streaming_module.whisper_model, streaming_module.vosk_model = streaming_module.load_model(file_path=whisper_model_path)
+    app.add_url_rule("/api/speech-recognition/streaming/record-and-transcript", view_func=streaming_module.record_and_transcript, methods=["POST"])
 
 def require_module(name):
     def wrapper(fn):
