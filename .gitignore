@@ -136,3 +136,4 @@ model.pt
 .chroma
 /.chroma_db
 api_key.txt
+.vscode
