@@ -1,0 +1,62 @@
+@app.route("/load", methods=["POST"])
+def live2d_load():
+    img = None
+    global global_source_image
+    global global_reload
+    # get variable from POST data IE http://localhost:8000/characters/Aqua.png
+    #curl -X POST -d "live2d_loadchar=http://localhost:8000/characters/Aqua.png" http://localhost:5555/load
+
+    live2d_loadchar = request.form.get('live2d_loadchar')
+    print(live2d_loadchar)
+    # get the image from the url at live2d_loadchar and load it into global_source_variable
+
+    #loads the /Name/live.png vs char Card
+    url = live2d_loadchar.replace('.png', '/live2d.png')
+    
+
+    response = requests.get(url)
+
+    try:
+        img = Image.open(BytesIO(response.content))
+    except Image.UnidentifiedImageError:
+        print(f"Could not identify image from URL: {url}")
+
+    global_reload = img
+    return 'OK'
+
+@app.route('/source_feed')
+def source_feed():
+    return send_file(global_source_image_path, mimetype='image/png')
+
+@app.route('/start_talking')
+def start_talking():
+    global is_talking_override
+    is_talking_override = True
+    #return send_file(global_source_image_path, mimetype='image/png')
+    return "started"
+
+@app.route('/stop_talking')
+def stop_talking():
+    global is_talking_override
+    is_talking_override = False
+    return "stopped"
+
+@app.route('/result_feed')
+def result_feed():
+    def generate():
+        while True:
+            if global_result_image is not None:
+              
+                try:
+                    # Encode the numpy array to PNG
+                    _, buffer = cv2.imencode('.png', global_result_image)
+                except Exception as e:
+                    print(f"Error when trying to write image: {e}")
+
+                # Send the PNG image
+                yield (b'--frame\r\n'
+                       b'Content-Type: image/png\r\n\r\n' + buffer.tobytes() + b'\r\n')
+            else:
+                time.sleep(0.1)
+
+    return Response(generate(), mimetype='multipart/x-mixed-replace; boundary=frame')
