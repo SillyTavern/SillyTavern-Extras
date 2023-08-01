@@ -22,3 +22,5 @@ vosk
 sounddevice
 openai-whisper
 fastapi
+opencv-python
+wxpython
