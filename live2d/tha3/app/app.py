@@ -570,7 +570,6 @@ class MainFrame(wx.Frame):
         if file_path:
             try:
 
-
                 if file_path == "global_reload":
                     pil_image = global_reload # use global_reload directly
                     #print("Loading from Var")
@@ -579,25 +578,13 @@ class MainFrame(wx.Frame):
                         extract_PIL_image_from_filelike(file_path),
                         (self.poser.get_image_size(), self.poser.get_image_size()))
 
-
                 w, h = pil_image.size
 
                 if pil_image.size != (512, 512):
                     print("Resizing Char Card to work")
-
-                    image = pil_image
-                    size=(512, 512)
-                    image.thumbnail(size, Image.LANCZOS)  # Step 1: Resize the image to maintain the aspect ratio with the larger dimension being 512 pixels
-                    new_image = Image.new("RGBA", (512, 512))   # Step 2: Create a new image of size 512x512 with transparency
-                    new_image.paste(image, ((size[0] - image.size[0]) // 2,
-                                            (size[1] - image.size[1]) // 2))   # Step 3: Paste the resized image into the new image, centered
-                    pil_image = new_image
+                    pil_image = MainFrame.resize_image(pil_image)
 
                 w, h = pil_image.size
-
-
-
-
 
                 if pil_image.mode != 'RGBA':
                     self.source_image_string = "Image must have alpha channel!"
@@ -613,8 +600,6 @@ class MainFrame(wx.Frame):
                 global_source_image_path = image_path = os.path.join(file_path) #set file path
 
                 self.update_source_image_bitmap()
-
-
 
             except Exception as error:
                 print("Error:")
