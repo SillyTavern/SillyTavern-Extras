@@ -82,6 +82,7 @@ parser.add_argument('--chroma-persist', help="ChromaDB persistence", default=Tru
 parser.add_argument(
     "--secure", action="store_true", help="Enforces the use of an API key"
 )
+parser.add_argument("--live2d-gpu", action="store_true", help="Run the live2d animation on the GPU (CPU is default)")
 parser.add_argument("--coqui-gpu", action="store_false", help="Run the voice models on the GPU (CPU is default)")
 parser.add_argument("--coqui-model", help="Load a custom Coqui TTS model")
 parser.add_argument("--stt-vosk-model-path", help="Load a custom vosk speech-to-text model")
@@ -171,10 +172,10 @@ if not torch.cuda.is_available() and not args.cpu:
 print(f"{Fore.GREEN}{Style.BRIGHT}Using torch device: {device_string}{Style.RESET_ALL}")
 
 if "live2d" in modules:
-    print("Initializing live2d pipeline...")
+    mode = "cuda" if args.live2d_gpu else "cpu"
+    print("Initializing live2d pipeline in " + mode + " mode....")
     import sys
     import threading
-    
     live2d_path = os.path.abspath(os.path.join(os.getcwd(), "live2d")) 
     sys.path.append(live2d_path) # Add the path to the 'tha3' module to the sys.path list
 
@@ -182,12 +183,12 @@ if "live2d" in modules:
         import live2d.tha3.app.app as live2d
         from live2d import *
         def launch_live2d_gui():
-            live2d.launch_gui("cuda", "separable_float")  
+            live2d.launch_gui(mode, "separable_float")  
         #choices=['standard_float', 'separable_float', 'standard_half', 'separable_half'],
         #choices='The device to use for PyTorch ("cuda" for GPU, "cpu" for CPU).'
         live2d_thread = threading.Thread(target=launch_live2d_gui)
         live2d_thread.start()  # Start the launch_live2d function in a separate thread to prevent lock-ups
-        
+
     except ModuleNotFoundError:
         print("Error: Could not import the 'live2d' module.")
 

@@ -138,7 +138,7 @@ cd SillyTavern-extras
 | `edge-tts` | [Microsoft Edge TTS client](https://github.com/rany2/edge-tts) | ✔️ Yes |
 | `coqui-tts` | [Coqui TTS server](https://github.com/coqui-ai/TTS) | :x: No |
 | `chromadb`  | Infinity context server           | :x: No |
-
+| `live2d`  | Talking Head Sprites           | :x: No |
 
 ## Additional options
 | Flag                     | Description                                                            |
@@ -152,6 +152,7 @@ cd SillyTavern-extras
 | `--mps` or `--m1`        | Run the models on Apple Silicon. Only for M1 and M2 processors. |
 | `--cuda`                 | Uses CUDA (GPU+VRAM) to run modules if it is available. Otherwise, falls back to using CPU. |
 | `--cuda-device`          | Specifies a CUDA device to use. Defaults to `cuda:0` (first available GPU). |
+| `--live2d-gpu`           | Uses GPU for live2d (10x FPS increase in animation). |
 | `--coqui-gpu`            | Uses GPU for coqui TTS (if available). |
 | `--coqui-model`          | If provided, downloads and preloads a coqui TTS model. Default: none.<br>Example: `tts_models/multilingual/multi-dataset/bark` |
 | `--summarization-model`  | Load a custom summarization model.<br>Expects a HuggingFace model ID.<br>Default: [Qiliang/bart-large-cnn-samsum-ChatGPT_v3](https://huggingface.co/Qiliang/bart-large-cnn-samsum-ChatGPT_v3) |
@@ -460,3 +461,82 @@ WAV audio file.
 ```
 #### **Output**
 MP3 audio file.
+
+### Load a Coqui TTS model
+`GET /api/coqui-tts/load`
+#### **Input**
+_model (string, required): The name of the Coqui TTS model to load.
+_gpu (string, Optional): Use the GPU to load model.
+_progress (string, Optional): Show progress bar in terminal.
+```
+{ "_model": "tts_models--en--jenny--jenny\model.pth" }
+{ "_gpu": "False" }
+{ "_progress": "True" }
+```
+#### **Output**
+"Loaded"
+
+### Get a list of Coqui TTS voices
+`GET /api/coqui-tts/list`
+#### **Output**
+```
+["tts_models--en--jenny--jenny\\model.pth", "tts_models--en--ljspeech--fast_pitch\\model_file.pth", "tts_models--en--ljspeech--glow-tts\\model_file.pth", "tts_models--en--ljspeech--neural_hmm\\model_file.pth", "tts_models--en--ljspeech--speedy-speech\\model_file.pth", "tts_models--en--ljspeech--tacotron2-DDC\\model_file.pth", "tts_models--en--ljspeech--vits\\model_file.pth", "tts_models--en--ljspeech--vits--neon\\model_file.pth.tar", "tts_models--en--multi-dataset--tortoise-v2", "tts_models--en--vctk--vits\\model_file.pth", "tts_models--et--cv--vits\\model_file.pth.tar", "tts_models--multilingual--multi-dataset--bark", "tts_models--multilingual--multi-dataset--your_tts\\model_file.pth", "tts_models--multilingual--multi-dataset--your_tts\\model_se.pth"]
+```
+
+### Get a list of the loaded Coqui model speakers
+`GET /api/coqui-tts/multspeaker`
+#### **Output**
+```
+{"0": "female-en-5", "1": "female-en-5\n", "2": "female-pt-4\n", "3": "male-en-2", "4": "male-en-2\n", "5": "male-pt-3\n"}
+```
+
+### Get a list of the loaded Coqui model lanagauges
+`GET /api/coqui-tts/multlang`
+#### **Output**
+```
+{"0": "en", "1": "fr-fr", "2": "pt-br"}
+```
+
+### Generate Coqui TTS voice
+`POST /api/edge-tts/generate`
+#### **Input**
+```
+{
+  "text": "Text to narrate",
+  "speaker_id": "0",
+  "mspker": null,
+  "language_id": null,
+  "style_wav": null
+}
+```
+#### **Output**
+MP3 audio file.
+
+### Loads a Live2D character by specifying the character's image URL.
+`GET /api/live2d/load`
+#### **Parameters**
+loadchar (string, required): The URL of the character's image. The URL should point to a PNG image.
+{ "loadchar": "http://localhost:8000/characters/Aqua.png" }
+#### **Example**
+'http://localhost:5100/api/live2d/load?loadchar=http://localhost:8000/characters/Aqua.png'
+#### **Output**
+'OK'
+
+### Animates the live2d sprite to start talking.
+`GET /api/live2d/start_talking`
+#### **Example**
+'http://localhost:5100/api/live2d/start_talking'
+#### **Output**
+"started"
+
+### Animates the live2d sprite to stop talking.
+`GET /api/live2d/stop_talking`
+#### **Example**
+'http://localhost:5100/api/live2d/stop_talking'
+#### **Output**
+"stopped"
+
+### Outputs the animated live2d sprite.
+`GET /api/live2d/result_feed`
+#### **Output**
+Animated transparent image
