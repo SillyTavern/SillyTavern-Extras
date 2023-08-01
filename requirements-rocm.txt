@@ -21,3 +21,5 @@ TTS
 fastapi
 opencv-python
 wxpython
+mecab-python3
+unidic-lite
