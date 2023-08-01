@@ -90,10 +90,15 @@ def live2d_load_file(stream):
     global global_source_image
     global global_reload
     try:
-        img = Image.open(stream)
+        # Load the image using PIL.Image.open
+        pil_image = Image.open(stream)
+        # Create a copy of the image data in memory using BytesIO
+        img_data = BytesIO()
+        pil_image.save(img_data, format='PNG')
+        # Set the global_reload to the copy of the image data
+        global_reload = Image.open(BytesIO(img_data.getvalue()))
     except Image.UnidentifiedImageError:
         print(f"Could not load image from file")
-    global_reload = img
     return 'OK'
 
 def convert_linear_to_srgb(image: torch.Tensor) -> torch.Tensor:
@@ -538,8 +543,8 @@ class MainFrame(wx.Frame):
             return numpy_image
 
     def resize_image(image, size=(512, 512)):
-        image.thumbnail(size, Image.LANCZOS) # Step 1: Resize the image to maintain the aspect ratio with the larger dimension being 512 pixels
-        new_image = Image.new("RGBA", size)  # Step 2: Create a new image of size 512x512 with transparency
+        image.thumbnail(size, Image.LANCZOS)  # Step 1: Resize the image to maintain the aspect ratio with the larger dimension being 512 pixels
+        new_image = Image.new("RGBA", size)   # Step 2: Create a new image of size 512x512 with transparency
         new_image.paste(image, ((size[0] - image.size[0]) // 2,
                                 (size[1] - image.size[1]) // 2))   # Step 3: Paste the resized image into the new image, centered
         return new_image
@@ -579,7 +584,14 @@ class MainFrame(wx.Frame):
 
                 if pil_image.size != (512, 512):
                     print("Resizing Char Card to work")
-                    pil_image = MainFrame.resize_image(pil_image)
+
+                    image = pil_image
+                    size=(512, 512)
+                    image.thumbnail(size, Image.LANCZOS)  # Step 1: Resize the image to maintain the aspect ratio with the larger dimension being 512 pixels
+                    new_image = Image.new("RGBA", (512, 512))   # Step 2: Create a new image of size 512x512 with transparency
+                    new_image.paste(image, ((size[0] - image.size[0]) // 2,
+                                            (size[1] - image.size[1]) // 2))   # Step 3: Paste the resized image into the new image, centered
+                    pil_image = new_image
 
                 w, h = pil_image.size
 
