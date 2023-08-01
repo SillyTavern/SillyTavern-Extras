@@ -58,7 +58,7 @@ def result_feed():
     def generate():
         while True:
             if global_result_image is not None:
-              
+
                 try:
                     # Encode the numpy array to PNG
                     _, buffer = cv2.imencode('.png', global_result_image)
@@ -85,13 +85,24 @@ def live2d_load_url(url):
     global_reload = img
     return 'OK'
 
+def live2d_load_file(stream):
+    img = None
+    global global_source_image
+    global global_reload
+    try:
+        img = Image.open(stream)
+    except Image.UnidentifiedImageError:
+        print(f"Could not load image from file")
+    global_reload = img
+    return 'OK'
+
 def convert_linear_to_srgb(image: torch.Tensor) -> torch.Tensor:
     rgb_image = torch_linear_to_srgb(image[0:3, :, :])
     return torch.cat([rgb_image, image[3:4, :, :]], dim=0)
 
 def launch_gui(device, model):
     parser = argparse.ArgumentParser(description='uWu Waifu')
-    
+
     # Add other parser arguments here
 
     args, unknown = parser.parse_known_args()
@@ -103,7 +114,7 @@ def launch_gui(device, model):
         app = wx.App()
         main_frame = MainFrame(poser, pose_converter, device)
         main_frame.SetSize((750, 600))
-        
+
         #Lload default image (you can pass args.char if required)
         full_path = os.path.join(os.getcwd(), "live2d\\tha3\\images\\lambda_00.png")
         main_frame.load_image(None, full_path)
@@ -116,7 +127,7 @@ def launch_gui(device, model):
     except RuntimeError as e:
         print(e)
         sys.exit()
-        
+
 class FpsStatistics:
     def __init__(self):
         self.count = 100
@@ -154,7 +165,7 @@ class MainFrame(wx.Frame):
         self.last_update_time = None
 
         self.create_ui()
-        
+
         self.create_timers()
         self.Bind(wx.EVT_CLOSE, self.on_close)
 
@@ -194,7 +205,7 @@ class MainFrame(wx.Frame):
     def random_generate_pose(self):
         global is_talking
         current_pose = self.ifacialmocap_pose
-        
+
         # NOTE: randomize mouth
         for blendshape_name in BLENDSHAPE_NAMES:
             if "jawOpen" in blendshape_name:
@@ -202,20 +213,20 @@ class MainFrame(wx.Frame):
                     current_pose[blendshape_name] = self.random_generate_value(-5000, 5000, abs(1 - current_pose[blendshape_name]))
                 else:
                     current_pose[blendshape_name] = 0
-                    
+
         # NOTE: randomize head and eye bones
         #for key in [HEAD_BONE_Y, LEFT_EYE_BONE_X, LEFT_EYE_BONE_Y, LEFT_EYE_BONE_Z, RIGHT_EYE_BONE_X, RIGHT_EYE_BONE_Y]:
             #current_pose[key] = self.random_generate_value(-20, 20, current_pose[key])
 
         #Make her blink
-        if random.random() <= 0.03:  
+        if random.random() <= 0.03:
             current_pose["eyeBlinkRight"] = 1
             current_pose["eyeBlinkLeft"] = 1
         else:
             current_pose["eyeBlinkRight"] = 0
-            current_pose["eyeBlinkLeft"] = 0                   
+            current_pose["eyeBlinkLeft"] = 0
 
-        
+
         return current_pose    #print(current_pose)
 
     def read_ifacialmocap_pose(self):
@@ -259,7 +270,7 @@ class MainFrame(wx.Frame):
         self.animation_left_panel_sizer.Fit(self.animation_left_panel)
 
         # Right Column (Sliders)
-        
+
         self.animation_right_panel = wx.Panel(self.animation_panel, style=wx.SIMPLE_BORDER)
         self.animation_right_panel_sizer = wx.BoxSizer(wx.VERTICAL)
         self.animation_right_panel.SetSizer(self.animation_right_panel_sizer)
@@ -286,15 +297,15 @@ class MainFrame(wx.Frame):
         )
         self.output_background_choice.SetSelection(0)
         self.animation_right_panel_sizer.Add(self.output_background_choice, 0, wx.EXPAND)
-        
-        
+
+
         #self.pose_converter.init_pose_converter_panel(self.animation_panel) # this changes sliders to breathing on
 
-        #sliders go here 
-      
-      
-        blendshape_groups = { 
-            'Eyes': ['eyeLookOutLeft', 'eyeLookOutRight', 'eyeLookDownLeft', 'eyeLookUpLeft', 'eyeWideLeft', 'eyeWideRight'],         
+        #sliders go here
+
+
+        blendshape_groups = {
+            'Eyes': ['eyeLookOutLeft', 'eyeLookOutRight', 'eyeLookDownLeft', 'eyeLookUpLeft', 'eyeWideLeft', 'eyeWideRight'],
             'Mouth': ['mouthFrownLeft'],
             'Cheek': ['cheekSquintLeft', 'cheekSquintRight', 'cheekPuff'],
             'Brow': ['browDownLeft', 'browOuterUpLeft', 'browDownRight', 'browOuterUpRight', 'browInnerUp'],
@@ -312,7 +323,7 @@ class MainFrame(wx.Frame):
 
             for variable in variables:
                 variable_label = wx.StaticText(collapsible_pane.GetPane(), label=variable)
-                
+
                 # Multiply min and max values by 100 for the slider
                 slider = wx.Slider(
                     collapsible_pane.GetPane(),
@@ -322,7 +333,7 @@ class MainFrame(wx.Frame):
                     size=(150, -1),  # Set the width to 150 and height to default
                     style=wx.SL_HORIZONTAL | wx.SL_LABELS
                 )
-                
+
                 slider.SetName(variable)
                 slider.Bind(wx.EVT_SLIDER, self.on_slider_change)
                 self.sliders[slider.GetId()] = slider
@@ -337,11 +348,11 @@ class MainFrame(wx.Frame):
 
         self.animation_right_panel_sizer.Fit(self.animation_right_panel)
         self.animation_panel_sizer.Fit(self.animation_panel)
-        
+
     def on_pane_changed(self, event):
         # Update the layout when a collapsible pane is expanded or collapsed
         self.animation_right_panel.Layout()
-    
+
     def on_slider_change(self, event):
         slider = event.GetEventObject()
         value = slider.GetValue() / 100.0  # Divide by 100 to get the actual float value
@@ -394,7 +405,7 @@ class MainFrame(wx.Frame):
         wx.BufferedPaintDC(self.result_image_panel, self.result_image_bitmap)
 
     def update_result_image_bitmap(self, event: Optional[wx.Event] = None):
-        
+
         global global_result_image  # Declare global_source_image as a global variable
         global global_reload
 
@@ -404,7 +415,7 @@ class MainFrame(wx.Frame):
             return
 
 
-        
+
         ifacialmocap_pose = self.read_ifacialmocap_pose()
         current_pose = self.pose_converter.convert(ifacialmocap_pose)
         if self.last_pose is not None and self.last_pose == current_pose:
@@ -424,7 +435,7 @@ class MainFrame(wx.Frame):
         with torch.no_grad():
             output_image = self.poser.pose(self.torch_source_image, pose)[0].float()
             output_image = convert_linear_to_srgb((output_image + 1.0) / 2.0)
-    
+
             background_choice = self.output_background_choice.GetSelection()
             if background_choice == 6:  # Custom background
                 self.image_load_counter += 1  # Increment the counter
@@ -446,7 +457,7 @@ class MainFrame(wx.Frame):
                         # Use the stored custom background image
                     output_image = self.blend_with_background(output_image, self.custom_background_image)
 
-                
+
             else:  # Predefined colors
                 self.image_load_counter = 0
                 if background_choice == 0:  # Transparent
@@ -475,11 +486,11 @@ class MainFrame(wx.Frame):
                 else:
                     pass
 
-                    
+
 
             c, h, w = output_image.shape
             output_image = (255.0 * torch.transpose(output_image.reshape(c, h * w), 0, 1)).reshape(h, w, c).byte()
-            
+
 
         numpy_image = output_image.detach().cpu().numpy()
         wx_image = wx.ImageFromBuffer(numpy_image.shape[0],
@@ -494,16 +505,16 @@ class MainFrame(wx.Frame):
         dc.DrawBitmap(wx_bitmap,
                       (self.poser.get_image_size() - numpy_image.shape[0]) // 2,
                       (self.poser.get_image_size() - numpy_image.shape[1]) // 2, True)
-        
+
 
         # Assuming numpy_image has shape (height, width, 4) and the channels are in RGB order
         # Convert color channels from RGB to BGR and keep alpha channel
         numpy_image_bgra = numpy_image[:, :, [2, 1, 0, 3]]
         #cv2.imwrite('test2.png', numpy_image_bgra)
-        
+
         global_result_image = numpy_image_bgra
 
-                    
+
         del dc
 
         time_now = time.time_ns()
@@ -514,7 +525,7 @@ class MainFrame(wx.Frame):
                 self.fps_statistics.add_fps(fps)
             self.fps_text.SetLabelText("FPS = %0.2f" % self.fps_statistics.get_average_fps())
         self.last_update_time = time_now
-        
+
         self.Refresh()
 
     def blend_with_background(self, numpy_image, background):
@@ -525,7 +536,7 @@ class MainFrame(wx.Frame):
             return torch.cat([new_color, background[3:4, :, :]], dim=0)
         else:
             return numpy_image
-        
+
     def resize_image(image, size=(512, 512)):
         image.thumbnail(size, Image.LANCZOS) # Step 1: Resize the image to maintain the aspect ratio with the larger dimension being 512 pixels
         new_image = Image.new("RGBA", size)  # Step 2: Create a new image of size 512x512 with transparency
@@ -534,7 +545,7 @@ class MainFrame(wx.Frame):
         return new_image
 
     def load_image(self, event: wx.Event, file_path=None):
-   
+
         global global_source_image  # Declare global_source_image as a global variable
         global global_source_image_path  # Declare global_source_image as a global variable
         global global_reload
@@ -555,14 +566,14 @@ class MainFrame(wx.Frame):
             try:
 
 
-                if file_path == "global_reload": 
+                if file_path == "global_reload":
                     pil_image = global_reload # use global_reload directly
                     #print("Loading from Var")
-                else:  
+                else:
                     pil_image = resize_PIL_image(
                         extract_PIL_image_from_filelike(file_path),
                         (self.poser.get_image_size(), self.poser.get_image_size()))
-                
+
 
                 w, h = pil_image.size
 
@@ -584,15 +595,15 @@ class MainFrame(wx.Frame):
                     self.wx_source_image = wx.Bitmap.FromBufferRGBA(w, h, pil_image.convert("RGBA").tobytes())
                     self.torch_source_image = extract_pytorch_image_from_PIL_image(pil_image) \
                         .to(self.device).to(self.poser.get_dtype())
-                
+
                 global_source_image = self.torch_source_image  # Set global_source_image as a global variable
-                
+
                 global_source_image_path = image_path = os.path.join(file_path) #set file path
 
                 self.update_source_image_bitmap()
 
 
-                
+
             except Exception as error:
                 print("Error:")
                 print(error)

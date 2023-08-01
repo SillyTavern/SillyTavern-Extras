@@ -176,14 +176,14 @@ if "live2d" in modules:
     print("Initializing live2d pipeline in " + mode + " mode....")
     import sys
     import threading
-    live2d_path = os.path.abspath(os.path.join(os.getcwd(), "live2d")) 
+    live2d_path = os.path.abspath(os.path.join(os.getcwd(), "live2d"))
     sys.path.append(live2d_path) # Add the path to the 'tha3' module to the sys.path list
 
     try:
         import live2d.tha3.app.app as live2d
         from live2d import *
         def launch_live2d_gui():
-            live2d.launch_gui(mode, "separable_float")  
+            live2d.launch_gui(mode, "separable_float")
         #choices=['standard_float', 'separable_float', 'standard_half', 'separable_half'],
         #choices='The device to use for PyTorch ("cuda" for GPU, "cpu" for CPU).'
         live2d_thread = threading.Thread(target=launch_live2d_gui)
@@ -620,11 +620,11 @@ def api_classify_labels():
         labels.append('live2d')  # Add 'live2d' to the labels list
     return jsonify({"labels": labels})
 
-@app.route("/api/live2d/load", methods=["GET"])
+@app.route("/api/live2d/load", methods=["POST"])
 def live_load():
-    loadchar = request.args.get('loadchar')
-    url = loadchar.replace('.png', '/live2d.png')
-    return live2d.live2d_load_url(url)
+    file = request.files['file']
+    # convert stream to bytes and pass to live2d_load
+    return live2d.live2d_load_file(file.stream)
 
 @app.route('/api/live2d/start_talking')
 def start_talking():
