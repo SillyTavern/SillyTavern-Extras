@@ -239,8 +239,8 @@ class MainFrame(wx.Frame):
                     current_pose[blendshape_name] = 0
 
         # NOTE: randomize head and eye bones
-        #for key in [HEAD_BONE_Y, LEFT_EYE_BONE_X, LEFT_EYE_BONE_Y, LEFT_EYE_BONE_Z, RIGHT_EYE_BONE_X, RIGHT_EYE_BONE_Y]:
-            #current_pose[key] = self.random_generate_value(-20, 20, current_pose[key])
+        for key in [HEAD_BONE_Y, LEFT_EYE_BONE_X, LEFT_EYE_BONE_Y, LEFT_EYE_BONE_Z, RIGHT_EYE_BONE_X, RIGHT_EYE_BONE_Y]:
+            current_pose[key] = self.random_generate_value(-20, 20, current_pose[key])
 
         #Make her blink
         if random.random() <= 0.03:
