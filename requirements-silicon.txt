@@ -19,7 +19,6 @@ sentence_transformers
 edge-tts
 TTS
 fastapi
-opencv-python
 wxpython
 mecab-python3
 unidic-lite

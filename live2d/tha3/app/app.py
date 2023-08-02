@@ -1,5 +1,4 @@
 import argparse
-import cv2
 import os
 import random
 import requests
@@ -7,8 +6,11 @@ import sys
 import threading
 import time
 import torch
+import io
 import torch.nn.functional as F
 import wx
+import numpy as np
+
 from PIL import Image
 from torchvision import transforms
 from flask import Flask, render_template, Response, send_file, request
@@ -27,9 +29,6 @@ from tha3.util import (
     extract_pytorch_image_from_PIL_image
 )
 from typing import Optional
-
-# Add the current working directory to the system path
-sys.path.append(os.getcwd())
 
 # Global Variables
 global_source_image = None
@@ -58,16 +57,34 @@ def result_feed():
     def generate():
         while True:
             if global_result_image is not None:
-
                 try:
-                    # Encode the numpy array to PNG
-                    _, buffer = cv2.imencode('.png', global_result_image)
+                    # Assuming global_result_image is a NumPy array representing the image
+                    # Convert BGR to RGB channel order (if needed)
+                    rgb_image = global_result_image[:, :, [2, 1, 0]]  # Swap B and R channels
+                    # Convert to PIL Image
+                    pil_image = Image.fromarray(np.uint8(rgb_image))
+
+                    # Check if there is an alpha channel present
+                    if global_result_image.shape[2] == 4:
+
+                        # Extract alpha channel
+                        alpha_channel = global_result_image[:, :, 3]
+
+                        # Set alpha channel in the PIL Image
+                        pil_image.putalpha(Image.fromarray(np.uint8(alpha_channel)))
+
+                    # Save as PNG with RGBA mode
+                    buffer = io.BytesIO()
+                    pil_image.save(buffer, format='PNG')
+
+                    image_bytes = buffer.getvalue()
                 except Exception as e:
                     print(f"Error when trying to write image: {e}")
 
                 # Send the PNG image
                 yield (b'--frame\r\n'
-                       b'Content-Type: image/png\r\n\r\n' + buffer.tobytes() + b'\r\n')
+                       b'Content-Type: image/png\r\n\r\n' + image_bytes + b'\r\n')
+
             else:
                 time.sleep(0.1)
 
@@ -90,10 +107,15 @@ def live2d_load_file(stream):
     global global_source_image
     global global_reload
     try:
-        img = Image.open(stream)
+        # Load the image using PIL.Image.open
+        pil_image = Image.open(stream)
+        # Create a copy of the image data in memory using BytesIO
+        img_data = BytesIO()
+        pil_image.save(img_data, format='PNG')
+        # Set the global_reload to the copy of the image data
+        global_reload = Image.open(BytesIO(img_data.getvalue()))
     except Image.UnidentifiedImageError:
         print(f"Could not load image from file")
-    global_reload = img
     return 'OK'
 
 def convert_linear_to_srgb(image: torch.Tensor) -> torch.Tensor:
@@ -111,7 +133,7 @@ def launch_gui(device, model):
         poser = load_poser(model, device)
         pose_converter = create_ifacialmocap_pose_converter()
 
-        app = wx.App()
+        app = wx.App(redirect=False)
         main_frame = MainFrame(poser, pose_converter, device)
         main_frame.SetSize((750, 600))
 
@@ -122,6 +144,7 @@ def launch_gui(device, model):
         #main_frame.Show(True)
         main_frame.capture_timer.Start(100)
         main_frame.animation_timer.Start(100)
+        wx.DisableAsserts() #prevent popup about debug alert closed from other threads
         app.MainLoop()
 
     except RuntimeError as e:
@@ -186,7 +209,8 @@ class MainFrame(wx.Frame):
         # Destroy the windows
         self.Destroy()
         event.Skip()
-
+        sys.exit(0)
+        
     def on_start_capture(self, event: wx.Event):
         message_dialog = wx.MessageDialog(self, "", "Error!", wx.OK)
         message_dialog.ShowModal()
@@ -215,8 +239,8 @@ class MainFrame(wx.Frame):
                     current_pose[blendshape_name] = 0
 
         # NOTE: randomize head and eye bones
-        #for key in [HEAD_BONE_Y, LEFT_EYE_BONE_X, LEFT_EYE_BONE_Y, LEFT_EYE_BONE_Z, RIGHT_EYE_BONE_X, RIGHT_EYE_BONE_Y]:
-            #current_pose[key] = self.random_generate_value(-20, 20, current_pose[key])
+        for key in [HEAD_BONE_Y, LEFT_EYE_BONE_X, LEFT_EYE_BONE_Y, LEFT_EYE_BONE_Z, RIGHT_EYE_BONE_X, RIGHT_EYE_BONE_Y]:
+            current_pose[key] = self.random_generate_value(-20, 20, current_pose[key])
 
         #Make her blink
         if random.random() <= 0.03:
@@ -228,11 +252,25 @@ class MainFrame(wx.Frame):
 
 
         return current_pose    #print(current_pose)
+    
+    def get_emotion_values(self, emotion): # Place to define emotion presets
+        emotions = {
+            'Happy': {'eyeLookInLeft': 0.0, 'eyeLookOutLeft': 0.0, 'eyeLookDownLeft': 0.0, 'eyeLookUpLeft': 1.0, 'eyeBlinkLeft': 0, 'eyeSquintLeft': 0.0, 'eyeWideLeft': 0.0, 'eyeLookInRight': 0.0, 'eyeLookOutRight': 0.0, 'eyeLookDownRight': 0.0, 'eyeLookUpRight': 0.0, 'eyeBlinkRight': 0, 'eyeSquintRight': 0.0, 'eyeWideRight': 0.0, 'browDownLeft': 0.0, 'browOuterUpLeft': 0.0, 'browDownRight': 0.0, 'browOuterUpRight': 0.0, 'browInnerUp': 0.0, 'noseSneerLeft': 0.0, 'noseSneerRight': 0.0, 'cheekSquintLeft': 0.0, 'cheekSquintRight': 0.0, 'cheekPuff': 0.0, 'mouthLeft': 0.0, 'mouthDimpleLeft': 0.0, 'mouthFrownLeft': 0.0, 'mouthLowerDownLeft': 0.0, 'mouthPressLeft': 0.0, 'mouthSmileLeft': 0.0, 'mouthStretchLeft': 0.0, 'mouthUpperUpLeft': 0.0, 'mouthRight': 0.0, 'mouthDimpleRight': 0.0, 'mouthFrownRight': 0.0, 'mouthLowerDownRight': 0.0, 'mouthPressRight': 0.0, 'mouthSmileRight': 0.0, 'mouthStretchRight': 0.0, 'mouthUpperUpRight': 0.0, 'mouthClose': 0.0, 'mouthFunnel': 0.0, 'mouthPucker': 0.0, 'mouthRollLower': 0.0, 'mouthRollUpper': 0.0, 'mouthShrugLower': 0.0, 'mouthShrugUpper': 0.0, 'jawLeft': 0.0, 'jawRight': 0.0, 'jawForward': 0.0, 'jawOpen': 0, 'tongueOut': 0.0, 'headBoneX': 0.0, 'headBoneY': 0.0, 'headBoneZ': 0.0, 'headBoneQuat': [0.0, 0.0, 0.0, 1.0], 'leftEyeBoneX': 0.0, 'leftEyeBoneY': 0.0, 'leftEyeBoneZ': 0.0, 'leftEyeBoneQuat': [0.0, 0.0, 0.0, 1.0], 'rightEyeBoneX': 0.0, 'rightEyeBoneY': 0.0, 'rightEyeBoneZ': 0.0, 'rightEyeBoneQuat': [0.0, 0.0, 0.0, 1.0]},  
+            'Sad': {'eyeLookInLeft': 0.0, 'eyeLookOutLeft': 0.0, 'eyeLookDownLeft': 1.0, 'eyeLookUpLeft': 0.0, 'eyeBlinkLeft': 0, 'eyeSquintLeft': 0.0, 'eyeWideLeft': 0.0, 'eyeLookInRight': 0.0, 'eyeLookOutRight': 0.0, 'eyeLookDownRight': 0.0, 'eyeLookUpRight': 0.0, 'eyeBlinkRight': 0, 'eyeSquintRight': 0.0, 'eyeWideRight': 0.0, 'browDownLeft': 0.0, 'browOuterUpLeft': 0.0, 'browDownRight': 0.0, 'browOuterUpRight': 0.0, 'browInnerUp': 0.0, 'noseSneerLeft': 0.0, 'noseSneerRight': 0.0, 'cheekSquintLeft': 0.0, 'cheekSquintRight': 0.0, 'cheekPuff': 0.0, 'mouthLeft': 0.0, 'mouthDimpleLeft': 0.0, 'mouthFrownLeft': 0.0, 'mouthLowerDownLeft': 0.0, 'mouthPressLeft': 0.0, 'mouthSmileLeft': 0.0, 'mouthStretchLeft': 0.0, 'mouthUpperUpLeft': 0.0, 'mouthRight': 0.0, 'mouthDimpleRight': 0.0, 'mouthFrownRight': 0.0, 'mouthLowerDownRight': 0.0, 'mouthPressRight': 0.0, 'mouthSmileRight': 0.0, 'mouthStretchRight': 0.0, 'mouthUpperUpRight': 0.0, 'mouthClose': 0.0, 'mouthFunnel': 0.0, 'mouthPucker': 0.0, 'mouthRollLower': 0.0, 'mouthRollUpper': 0.0, 'mouthShrugLower': 0.0, 'mouthShrugUpper': 0.0, 'jawLeft': 0.0, 'jawRight': 0.0, 'jawForward': 0.0, 'jawOpen': 0, 'tongueOut': 0.0, 'headBoneX': 0.0, 'headBoneY': 0.0, 'headBoneZ': 0.0, 'headBoneQuat': [0.0, 0.0, 0.0, 1.0], 'leftEyeBoneX': 0.0, 'leftEyeBoneY': 0.0, 'leftEyeBoneZ': 0.0, 'leftEyeBoneQuat': [0.0, 0.0, 0.0, 1.0], 'rightEyeBoneX': 0.0, 'rightEyeBoneY': 0.0, 'rightEyeBoneZ': 0.0, 'rightEyeBoneQuat': [0.0, 0.0, 0.0, 1.0]},
+            'Angry': {'eyeLookInLeft': 1.0, 'eyeLookOutLeft': 1.0, 'eyeLookDownLeft': 1.0, 'eyeLookUpLeft': 1.0, 'eyeBlinkLeft': 0, 'eyeSquintLeft': 0.0, 'eyeWideLeft': 0.0, 'eyeLookInRight': 0.0, 'eyeLookOutRight': 0.0, 'eyeLookDownRight': 0.0, 'eyeLookUpRight': 0.0, 'eyeBlinkRight': 0, 'eyeSquintRight': 0.0, 'eyeWideRight': 0.0, 'browDownLeft': 0.0, 'browOuterUpLeft': 0.0, 'browDownRight': 0.0, 'browOuterUpRight': 0.0, 'browInnerUp': 0.0, 'noseSneerLeft': 0.0, 'noseSneerRight': 0.0, 'cheekSquintLeft': 0.0, 'cheekSquintRight': 0.0, 'cheekPuff': 0.0, 'mouthLeft': 0.0, 'mouthDimpleLeft': 0.0, 'mouthFrownLeft': 0.0, 'mouthLowerDownLeft': 0.0, 'mouthPressLeft': 0.0, 'mouthSmileLeft': 0.0, 'mouthStretchLeft': 0.0, 'mouthUpperUpLeft': 0.0, 'mouthRight': 0.0, 'mouthDimpleRight': 0.0, 'mouthFrownRight': 0.0, 'mouthLowerDownRight': 0.0, 'mouthPressRight': 0.0, 'mouthSmileRight': 0.0, 'mouthStretchRight': 0.0, 'mouthUpperUpRight': 0.0, 'mouthClose': 0.0, 'mouthFunnel': 0.0, 'mouthPucker': 0.0, 'mouthRollLower': 0.0, 'mouthRollUpper': 0.0, 'mouthShrugLower': 0.0, 'mouthShrugUpper': 0.0, 'jawLeft': 0.0, 'jawRight': 0.0, 'jawForward': 0.0, 'jawOpen': 0, 'tongueOut': 0.0, 'headBoneX': 0.0, 'headBoneY': 0.0, 'headBoneZ': 0.0, 'headBoneQuat': [0.0, 0.0, 0.0, 1.0], 'leftEyeBoneX': 0.0, 'leftEyeBoneY': 0.0, 'leftEyeBoneZ': 0.0, 'leftEyeBoneQuat': [0.0, 0.0, 0.0, 1.0], 'rightEyeBoneX': 0.0, 'rightEyeBoneY': 0.0, 'rightEyeBoneZ': 0.0, 'rightEyeBoneQuat': [0.0, 0.0, 0.0, 1.0]},
+        }
+        return emotions.get(emotion, {})
 
-    def read_ifacialmocap_pose(self):
-        if not self.animation_timer.IsRunning():
-            return self.ifacialmocap_pose
+    def emotion_pose(self): #Not complete WIP
+        #emotion_name = 'Angry'
+        #values = self.get_emotion_values(emotion_name) #get the stored presets
+
+        #for index, value in values.items():
+            #print(index, value)
+            #self.ifacialmocap_pose[index] = value
+
         self.ifacialmocap_pose =  self.random_generate_pose()
+        #print("TEST: ", self.ifacialmocap_pose)
         return self.ifacialmocap_pose
 
     def on_erase_background(self, event: wx.Event):
@@ -405,128 +443,132 @@ class MainFrame(wx.Frame):
         wx.BufferedPaintDC(self.result_image_panel, self.result_image_bitmap)
 
     def update_result_image_bitmap(self, event: Optional[wx.Event] = None):
+        try:
+            global global_result_image  # Declare global_source_image as a global variable
+            global global_reload
 
-        global global_result_image  # Declare global_source_image as a global variable
-        global global_reload
-
-        if global_reload is not None:
-            #print("Global Reload the Image")
-            MainFrame.load_image(self, event=None, file_path=None)  # call load_image function here
-            return
+            if global_reload is not None:
+                #print("Global Reload the Image")
+                MainFrame.load_image(self, event=None, file_path=None)  # call load_image function here
+                return
 
 
 
-        ifacialmocap_pose = self.read_ifacialmocap_pose()
-        current_pose = self.pose_converter.convert(ifacialmocap_pose)
-        if self.last_pose is not None and self.last_pose == current_pose:
-            return
-        self.last_pose = current_pose
+            ifacialmocap_pose = self.emotion_pose() #get current poses
+            
+            current_pose = self.pose_converter.convert(ifacialmocap_pose)
+            if self.last_pose is not None and self.last_pose == current_pose:
+                return
+            self.last_pose = current_pose
 
-        if self.torch_source_image is None:
+            if self.torch_source_image is None:
+                dc = wx.MemoryDC()
+                dc.SelectObject(self.result_image_bitmap)
+                self.draw_nothing_yet_string(dc)
+                del dc
+                return
+
+            pose = torch.tensor(current_pose, device=self.device, dtype=self.poser.get_dtype())
+
+
+            with torch.no_grad():
+                output_image = self.poser.pose(self.torch_source_image, pose)[0].float()
+                output_image = convert_linear_to_srgb((output_image + 1.0) / 2.0)
+
+                background_choice = self.output_background_choice.GetSelection()
+                if background_choice == 6:  # Custom background
+                    self.image_load_counter += 1  # Increment the counter
+                    if self.image_load_counter <= 1:  # Only open the file dialog if the counter is 5 or less
+                        file_dialog = wx.FileDialog(self, "Choose a background image", "", "", "*.png", wx.FD_OPEN)
+                        if file_dialog.ShowModal() == wx.ID_OK:
+                            background_image_path = file_dialog.GetPath()
+                                # Load the image and convert it to a torch tensor
+                            pil_image = Image.open(background_image_path).convert("RGBA")
+                            tensor_image = transforms.ToTensor()(pil_image).to(self.device)
+                                # Resize the image to match the output image size
+                            tensor_image = F.interpolate(tensor_image.unsqueeze(0), size=output_image.shape[1:], mode="bilinear").squeeze(0)
+                            self.custom_background_image = tensor_image  # Store the custom background image
+                            self.output_background_choice.SetSelection(5)
+                        else:
+                                # If the user cancelled the dialog or didn't choose a file, reset the choice to "TRANSPARENT"
+                            self.output_background_choice.SetSelection(5)
+                    else:
+                            # Use the stored custom background image
+                        output_image = self.blend_with_background(output_image, self.custom_background_image)
+
+
+                else:  # Predefined colors
+                    self.image_load_counter = 0
+                    if background_choice == 0:  # Transparent
+                        pass
+                    elif background_choice == 1:  # Green
+                        background = torch.zeros(4, output_image.shape[1], output_image.shape[2], device=self.device)
+                        background[3, :, :] = 1.0  # set alpha to 1.0
+                        background[1, :, :] = 1.0
+                        output_image = self.blend_with_background(output_image, background)
+                    elif background_choice == 2:  # Blue
+                        background = torch.zeros(4, output_image.shape[1], output_image.shape[2], device=self.device)
+                        background[3, :, :] = 1.0  # set alpha to 1.0
+                        background[2, :, :] = 1.0
+                        output_image = self.blend_with_background(output_image, background)
+                    elif background_choice == 3:  # Black
+                        background = torch.zeros(4, output_image.shape[1], output_image.shape[2], device=self.device)
+                        background[3, :, :] = 1.0  # set alpha to 1.0
+                        output_image = self.blend_with_background(output_image, background)
+                    elif background_choice == 4:   # White
+                        background = torch.zeros(4, output_image.shape[1], output_image.shape[2], device=self.device)
+                        background[3, :, :] = 1.0  # set alpha to 1.0
+                        background[0:3, :, :] = 1.0
+                        output_image = self.blend_with_background(output_image, background)
+                    elif background_choice == 5:  # Saved Image
+                        output_image = self.blend_with_background(output_image, self.custom_background_image)
+                    else:
+                        pass
+
+
+
+                c, h, w = output_image.shape
+                output_image = (255.0 * torch.transpose(output_image.reshape(c, h * w), 0, 1)).reshape(h, w, c).byte()
+
+
+            numpy_image = output_image.detach().cpu().numpy()
+            wx_image = wx.ImageFromBuffer(numpy_image.shape[0],
+                                        numpy_image.shape[1],
+                                        numpy_image[:, :, 0:3].tobytes(),
+                                        numpy_image[:, :, 3].tobytes())
+            wx_bitmap = wx_image.ConvertToBitmap()
+
             dc = wx.MemoryDC()
             dc.SelectObject(self.result_image_bitmap)
-            self.draw_nothing_yet_string(dc)
+            dc.Clear()
+            dc.DrawBitmap(wx_bitmap,
+                        (self.poser.get_image_size() - numpy_image.shape[0]) // 2,
+                        (self.poser.get_image_size() - numpy_image.shape[1]) // 2, True)
+
+
+            # Assuming numpy_image has shape (height, width, 4) and the channels are in RGB order
+            # Convert color channels from RGB to BGR and keep alpha channel
+            numpy_image_bgra = numpy_image[:, :, [2, 1, 0, 3]]
+            #cv2.imwrite('test2.png', numpy_image_bgra)
+
+            global_result_image = numpy_image_bgra
+
+
             del dc
-            return
 
-        pose = torch.tensor(current_pose, device=self.device, dtype=self.poser.get_dtype())
+            time_now = time.time_ns()
+            if self.last_update_time is not None:
+                elapsed_time = time_now - self.last_update_time
+                fps = 1.0 / (elapsed_time / 10**9)
+                if self.torch_source_image is not None:
+                    self.fps_statistics.add_fps(fps)
+                self.fps_text.SetLabelText("FPS = %0.2f" % self.fps_statistics.get_average_fps())
+            self.last_update_time = time_now
 
-
-        with torch.no_grad():
-            output_image = self.poser.pose(self.torch_source_image, pose)[0].float()
-            output_image = convert_linear_to_srgb((output_image + 1.0) / 2.0)
-
-            background_choice = self.output_background_choice.GetSelection()
-            if background_choice == 6:  # Custom background
-                self.image_load_counter += 1  # Increment the counter
-                if self.image_load_counter <= 1:  # Only open the file dialog if the counter is 5 or less
-                    file_dialog = wx.FileDialog(self, "Choose a background image", "", "", "*.png", wx.FD_OPEN)
-                    if file_dialog.ShowModal() == wx.ID_OK:
-                        background_image_path = file_dialog.GetPath()
-                            # Load the image and convert it to a torch tensor
-                        pil_image = Image.open(background_image_path).convert("RGBA")
-                        tensor_image = transforms.ToTensor()(pil_image).to(self.device)
-                            # Resize the image to match the output image size
-                        tensor_image = F.interpolate(tensor_image.unsqueeze(0), size=output_image.shape[1:], mode="bilinear").squeeze(0)
-                        self.custom_background_image = tensor_image  # Store the custom background image
-                        self.output_background_choice.SetSelection(5)
-                    else:
-                            # If the user cancelled the dialog or didn't choose a file, reset the choice to "TRANSPARENT"
-                        self.output_background_choice.SetSelection(5)
-                else:
-                        # Use the stored custom background image
-                    output_image = self.blend_with_background(output_image, self.custom_background_image)
-
-
-            else:  # Predefined colors
-                self.image_load_counter = 0
-                if background_choice == 0:  # Transparent
-                    pass
-                elif background_choice == 1:  # Green
-                    background = torch.zeros(4, output_image.shape[1], output_image.shape[2], device=self.device)
-                    background[3, :, :] = 1.0  # set alpha to 1.0
-                    background[1, :, :] = 1.0
-                    output_image = self.blend_with_background(output_image, background)
-                elif background_choice == 2:  # Blue
-                    background = torch.zeros(4, output_image.shape[1], output_image.shape[2], device=self.device)
-                    background[3, :, :] = 1.0  # set alpha to 1.0
-                    background[2, :, :] = 1.0
-                    output_image = self.blend_with_background(output_image, background)
-                elif background_choice == 3:  # Black
-                    background = torch.zeros(4, output_image.shape[1], output_image.shape[2], device=self.device)
-                    background[3, :, :] = 1.0  # set alpha to 1.0
-                    output_image = self.blend_with_background(output_image, background)
-                elif background_choice == 4:   # White
-                    background = torch.zeros(4, output_image.shape[1], output_image.shape[2], device=self.device)
-                    background[3, :, :] = 1.0  # set alpha to 1.0
-                    background[0:3, :, :] = 1.0
-                    output_image = self.blend_with_background(output_image, background)
-                elif background_choice == 5:  # Saved Image
-                    output_image = self.blend_with_background(output_image, self.custom_background_image)
-                else:
-                    pass
-
-
-
-            c, h, w = output_image.shape
-            output_image = (255.0 * torch.transpose(output_image.reshape(c, h * w), 0, 1)).reshape(h, w, c).byte()
-
-
-        numpy_image = output_image.detach().cpu().numpy()
-        wx_image = wx.ImageFromBuffer(numpy_image.shape[0],
-                                      numpy_image.shape[1],
-                                      numpy_image[:, :, 0:3].tobytes(),
-                                      numpy_image[:, :, 3].tobytes())
-        wx_bitmap = wx_image.ConvertToBitmap()
-
-        dc = wx.MemoryDC()
-        dc.SelectObject(self.result_image_bitmap)
-        dc.Clear()
-        dc.DrawBitmap(wx_bitmap,
-                      (self.poser.get_image_size() - numpy_image.shape[0]) // 2,
-                      (self.poser.get_image_size() - numpy_image.shape[1]) // 2, True)
-
-
-        # Assuming numpy_image has shape (height, width, 4) and the channels are in RGB order
-        # Convert color channels from RGB to BGR and keep alpha channel
-        numpy_image_bgra = numpy_image[:, :, [2, 1, 0, 3]]
-        #cv2.imwrite('test2.png', numpy_image_bgra)
-
-        global_result_image = numpy_image_bgra
-
-
-        del dc
-
-        time_now = time.time_ns()
-        if self.last_update_time is not None:
-            elapsed_time = time_now - self.last_update_time
-            fps = 1.0 / (elapsed_time / 10**9)
-            if self.torch_source_image is not None:
-                self.fps_statistics.add_fps(fps)
-            self.fps_text.SetLabelText("FPS = %0.2f" % self.fps_statistics.get_average_fps())
-        self.last_update_time = time_now
-
-        self.Refresh()
+            self.Refresh()
+        except KeyboardInterrupt:
+            print("Update process was interrupted by the user.")
+            wx.Exit()
 
     def blend_with_background(self, numpy_image, background):
         if background is not None:
@@ -538,8 +580,8 @@ class MainFrame(wx.Frame):
             return numpy_image
 
     def resize_image(image, size=(512, 512)):
-        image.thumbnail(size, Image.LANCZOS) # Step 1: Resize the image to maintain the aspect ratio with the larger dimension being 512 pixels
-        new_image = Image.new("RGBA", size)  # Step 2: Create a new image of size 512x512 with transparency
+        image.thumbnail(size, Image.LANCZOS)  # Step 1: Resize the image to maintain the aspect ratio with the larger dimension being 512 pixels
+        new_image = Image.new("RGBA", size)   # Step 2: Create a new image of size 512x512 with transparency
         new_image.paste(image, ((size[0] - image.size[0]) // 2,
                                 (size[1] - image.size[1]) // 2))   # Step 3: Paste the resized image into the new image, centered
         return new_image
@@ -565,7 +607,6 @@ class MainFrame(wx.Frame):
         if file_path:
             try:
 
-
                 if file_path == "global_reload":
                     pil_image = global_reload # use global_reload directly
                     #print("Loading from Var")
@@ -574,7 +615,6 @@ class MainFrame(wx.Frame):
                         extract_PIL_image_from_filelike(file_path),
                         (self.poser.get_image_size(), self.poser.get_image_size()))
 
-
                 w, h = pil_image.size
 
                 if pil_image.size != (512, 512):
@@ -582,10 +622,6 @@ class MainFrame(wx.Frame):
                     pil_image = MainFrame.resize_image(pil_image)
 
                 w, h = pil_image.size
-
-
-
-
 
                 if pil_image.mode != 'RGBA':
                     self.source_image_string = "Image must have alpha channel!"
@@ -601,8 +637,6 @@ class MainFrame(wx.Frame):
                 global_source_image_path = image_path = os.path.join(file_path) #set file path
 
                 self.update_source_image_bitmap()
-
-
 
             except Exception as error:
                 print("Error:")

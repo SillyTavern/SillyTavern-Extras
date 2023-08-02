@@ -172,10 +172,10 @@ if not torch.cuda.is_available() and not args.cpu:
 print(f"{Fore.GREEN}{Style.BRIGHT}Using torch device: {device_string}{Style.RESET_ALL}")
 
 if "live2d" in modules:
-    mode = "cuda" if args.live2d_gpu else "cpu"
-    print("Initializing live2d pipeline in " + mode + " mode....")
     import sys
     import threading
+    mode = "cuda" if args.live2d_gpu else "cpu"
+    print("Initializing live2d pipeline in " + mode + " mode....")
     live2d_path = os.path.abspath(os.path.join(os.getcwd(), "live2d"))
     sys.path.append(live2d_path) # Add the path to the 'tha3' module to the sys.path list
 
@@ -187,7 +187,8 @@ if "live2d" in modules:
         #choices=['standard_float', 'separable_float', 'standard_half', 'separable_half'],
         #choices='The device to use for PyTorch ("cuda" for GPU, "cpu" for CPU).'
         live2d_thread = threading.Thread(target=launch_live2d_gui)
-        live2d_thread.start()  # Start the launch_live2d function in a separate thread to prevent lock-ups
+        live2d_thread.daemon = True  # Set the thread as a daemon thread
+        live2d_thread.start()
 
     except ModuleNotFoundError:
         print("Error: Could not import the 'live2d' module.")
