@@ -9,6 +9,8 @@ import time
 import torch
 import torch.nn.functional as F
 import wx
+import signal
+
 from PIL import Image
 from torchvision import transforms
 from flask import Flask, render_template, Response, send_file, request
@@ -116,7 +118,7 @@ def launch_gui(device, model):
         poser = load_poser(model, device)
         pose_converter = create_ifacialmocap_pose_converter()
 
-        app = wx.App()
+        app = wx.App(redirect=False)
         main_frame = MainFrame(poser, pose_converter, device)
         main_frame.SetSize((750, 600))
 
@@ -127,6 +129,7 @@ def launch_gui(device, model):
         #main_frame.Show(True)
         main_frame.capture_timer.Start(100)
         main_frame.animation_timer.Start(100)
+        wx.DisableAsserts() #prevent popup about debug alert closed from other threads
         app.MainLoop()
 
     except RuntimeError as e:
@@ -191,7 +194,8 @@ class MainFrame(wx.Frame):
         # Destroy the windows
         self.Destroy()
         event.Skip()
-
+        sys.exit(0)
+        
     def on_start_capture(self, event: wx.Event):
         message_dialog = wx.MessageDialog(self, "", "Error!", wx.OK)
         message_dialog.ShowModal()
@@ -410,128 +414,131 @@ class MainFrame(wx.Frame):
         wx.BufferedPaintDC(self.result_image_panel, self.result_image_bitmap)
 
     def update_result_image_bitmap(self, event: Optional[wx.Event] = None):
+        try:
+            global global_result_image  # Declare global_source_image as a global variable
+            global global_reload
 
-        global global_result_image  # Declare global_source_image as a global variable
-        global global_reload
-
-        if global_reload is not None:
-            #print("Global Reload the Image")
-            MainFrame.load_image(self, event=None, file_path=None)  # call load_image function here
-            return
+            if global_reload is not None:
+                #print("Global Reload the Image")
+                MainFrame.load_image(self, event=None, file_path=None)  # call load_image function here
+                return
 
 
 
-        ifacialmocap_pose = self.read_ifacialmocap_pose()
-        current_pose = self.pose_converter.convert(ifacialmocap_pose)
-        if self.last_pose is not None and self.last_pose == current_pose:
-            return
-        self.last_pose = current_pose
+            ifacialmocap_pose = self.read_ifacialmocap_pose()
+            current_pose = self.pose_converter.convert(ifacialmocap_pose)
+            if self.last_pose is not None and self.last_pose == current_pose:
+                return
+            self.last_pose = current_pose
 
-        if self.torch_source_image is None:
+            if self.torch_source_image is None:
+                dc = wx.MemoryDC()
+                dc.SelectObject(self.result_image_bitmap)
+                self.draw_nothing_yet_string(dc)
+                del dc
+                return
+
+            pose = torch.tensor(current_pose, device=self.device, dtype=self.poser.get_dtype())
+
+
+            with torch.no_grad():
+                output_image = self.poser.pose(self.torch_source_image, pose)[0].float()
+                output_image = convert_linear_to_srgb((output_image + 1.0) / 2.0)
+
+                background_choice = self.output_background_choice.GetSelection()
+                if background_choice == 6:  # Custom background
+                    self.image_load_counter += 1  # Increment the counter
+                    if self.image_load_counter <= 1:  # Only open the file dialog if the counter is 5 or less
+                        file_dialog = wx.FileDialog(self, "Choose a background image", "", "", "*.png", wx.FD_OPEN)
+                        if file_dialog.ShowModal() == wx.ID_OK:
+                            background_image_path = file_dialog.GetPath()
+                                # Load the image and convert it to a torch tensor
+                            pil_image = Image.open(background_image_path).convert("RGBA")
+                            tensor_image = transforms.ToTensor()(pil_image).to(self.device)
+                                # Resize the image to match the output image size
+                            tensor_image = F.interpolate(tensor_image.unsqueeze(0), size=output_image.shape[1:], mode="bilinear").squeeze(0)
+                            self.custom_background_image = tensor_image  # Store the custom background image
+                            self.output_background_choice.SetSelection(5)
+                        else:
+                                # If the user cancelled the dialog or didn't choose a file, reset the choice to "TRANSPARENT"
+                            self.output_background_choice.SetSelection(5)
+                    else:
+                            # Use the stored custom background image
+                        output_image = self.blend_with_background(output_image, self.custom_background_image)
+
+
+                else:  # Predefined colors
+                    self.image_load_counter = 0
+                    if background_choice == 0:  # Transparent
+                        pass
+                    elif background_choice == 1:  # Green
+                        background = torch.zeros(4, output_image.shape[1], output_image.shape[2], device=self.device)
+                        background[3, :, :] = 1.0  # set alpha to 1.0
+                        background[1, :, :] = 1.0
+                        output_image = self.blend_with_background(output_image, background)
+                    elif background_choice == 2:  # Blue
+                        background = torch.zeros(4, output_image.shape[1], output_image.shape[2], device=self.device)
+                        background[3, :, :] = 1.0  # set alpha to 1.0
+                        background[2, :, :] = 1.0
+                        output_image = self.blend_with_background(output_image, background)
+                    elif background_choice == 3:  # Black
+                        background = torch.zeros(4, output_image.shape[1], output_image.shape[2], device=self.device)
+                        background[3, :, :] = 1.0  # set alpha to 1.0
+                        output_image = self.blend_with_background(output_image, background)
+                    elif background_choice == 4:   # White
+                        background = torch.zeros(4, output_image.shape[1], output_image.shape[2], device=self.device)
+                        background[3, :, :] = 1.0  # set alpha to 1.0
+                        background[0:3, :, :] = 1.0
+                        output_image = self.blend_with_background(output_image, background)
+                    elif background_choice == 5:  # Saved Image
+                        output_image = self.blend_with_background(output_image, self.custom_background_image)
+                    else:
+                        pass
+
+
+
+                c, h, w = output_image.shape
+                output_image = (255.0 * torch.transpose(output_image.reshape(c, h * w), 0, 1)).reshape(h, w, c).byte()
+
+
+            numpy_image = output_image.detach().cpu().numpy()
+            wx_image = wx.ImageFromBuffer(numpy_image.shape[0],
+                                        numpy_image.shape[1],
+                                        numpy_image[:, :, 0:3].tobytes(),
+                                        numpy_image[:, :, 3].tobytes())
+            wx_bitmap = wx_image.ConvertToBitmap()
+
             dc = wx.MemoryDC()
             dc.SelectObject(self.result_image_bitmap)
-            self.draw_nothing_yet_string(dc)
+            dc.Clear()
+            dc.DrawBitmap(wx_bitmap,
+                        (self.poser.get_image_size() - numpy_image.shape[0]) // 2,
+                        (self.poser.get_image_size() - numpy_image.shape[1]) // 2, True)
+
+
+            # Assuming numpy_image has shape (height, width, 4) and the channels are in RGB order
+            # Convert color channels from RGB to BGR and keep alpha channel
+            numpy_image_bgra = numpy_image[:, :, [2, 1, 0, 3]]
+            #cv2.imwrite('test2.png', numpy_image_bgra)
+
+            global_result_image = numpy_image_bgra
+
+
             del dc
-            return
 
-        pose = torch.tensor(current_pose, device=self.device, dtype=self.poser.get_dtype())
+            time_now = time.time_ns()
+            if self.last_update_time is not None:
+                elapsed_time = time_now - self.last_update_time
+                fps = 1.0 / (elapsed_time / 10**9)
+                if self.torch_source_image is not None:
+                    self.fps_statistics.add_fps(fps)
+                self.fps_text.SetLabelText("FPS = %0.2f" % self.fps_statistics.get_average_fps())
+            self.last_update_time = time_now
 
-
-        with torch.no_grad():
-            output_image = self.poser.pose(self.torch_source_image, pose)[0].float()
-            output_image = convert_linear_to_srgb((output_image + 1.0) / 2.0)
-
-            background_choice = self.output_background_choice.GetSelection()
-            if background_choice == 6:  # Custom background
-                self.image_load_counter += 1  # Increment the counter
-                if self.image_load_counter <= 1:  # Only open the file dialog if the counter is 5 or less
-                    file_dialog = wx.FileDialog(self, "Choose a background image", "", "", "*.png", wx.FD_OPEN)
-                    if file_dialog.ShowModal() == wx.ID_OK:
-                        background_image_path = file_dialog.GetPath()
-                            # Load the image and convert it to a torch tensor
-                        pil_image = Image.open(background_image_path).convert("RGBA")
-                        tensor_image = transforms.ToTensor()(pil_image).to(self.device)
-                            # Resize the image to match the output image size
-                        tensor_image = F.interpolate(tensor_image.unsqueeze(0), size=output_image.shape[1:], mode="bilinear").squeeze(0)
-                        self.custom_background_image = tensor_image  # Store the custom background image
-                        self.output_background_choice.SetSelection(5)
-                    else:
-                            # If the user cancelled the dialog or didn't choose a file, reset the choice to "TRANSPARENT"
-                        self.output_background_choice.SetSelection(5)
-                else:
-                        # Use the stored custom background image
-                    output_image = self.blend_with_background(output_image, self.custom_background_image)
-
-
-            else:  # Predefined colors
-                self.image_load_counter = 0
-                if background_choice == 0:  # Transparent
-                    pass
-                elif background_choice == 1:  # Green
-                    background = torch.zeros(4, output_image.shape[1], output_image.shape[2], device=self.device)
-                    background[3, :, :] = 1.0  # set alpha to 1.0
-                    background[1, :, :] = 1.0
-                    output_image = self.blend_with_background(output_image, background)
-                elif background_choice == 2:  # Blue
-                    background = torch.zeros(4, output_image.shape[1], output_image.shape[2], device=self.device)
-                    background[3, :, :] = 1.0  # set alpha to 1.0
-                    background[2, :, :] = 1.0
-                    output_image = self.blend_with_background(output_image, background)
-                elif background_choice == 3:  # Black
-                    background = torch.zeros(4, output_image.shape[1], output_image.shape[2], device=self.device)
-                    background[3, :, :] = 1.0  # set alpha to 1.0
-                    output_image = self.blend_with_background(output_image, background)
-                elif background_choice == 4:   # White
-                    background = torch.zeros(4, output_image.shape[1], output_image.shape[2], device=self.device)
-                    background[3, :, :] = 1.0  # set alpha to 1.0
-                    background[0:3, :, :] = 1.0
-                    output_image = self.blend_with_background(output_image, background)
-                elif background_choice == 5:  # Saved Image
-                    output_image = self.blend_with_background(output_image, self.custom_background_image)
-                else:
-                    pass
-
-
-
-            c, h, w = output_image.shape
-            output_image = (255.0 * torch.transpose(output_image.reshape(c, h * w), 0, 1)).reshape(h, w, c).byte()
-
-
-        numpy_image = output_image.detach().cpu().numpy()
-        wx_image = wx.ImageFromBuffer(numpy_image.shape[0],
-                                      numpy_image.shape[1],
-                                      numpy_image[:, :, 0:3].tobytes(),
-                                      numpy_image[:, :, 3].tobytes())
-        wx_bitmap = wx_image.ConvertToBitmap()
-
-        dc = wx.MemoryDC()
-        dc.SelectObject(self.result_image_bitmap)
-        dc.Clear()
-        dc.DrawBitmap(wx_bitmap,
-                      (self.poser.get_image_size() - numpy_image.shape[0]) // 2,
-                      (self.poser.get_image_size() - numpy_image.shape[1]) // 2, True)
-
-
-        # Assuming numpy_image has shape (height, width, 4) and the channels are in RGB order
-        # Convert color channels from RGB to BGR and keep alpha channel
-        numpy_image_bgra = numpy_image[:, :, [2, 1, 0, 3]]
-        #cv2.imwrite('test2.png', numpy_image_bgra)
-
-        global_result_image = numpy_image_bgra
-
-
-        del dc
-
-        time_now = time.time_ns()
-        if self.last_update_time is not None:
-            elapsed_time = time_now - self.last_update_time
-            fps = 1.0 / (elapsed_time / 10**9)
-            if self.torch_source_image is not None:
-                self.fps_statistics.add_fps(fps)
-            self.fps_text.SetLabelText("FPS = %0.2f" % self.fps_statistics.get_average_fps())
-        self.last_update_time = time_now
-
-        self.Refresh()
+            self.Refresh()
+        except KeyboardInterrupt:
+            print("Update process was interrupted by the user.")
+            wx.Exit()
 
     def blend_with_background(self, numpy_image, background):
         if background is not None:
