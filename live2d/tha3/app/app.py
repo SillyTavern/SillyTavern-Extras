@@ -1,5 +1,4 @@
 import argparse
-import cv2
 import os
 import random
 import requests
@@ -7,8 +6,10 @@ import sys
 import threading
 import time
 import torch
+import io
 import torch.nn.functional as F
 import wx
+import numpy as np
 
 from PIL import Image
 from torchvision import transforms
@@ -28,9 +29,6 @@ from tha3.util import (
     extract_pytorch_image_from_PIL_image
 )
 from typing import Optional
-
-# Add the current working directory to the system path
-sys.path.append(os.getcwd())
 
 # Global Variables
 global_source_image = None
@@ -59,16 +57,34 @@ def result_feed():
     def generate():
         while True:
             if global_result_image is not None:
-
                 try:
-                    # Encode the numpy array to PNG
-                    _, buffer = cv2.imencode('.png', global_result_image)
+                    # Assuming global_result_image is a NumPy array representing the image
+                    # Convert BGR to RGB channel order (if needed)
+                    rgb_image = global_result_image[:, :, [2, 1, 0]]  # Swap B and R channels
+                    # Convert to PIL Image
+                    pil_image = Image.fromarray(np.uint8(rgb_image))
+
+                    # Check if there is an alpha channel present
+                    if global_result_image.shape[2] == 4:
+
+                        # Extract alpha channel
+                        alpha_channel = global_result_image[:, :, 3]
+
+                        # Set alpha channel in the PIL Image
+                        pil_image.putalpha(Image.fromarray(np.uint8(alpha_channel)))
+
+                    # Save as PNG with RGBA mode
+                    buffer = io.BytesIO()
+                    pil_image.save(buffer, format='PNG')
+
+                    image_bytes = buffer.getvalue()
                 except Exception as e:
                     print(f"Error when trying to write image: {e}")
 
                 # Send the PNG image
                 yield (b'--frame\r\n'
-                       b'Content-Type: image/png\r\n\r\n' + buffer.tobytes() + b'\r\n')
+                       b'Content-Type: image/png\r\n\r\n' + image_bytes + b'\r\n')
+
             else:
                 time.sleep(0.1)
 
@@ -236,11 +252,25 @@ class MainFrame(wx.Frame):
 
 
         return current_pose    #print(current_pose)
+    
+    def get_emotion_values(self, emotion): # Place to define emotion presets
+        emotions = {
+            'Happy': {'eyeLookInLeft': 0.0, 'eyeLookOutLeft': 0.0, 'eyeLookDownLeft': 0.0, 'eyeLookUpLeft': 1.0, 'eyeBlinkLeft': 0, 'eyeSquintLeft': 0.0, 'eyeWideLeft': 0.0, 'eyeLookInRight': 0.0, 'eyeLookOutRight': 0.0, 'eyeLookDownRight': 0.0, 'eyeLookUpRight': 0.0, 'eyeBlinkRight': 0, 'eyeSquintRight': 0.0, 'eyeWideRight': 0.0, 'browDownLeft': 0.0, 'browOuterUpLeft': 0.0, 'browDownRight': 0.0, 'browOuterUpRight': 0.0, 'browInnerUp': 0.0, 'noseSneerLeft': 0.0, 'noseSneerRight': 0.0, 'cheekSquintLeft': 0.0, 'cheekSquintRight': 0.0, 'cheekPuff': 0.0, 'mouthLeft': 0.0, 'mouthDimpleLeft': 0.0, 'mouthFrownLeft': 0.0, 'mouthLowerDownLeft': 0.0, 'mouthPressLeft': 0.0, 'mouthSmileLeft': 0.0, 'mouthStretchLeft': 0.0, 'mouthUpperUpLeft': 0.0, 'mouthRight': 0.0, 'mouthDimpleRight': 0.0, 'mouthFrownRight': 0.0, 'mouthLowerDownRight': 0.0, 'mouthPressRight': 0.0, 'mouthSmileRight': 0.0, 'mouthStretchRight': 0.0, 'mouthUpperUpRight': 0.0, 'mouthClose': 0.0, 'mouthFunnel': 0.0, 'mouthPucker': 0.0, 'mouthRollLower': 0.0, 'mouthRollUpper': 0.0, 'mouthShrugLower': 0.0, 'mouthShrugUpper': 0.0, 'jawLeft': 0.0, 'jawRight': 0.0, 'jawForward': 0.0, 'jawOpen': 0, 'tongueOut': 0.0, 'headBoneX': 0.0, 'headBoneY': 0.0, 'headBoneZ': 0.0, 'headBoneQuat': [0.0, 0.0, 0.0, 1.0], 'leftEyeBoneX': 0.0, 'leftEyeBoneY': 0.0, 'leftEyeBoneZ': 0.0, 'leftEyeBoneQuat': [0.0, 0.0, 0.0, 1.0], 'rightEyeBoneX': 0.0, 'rightEyeBoneY': 0.0, 'rightEyeBoneZ': 0.0, 'rightEyeBoneQuat': [0.0, 0.0, 0.0, 1.0]},  
+            'Sad': {'eyeLookInLeft': 0.0, 'eyeLookOutLeft': 0.0, 'eyeLookDownLeft': 1.0, 'eyeLookUpLeft': 0.0, 'eyeBlinkLeft': 0, 'eyeSquintLeft': 0.0, 'eyeWideLeft': 0.0, 'eyeLookInRight': 0.0, 'eyeLookOutRight': 0.0, 'eyeLookDownRight': 0.0, 'eyeLookUpRight': 0.0, 'eyeBlinkRight': 0, 'eyeSquintRight': 0.0, 'eyeWideRight': 0.0, 'browDownLeft': 0.0, 'browOuterUpLeft': 0.0, 'browDownRight': 0.0, 'browOuterUpRight': 0.0, 'browInnerUp': 0.0, 'noseSneerLeft': 0.0, 'noseSneerRight': 0.0, 'cheekSquintLeft': 0.0, 'cheekSquintRight': 0.0, 'cheekPuff': 0.0, 'mouthLeft': 0.0, 'mouthDimpleLeft': 0.0, 'mouthFrownLeft': 0.0, 'mouthLowerDownLeft': 0.0, 'mouthPressLeft': 0.0, 'mouthSmileLeft': 0.0, 'mouthStretchLeft': 0.0, 'mouthUpperUpLeft': 0.0, 'mouthRight': 0.0, 'mouthDimpleRight': 0.0, 'mouthFrownRight': 0.0, 'mouthLowerDownRight': 0.0, 'mouthPressRight': 0.0, 'mouthSmileRight': 0.0, 'mouthStretchRight': 0.0, 'mouthUpperUpRight': 0.0, 'mouthClose': 0.0, 'mouthFunnel': 0.0, 'mouthPucker': 0.0, 'mouthRollLower': 0.0, 'mouthRollUpper': 0.0, 'mouthShrugLower': 0.0, 'mouthShrugUpper': 0.0, 'jawLeft': 0.0, 'jawRight': 0.0, 'jawForward': 0.0, 'jawOpen': 0, 'tongueOut': 0.0, 'headBoneX': 0.0, 'headBoneY': 0.0, 'headBoneZ': 0.0, 'headBoneQuat': [0.0, 0.0, 0.0, 1.0], 'leftEyeBoneX': 0.0, 'leftEyeBoneY': 0.0, 'leftEyeBoneZ': 0.0, 'leftEyeBoneQuat': [0.0, 0.0, 0.0, 1.0], 'rightEyeBoneX': 0.0, 'rightEyeBoneY': 0.0, 'rightEyeBoneZ': 0.0, 'rightEyeBoneQuat': [0.0, 0.0, 0.0, 1.0]},
+            'Angry': {'eyeLookInLeft': 1.0, 'eyeLookOutLeft': 1.0, 'eyeLookDownLeft': 1.0, 'eyeLookUpLeft': 1.0, 'eyeBlinkLeft': 0, 'eyeSquintLeft': 0.0, 'eyeWideLeft': 0.0, 'eyeLookInRight': 0.0, 'eyeLookOutRight': 0.0, 'eyeLookDownRight': 0.0, 'eyeLookUpRight': 0.0, 'eyeBlinkRight': 0, 'eyeSquintRight': 0.0, 'eyeWideRight': 0.0, 'browDownLeft': 0.0, 'browOuterUpLeft': 0.0, 'browDownRight': 0.0, 'browOuterUpRight': 0.0, 'browInnerUp': 0.0, 'noseSneerLeft': 0.0, 'noseSneerRight': 0.0, 'cheekSquintLeft': 0.0, 'cheekSquintRight': 0.0, 'cheekPuff': 0.0, 'mouthLeft': 0.0, 'mouthDimpleLeft': 0.0, 'mouthFrownLeft': 0.0, 'mouthLowerDownLeft': 0.0, 'mouthPressLeft': 0.0, 'mouthSmileLeft': 0.0, 'mouthStretchLeft': 0.0, 'mouthUpperUpLeft': 0.0, 'mouthRight': 0.0, 'mouthDimpleRight': 0.0, 'mouthFrownRight': 0.0, 'mouthLowerDownRight': 0.0, 'mouthPressRight': 0.0, 'mouthSmileRight': 0.0, 'mouthStretchRight': 0.0, 'mouthUpperUpRight': 0.0, 'mouthClose': 0.0, 'mouthFunnel': 0.0, 'mouthPucker': 0.0, 'mouthRollLower': 0.0, 'mouthRollUpper': 0.0, 'mouthShrugLower': 0.0, 'mouthShrugUpper': 0.0, 'jawLeft': 0.0, 'jawRight': 0.0, 'jawForward': 0.0, 'jawOpen': 0, 'tongueOut': 0.0, 'headBoneX': 0.0, 'headBoneY': 0.0, 'headBoneZ': 0.0, 'headBoneQuat': [0.0, 0.0, 0.0, 1.0], 'leftEyeBoneX': 0.0, 'leftEyeBoneY': 0.0, 'leftEyeBoneZ': 0.0, 'leftEyeBoneQuat': [0.0, 0.0, 0.0, 1.0], 'rightEyeBoneX': 0.0, 'rightEyeBoneY': 0.0, 'rightEyeBoneZ': 0.0, 'rightEyeBoneQuat': [0.0, 0.0, 0.0, 1.0]},
+        }
+        return emotions.get(emotion, {})
 
-    def read_ifacialmocap_pose(self):
-        if not self.animation_timer.IsRunning():
-            return self.ifacialmocap_pose
+    def emotion_pose(self): #Not complete WIP
+        #emotion_name = 'Angry'
+        #values = self.get_emotion_values(emotion_name) #get the stored presets
+
+        #for index, value in values.items():
+            #print(index, value)
+            #self.ifacialmocap_pose[index] = value
+
         self.ifacialmocap_pose =  self.random_generate_pose()
+        #print("TEST: ", self.ifacialmocap_pose)
         return self.ifacialmocap_pose
 
     def on_erase_background(self, event: wx.Event):
@@ -424,7 +454,8 @@ class MainFrame(wx.Frame):
 
 
 
-            ifacialmocap_pose = self.read_ifacialmocap_pose()
+            ifacialmocap_pose = self.emotion_pose() #get current poses
+            
             current_pose = self.pose_converter.convert(ifacialmocap_pose)
             if self.last_pose is not None and self.last_pose == current_pose:
                 return

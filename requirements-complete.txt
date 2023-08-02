@@ -22,7 +22,6 @@ vosk
 sounddevice
 openai-whisper
 fastapi
-opencv-python
 wxpython
 mecab-python3
 unidic-lite
