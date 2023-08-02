@@ -9,7 +9,6 @@ import time
 import torch
 import torch.nn.functional as F
 import wx
-import signal
 
 from PIL import Image
 from torchvision import transforms
