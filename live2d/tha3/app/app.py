@@ -37,10 +37,16 @@ global_result_image = None
 global_reload = None
 is_talking_override = False
 is_talking = False
+global_timer_paused = False
 
 # Flask setup
 app = Flask(__name__)
 CORS(app)
+
+def unload():
+    global global_timer_paused
+    global_timer_paused = True
+    return "Animation Paused"
 
 def start_talking():
     global is_talking_override
@@ -106,6 +112,11 @@ def live2d_load_file(stream):
     img = None
     global global_source_image
     global global_reload
+    global global_timer_paused
+
+    global_timer_paused = False
+
+    
     try:
         # Load the image using PIL.Image.open
         pil_image = Image.open(stream)
@@ -138,7 +149,7 @@ def launch_gui(device, model):
         main_frame.SetSize((750, 600))
 
         #Lload default image (you can pass args.char if required)
-        full_path = os.path.join(os.getcwd(), "live2d\\tha3\\images\\lambda_00.png")
+        full_path = os.path.join(os.getcwd(), "live2d\\tha3\\images\\inital.png")
         main_frame.load_image(None, full_path)
 
         #main_frame.Show(True)
@@ -226,7 +237,7 @@ class MainFrame(wx.Frame):
             randomized = 0
         return randomized
 
-    def random_generate_pose(self):
+    def animationTalking(self):
         global is_talking
         current_pose = self.ifacialmocap_pose
 
@@ -238,11 +249,19 @@ class MainFrame(wx.Frame):
                 else:
                     current_pose[blendshape_name] = 0
 
-        # NOTE: randomize head and eye bones
-        for key in [HEAD_BONE_Y, LEFT_EYE_BONE_X, LEFT_EYE_BONE_Y, LEFT_EYE_BONE_Z, RIGHT_EYE_BONE_X, RIGHT_EYE_BONE_Y]:
-            current_pose[key] = self.random_generate_value(-20, 20, current_pose[key])
+        return current_pose
+    
+    def animationHeadMove(self):
+        current_pose = self.ifacialmocap_pose
 
-        #Make her blink
+        for key in [HEAD_BONE_Y]: #can add more to this list if needed
+            current_pose[key] = self.random_generate_value(-20, 20, current_pose[key])
+        
+        return current_pose
+    
+    def animationBlink(self):
+        current_pose = self.ifacialmocap_pose
+
         if random.random() <= 0.03:
             current_pose["eyeBlinkRight"] = 1
             current_pose["eyeBlinkLeft"] = 1
@@ -250,8 +269,7 @@ class MainFrame(wx.Frame):
             current_pose["eyeBlinkRight"] = 0
             current_pose["eyeBlinkLeft"] = 0
 
-
-        return current_pose    #print(current_pose)
+        return current_pose
     
     def get_emotion_values(self, emotion): # Place to define emotion presets
         emotions = {
@@ -261,16 +279,78 @@ class MainFrame(wx.Frame):
         }
         return emotions.get(emotion, {})
 
-    def emotion_pose(self): #Not complete WIP
-        #emotion_name = 'Angry'
-        #values = self.get_emotion_values(emotion_name) #get the stored presets
-
-        #for index, value in values.items():
-            #print(index, value)
-            #self.ifacialmocap_pose[index] = value
-
-        self.ifacialmocap_pose =  self.random_generate_pose()
+    def animationMain(self): 
+        self.ifacialmocap_pose =  self.animationBlink()
+        self.ifacialmocap_pose =  self.animationHeadMove()
+        self.ifacialmocap_pose =  self.animationTalking()
         #print("TEST: ", self.ifacialmocap_pose)
+        """
+        TEST:  {
+            'eyeLookInLeft': 0.0, 
+            'eyeLookOutLeft': 0.0, 
+            'eyeLookDownLeft': 0.0, 
+            'eyeLookUpLeft': 0.0, 
+            'eyeBlinkLeft': 0, 
+            'eyeSquintLeft': 0.0, 
+            'eyeWideLeft': 0.0, 
+            'eyeLookInRight': 0.0, 
+            'eyeLookOutRight': 0.0, 
+            'eyeLookDownRight': 0.0, 
+            'eyeLookUpRight': 0.0, 
+            'eyeBlinkRight': 0, 
+            'eyeSquintRight': 0.0, 
+            'eyeWideRight': 0.0, 
+            'browDownLeft': 0.0, 
+            'browOuterUpLeft': 0.0, 
+            'browDownRight': 0.0, 
+            'browOuterUpRight': 0.0, 
+            'browInnerUp': 0.0, 
+            'noseSneerLeft': 0.0, 
+            'noseSneerRight': 0.0, 
+            'cheekSquintLeft': 0.0, 
+            'cheekSquintRight': 0.0, 
+            'cheekPuff': 0.0, 
+            'mouthLeft': 0.0, 
+            'mouthDimpleLeft': 0.0, 
+            'mouthFrownLeft': 0.0, 
+            'mouthLowerDownLeft': 0.0, 
+            'mouthPressLeft': 0.0, 
+            'mouthSmileLeft': 0.0, 
+            'mouthStretchLeft': 0.0, 
+            'mouthUpperUpLeft': 0.0, 
+            'mouthRight': 0.0, 
+            'mouthDimpleRight': 0.0, 
+            'mouthFrownRight': 0.0, 
+            'mouthLowerDownRight': 0.0, 
+            'mouthPressRight': 0.0, 
+            'mouthSmileRight': 0.0, 
+            'mouthStretchRight': 0.0, 
+            'mouthUpperUpRight': 0.0, 
+            'mouthClose': 0.0, 
+            'mouthFunnel': 0.0, 
+            'mouthPucker': 0.0, 
+            'mouthRollLower': 0.0, 
+            'mouthRollUpper': 0.0, 
+            'mouthShrugLower': 0.0, 
+            'mouthShrugUpper': 0.0, 
+            'jawLeft': 0.0, 
+            'jawRight': 0.0, 
+            'jawForward': 0.0, 
+            'jawOpen': 0, 
+            'tongueOut': 0.0, 
+            'headBoneX': 0.0, 
+            'headBoneY': 0.0144, 
+            'headBoneZ': 0.0, 
+            'headBoneQuat': [0.0, 0.0, 0.0, 1.0], 
+            'leftEyeBoneX': 0.0, 
+            'leftEyeBoneY': 0.0, 
+            'leftEyeBoneZ': 0.0, 
+            'leftEyeBoneQuat': [0.0, 0.0, 0.0, 1.0], 
+            'rightEyeBoneX': 0.0, 
+            'rightEyeBoneY': 0.0, 
+            'rightEyeBoneZ': 0.0, 
+            'rightEyeBoneQuat': [0.0, 0.0, 0.0, 1.0]}
+        """
         return self.ifacialmocap_pose
 
     def on_erase_background(self, event: wx.Event):
@@ -443,6 +523,10 @@ class MainFrame(wx.Frame):
         wx.BufferedPaintDC(self.result_image_panel, self.result_image_bitmap)
 
     def update_result_image_bitmap(self, event: Optional[wx.Event] = None):
+        global global_timer_paused
+        if global_timer_paused:
+            return
+
         try:
             global global_result_image  # Declare global_source_image as a global variable
             global global_reload
@@ -452,9 +536,7 @@ class MainFrame(wx.Frame):
                 MainFrame.load_image(self, event=None, file_path=None)  # call load_image function here
                 return
 
-
-
-            ifacialmocap_pose = self.emotion_pose() #get current poses
+            ifacialmocap_pose = self.animationMain() #GET ANIMATION CHANGES
             
             current_pose = self.pose_converter.convert(ifacialmocap_pose)
             if self.last_pose is not None and self.last_pose == current_pose:
