@@ -134,6 +134,9 @@ def convert_linear_to_srgb(image: torch.Tensor) -> torch.Tensor:
     return torch.cat([rgb_image, image[3:4, :, :]], dim=0)
 
 def launch_gui(device, model):
+    global initAMI
+    initAMI = True
+    
     parser = argparse.ArgumentParser(description='uWu Waifu')
 
     # Add other parser arguments here
@@ -221,12 +224,6 @@ class MainFrame(wx.Frame):
         self.Destroy()
         event.Skip()
         sys.exit(0)
-        
-    def on_start_capture(self, event: wx.Event):
-        message_dialog = wx.MessageDialog(self, "", "Error!", wx.OK)
-        message_dialog.ShowModal()
-        message_dialog.Destroy()
-        return
 
     def random_generate_value(self, min, max, origin_value):
         random_value = random.choice(list(range(min, max, 1))) / 2500.0
@@ -524,6 +521,8 @@ class MainFrame(wx.Frame):
 
     def update_result_image_bitmap(self, event: Optional[wx.Event] = None):
         global global_timer_paused
+        global initAMI
+
         if global_timer_paused:
             return
 
@@ -646,6 +645,10 @@ class MainFrame(wx.Frame):
                     self.fps_statistics.add_fps(fps)
                 self.fps_text.SetLabelText("FPS = %0.2f" % self.fps_statistics.get_average_fps())
             self.last_update_time = time_now
+
+            if(initAMI == True): #If the models are just now initalized stop animation to save
+                global_timer_paused = True
+                initAMI = False
 
             self.Refresh()
         except KeyboardInterrupt:
