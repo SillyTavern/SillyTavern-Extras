@@ -279,6 +279,8 @@ if "coqui-tts" in modules:
     print("Initializing Coqui TTS client in " + mode + " mode")
     import tts_coqui as coqui
     from tts_coqui import *
+    if mode == "GPU":
+        coqui.setGPU(True)    
     if args.coqui_model is not None:
         coqui.coqui_modeldownload(args.coqui_model)
 
