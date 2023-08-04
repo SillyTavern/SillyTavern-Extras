@@ -627,6 +627,10 @@ def live_load():
     # convert stream to bytes and pass to live2d_load
     return live2d.live2d_load_file(file.stream)
 
+@app.route('/api/live2d/unload')
+def live_unload():
+    return live2d.unload()
+
 @app.route('/api/live2d/start_talking')
 def start_talking():
     return live2d.start_talking()
