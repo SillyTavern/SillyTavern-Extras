@@ -2,20 +2,25 @@ import argparse
 import logging
 import os
 import sys
-from typing import List
-
-sys.path.append(os.getcwd())
-
 import PIL.Image
 import numpy
 import torch
 import wx
+from typing import List
+
+# Set the working directory to the "live2d" subdirectory to work with file structure
+target_directory = os.path.join(os.getcwd(), "live2d")
+os.chdir(target_directory)
+sys.path.append(os.getcwd())
 
 from tha3.poser.modes.load_poser import load_poser
 from tha3.poser.poser import Poser, PoseParameterCategory, PoseParameterGroup
 from tha3.util import extract_pytorch_image_from_filelike, rgba_to_numpy_image, grid_change_to_numpy_image, \
     rgb_to_numpy_image, resize_PIL_image, extract_PIL_image_from_filelike, extract_pytorch_image_from_PIL_image
 
+current_directory = os.getcwd()
+parent_directory = os.path.dirname(current_directory)
+os.chdir(parent_directory)
 
 class MorphCategoryControlPanel(wx.Panel):
     def __init__(self,
@@ -406,11 +411,25 @@ class MainFrame(wx.Frame):
 
         self.Refresh()
         self.Update()
+        
+    def get_current_posedict(self):
+        # Your dictionary of keys
+        keys = ['eyebrow_troubled_left_index', 'eyebrow_troubled_right_index', 'eyebrow_angry_left_index', 'eyebrow_angry_right_index', 'eyebrow_happy_left_index', 'eyebrow_happy_right_index', 'eyebrow_raised_left_index', 'eyebrow_raised_right_index', 'eyebrow_lowered_left_index', 'eyebrow_lowered_right_index', 'eyebrow_serious_left_index', 'eyebrow_serious_right_index', 'eye_surprised_left_index', 'eye_surprised_right_index', 'eye_wink_left_index', 'eye_wink_right_index', 'eye_happy_wink_left_index', 'eye_happy_wink_right_index', 'eye_relaxed_left_index', 'eye_relaxed_right_index', 'eye_raised_lower_eyelid_left_index', 'eye_raised_lower_eyelid_right_index', 'iris_small_left_index', 'iris_small_right_index', 'iris_rotation_x_index', 'iris_rotation_y_index', 'head_x_index', 'head_y_index', 'neck_z_index', 'mouth_aaa_index', 'mouth_iii_index', 'mouth_uuu_index', 'mouth_eee_index', 'mouth_ooo_index', 'mouth_lowered_corner_left_index', 'mouth_lowered_corner_right_index', 'mouth_raised_corner_left_index', 'mouth_raised_corner_right_index', 'body_y_index', 'body_z_index', 'breathing_index']
+        
+        # Get the current pose as a list of values
+        current_pose_values = self.get_current_pose()  # replace this with the actual method or property that gets the pose values
+
+        # Create a dictionary by zipping together the keys and values
+        current_pose_dict = dict(zip(keys, current_pose_values))
+
+        return current_pose_dict
 
     def on_save_image(self, event: wx.Event):
         if self.last_output_numpy_image is None:
             logging.info("There is no output image to save!!!")
             return
+
+        # output settings to console.
 
         dir_name = "data/images"
         file_dialog = wx.FileDialog(self, "Choose an image", dir_name, "", "*.png", wx.FD_SAVE)
@@ -419,13 +438,14 @@ class MainFrame(wx.Frame):
             try:
                 if os.path.exists(image_file_name):
                     message_dialog = wx.MessageDialog(self, f"Override {image_file_name}", "Manual Poser",
-                                                      wx.YES_NO | wx.ICON_QUESTION)
+                                                    wx.YES_NO | wx.ICON_QUESTION)
                     result = message_dialog.ShowModal()
                     if result == wx.ID_YES:
                         self.save_last_numpy_image(image_file_name)
-                    message_dialog.Destroy()
                 else:
                     self.save_last_numpy_image(image_file_name)
+
+
             except:
                 message_dialog = wx.MessageDialog(self, f"Could not save {image_file_name}", "Manual Poser", wx.OK)
                 message_dialog.ShowModal()
@@ -437,6 +457,17 @@ class MainFrame(wx.Frame):
         pil_image = PIL.Image.fromarray(numpy_image, mode='RGBA')
         os.makedirs(os.path.dirname(image_file_name), exist_ok=True)
         pil_image.save(image_file_name)
+        
+ 
+        data_str = str(self.get_current_posedict())  # Get values
+        txt_file_path = os.path.splitext(image_file_name)[0] + ".txt"
+
+
+        filename_without_extension = os.path.splitext(os.path.basename(image_file_name))[0]
+        data_str_with_filename = "'{}': {}".format(filename_without_extension, data_str)
+
+        with open(txt_file_path, "w") as file:
+            file.write(data_str_with_filename)
 
 
 if __name__ == "__main__":
@@ -445,7 +476,7 @@ if __name__ == "__main__":
         '--model',
         type=str,
         required=False,
-        default='standard_float',
+        default='separable_float',
         choices=['standard_float', 'separable_float', 'standard_half', 'separable_half'],
         help='The model to use.')
     args = parser.parse_args()
