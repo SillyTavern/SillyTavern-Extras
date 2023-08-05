@@ -611,6 +611,8 @@ def api_classify():
     classification = classify_text(data["text"])
     print("Classification output:", classification, sep="\n")
     gc.collect()
+    if "live2d" in modules: #send emotion to live2d
+        live2d.setEmotion(classification)
     return jsonify({"classification": classification})
 
 

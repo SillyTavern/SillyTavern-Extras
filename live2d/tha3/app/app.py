@@ -1,7 +1,7 @@
 import argparse
+import ast
 import os
 import random
-import requests
 import sys
 import threading
 import time
@@ -37,10 +37,25 @@ global_reload = None
 is_talking_override = False
 is_talking = False
 global_timer_paused = False
+emotion = "joy"
+fps = 0
 
 # Flask setup
 app = Flask(__name__)
 CORS(app)
+
+def setEmotion(_emotion):
+    global emotion
+
+    highest_score = float('-inf')
+    highest_label = None
+
+    for item in _emotion:
+        if item['score'] > highest_score:
+            highest_score = item['score']
+            highest_label = item['label']
+
+    emotion = highest_label
 
 def unload():
     global global_timer_paused
@@ -131,6 +146,22 @@ def launch_gui(device, model):
         print(e)
         sys.exit()
 
+class FpsStatistics:
+    def __init__(self):
+        self.count = 100
+        self.fps = []
+
+    def add_fps(self, fps):
+        self.fps.append(fps)
+        while len(self.fps) > self.count:
+            del self.fps[0]
+
+    def get_average_fps(self):
+        if len(self.fps) == 0:
+            return 0.0
+        else:
+            return sum(self.fps) / len(self.fps)
+
 class MainFrame(wx.Frame):
     def __init__(self, poser: Poser, pose_converter: IFacialMocapPoseConverter, device: torch.device):
         super().__init__(None, wx.ID_ANY, "uWu Waifu")
@@ -138,6 +169,7 @@ class MainFrame(wx.Frame):
         self.poser = poser
         self.device = device
 
+        self.fps_statistics = FpsStatistics()
         self.image_load_counter = 0
         self.custom_background_image = None  # Add this line
 
@@ -217,13 +249,121 @@ class MainFrame(wx.Frame):
 
         return current_pose
     
+    def addNamestoConvert(pose):
+        index_to_name = {
+            0: 'unknown',
+            1: 'unknown',
+            2: 'eyebrow_angry_left_index',
+            3: 'eyebrow_angry_right_index',
+            4: 'unknown',
+            5: 'unknown',
+            6: 'eyebrow_raised_left_index',
+            7: 'eyebrow_raised_right_index',
+            8: 'eyebrow_happy_left_index',
+            9: 'eyebrow_happy_right_index',
+            10: 'unknown',
+            11: 'unknown',
+            12: 'wink_left_index',
+            13: 'wink_right_index',
+            14: 'eye_happy_wink_left_index',
+            15: 'eye_happy_wink_right_index',
+            16: 'eye_surprised_left_index',
+            17: 'eye_surprised_right_index',
+            18: 'unknown',
+            19: 'unknown',
+            20: 'unknown',
+            21: 'unknown',
+            22: 'eye_raised_lower_eyelid_left_index',
+            23: 'eye_raised_lower_eyelid_right_index',
+            24: 'iris_small_left_index',
+            25: 'iris_small_right_index',
+            26: 'mouth_aaa_index',
+            27: 'mouth_iii_index',
+            28: 'mouth_ooo_index',
+            29: 'unknown',
+            30: 'mouth_ooo_index',
+            31: 'unknown',
+            32: 'unknown',
+            33: 'unknown',
+            34: 'mouth_raised_corner_left_index',
+            35: 'mouth_raised_corner_right_index',
+            36: 'unknown',
+            37: 'iris_rotation_x_index',
+            38: 'iris_rotation_y_index',
+            39: 'head_x_index',
+            40: 'head_y_index',
+            41: 'neck_z_index',
+            42: 'body_y_index',
+            43: 'body_z_index',
+            44: 'breathing_index'
+        }
+
+        output = []
+
+        for index, value in enumerate(pose):
+            name = index_to_name.get(index, "Unknown")
+            output.append(f"{name}: {value}")
+
+        return output
+    
     def get_emotion_values(self, emotion): # Place to define emotion presets
         emotions = {
-            'Happy': {'eyeLookInLeft': 0.0, 'eyeLookOutLeft': 0.0, 'eyeLookDownLeft': 0.0, 'eyeLookUpLeft': 1.0, 'eyeBlinkLeft': 0, 'eyeSquintLeft': 0.0, 'eyeWideLeft': 0.0, 'eyeLookInRight': 0.0, 'eyeLookOutRight': 0.0, 'eyeLookDownRight': 0.0, 'eyeLookUpRight': 0.0, 'eyeBlinkRight': 0, 'eyeSquintRight': 0.0, 'eyeWideRight': 0.0, 'browDownLeft': 0.0, 'browOuterUpLeft': 0.0, 'browDownRight': 0.0, 'browOuterUpRight': 0.0, 'browInnerUp': 0.0, 'noseSneerLeft': 0.0, 'noseSneerRight': 0.0, 'cheekSquintLeft': 0.0, 'cheekSquintRight': 0.0, 'cheekPuff': 0.0, 'mouthLeft': 0.0, 'mouthDimpleLeft': 0.0, 'mouthFrownLeft': 0.0, 'mouthLowerDownLeft': 0.0, 'mouthPressLeft': 0.0, 'mouthSmileLeft': 0.0, 'mouthStretchLeft': 0.0, 'mouthUpperUpLeft': 0.0, 'mouthRight': 0.0, 'mouthDimpleRight': 0.0, 'mouthFrownRight': 0.0, 'mouthLowerDownRight': 0.0, 'mouthPressRight': 0.0, 'mouthSmileRight': 0.0, 'mouthStretchRight': 0.0, 'mouthUpperUpRight': 0.0, 'mouthClose': 0.0, 'mouthFunnel': 0.0, 'mouthPucker': 0.0, 'mouthRollLower': 0.0, 'mouthRollUpper': 0.0, 'mouthShrugLower': 0.0, 'mouthShrugUpper': 0.0, 'jawLeft': 0.0, 'jawRight': 0.0, 'jawForward': 0.0, 'jawOpen': 0, 'tongueOut': 0.0, 'headBoneX': 0.0, 'headBoneY': 0.0, 'headBoneZ': 0.0, 'headBoneQuat': [0.0, 0.0, 0.0, 1.0], 'leftEyeBoneX': 0.0, 'leftEyeBoneY': 0.0, 'leftEyeBoneZ': 0.0, 'leftEyeBoneQuat': [0.0, 0.0, 0.0, 1.0], 'rightEyeBoneX': 0.0, 'rightEyeBoneY': 0.0, 'rightEyeBoneZ': 0.0, 'rightEyeBoneQuat': [0.0, 0.0, 0.0, 1.0]},  
-            'Sad': {'eyeLookInLeft': 0.0, 'eyeLookOutLeft': 0.0, 'eyeLookDownLeft': 1.0, 'eyeLookUpLeft': 0.0, 'eyeBlinkLeft': 0, 'eyeSquintLeft': 0.0, 'eyeWideLeft': 0.0, 'eyeLookInRight': 0.0, 'eyeLookOutRight': 0.0, 'eyeLookDownRight': 0.0, 'eyeLookUpRight': 0.0, 'eyeBlinkRight': 0, 'eyeSquintRight': 0.0, 'eyeWideRight': 0.0, 'browDownLeft': 0.0, 'browOuterUpLeft': 0.0, 'browDownRight': 0.0, 'browOuterUpRight': 0.0, 'browInnerUp': 0.0, 'noseSneerLeft': 0.0, 'noseSneerRight': 0.0, 'cheekSquintLeft': 0.0, 'cheekSquintRight': 0.0, 'cheekPuff': 0.0, 'mouthLeft': 0.0, 'mouthDimpleLeft': 0.0, 'mouthFrownLeft': 0.0, 'mouthLowerDownLeft': 0.0, 'mouthPressLeft': 0.0, 'mouthSmileLeft': 0.0, 'mouthStretchLeft': 0.0, 'mouthUpperUpLeft': 0.0, 'mouthRight': 0.0, 'mouthDimpleRight': 0.0, 'mouthFrownRight': 0.0, 'mouthLowerDownRight': 0.0, 'mouthPressRight': 0.0, 'mouthSmileRight': 0.0, 'mouthStretchRight': 0.0, 'mouthUpperUpRight': 0.0, 'mouthClose': 0.0, 'mouthFunnel': 0.0, 'mouthPucker': 0.0, 'mouthRollLower': 0.0, 'mouthRollUpper': 0.0, 'mouthShrugLower': 0.0, 'mouthShrugUpper': 0.0, 'jawLeft': 0.0, 'jawRight': 0.0, 'jawForward': 0.0, 'jawOpen': 0, 'tongueOut': 0.0, 'headBoneX': 0.0, 'headBoneY': 0.0, 'headBoneZ': 0.0, 'headBoneQuat': [0.0, 0.0, 0.0, 1.0], 'leftEyeBoneX': 0.0, 'leftEyeBoneY': 0.0, 'leftEyeBoneZ': 0.0, 'leftEyeBoneQuat': [0.0, 0.0, 0.0, 1.0], 'rightEyeBoneX': 0.0, 'rightEyeBoneY': 0.0, 'rightEyeBoneZ': 0.0, 'rightEyeBoneQuat': [0.0, 0.0, 0.0, 1.0]},
-            'Angry': {'eyeLookInLeft': 1.0, 'eyeLookOutLeft': 1.0, 'eyeLookDownLeft': 1.0, 'eyeLookUpLeft': 1.0, 'eyeBlinkLeft': 0, 'eyeSquintLeft': 0.0, 'eyeWideLeft': 0.0, 'eyeLookInRight': 0.0, 'eyeLookOutRight': 0.0, 'eyeLookDownRight': 0.0, 'eyeLookUpRight': 0.0, 'eyeBlinkRight': 0, 'eyeSquintRight': 0.0, 'eyeWideRight': 0.0, 'browDownLeft': 0.0, 'browOuterUpLeft': 0.0, 'browDownRight': 0.0, 'browOuterUpRight': 0.0, 'browInnerUp': 0.0, 'noseSneerLeft': 0.0, 'noseSneerRight': 0.0, 'cheekSquintLeft': 0.0, 'cheekSquintRight': 0.0, 'cheekPuff': 0.0, 'mouthLeft': 0.0, 'mouthDimpleLeft': 0.0, 'mouthFrownLeft': 0.0, 'mouthLowerDownLeft': 0.0, 'mouthPressLeft': 0.0, 'mouthSmileLeft': 0.0, 'mouthStretchLeft': 0.0, 'mouthUpperUpLeft': 0.0, 'mouthRight': 0.0, 'mouthDimpleRight': 0.0, 'mouthFrownRight': 0.0, 'mouthLowerDownRight': 0.0, 'mouthPressRight': 0.0, 'mouthSmileRight': 0.0, 'mouthStretchRight': 0.0, 'mouthUpperUpRight': 0.0, 'mouthClose': 0.0, 'mouthFunnel': 0.0, 'mouthPucker': 0.0, 'mouthRollLower': 0.0, 'mouthRollUpper': 0.0, 'mouthShrugLower': 0.0, 'mouthShrugUpper': 0.0, 'jawLeft': 0.0, 'jawRight': 0.0, 'jawForward': 0.0, 'jawOpen': 0, 'tongueOut': 0.0, 'headBoneX': 0.0, 'headBoneY': 0.0, 'headBoneZ': 0.0, 'headBoneQuat': [0.0, 0.0, 0.0, 1.0], 'leftEyeBoneX': 0.0, 'leftEyeBoneY': 0.0, 'leftEyeBoneZ': 0.0, 'leftEyeBoneQuat': [0.0, 0.0, 0.0, 1.0], 'rightEyeBoneX': 0.0, 'rightEyeBoneY': 0.0, 'rightEyeBoneZ': 0.0, 'rightEyeBoneQuat': [0.0, 0.0, 0.0, 1.0]},
+            'admiration': {'eyebrow_troubled_left_index': 0.0, 'eyebrow_troubled_right_index': 0.0, 'eyebrow_angry_left_index': 0.0, 'eyebrow_angry_right_index': 0.0, 'eyebrow_happy_left_index': 0.0, 'eyebrow_happy_right_index': 0.0, 'eyebrow_raised_left_index': 0.0, 'eyebrow_raised_right_index': 0.0, 'eyebrow_lowered_left_index': 0.0, 'eyebrow_lowered_right_index': 0.0, 'eyebrow_serious_left_index': 0.0, 'eyebrow_serious_right_index': 0.0, 'eye_surprised_left_index': 0.0, 'eye_surprised_right_index': 0.0, 'eye_wink_left_index': 0.0, 'eye_wink_right_index': 0.0, 'eye_happy_wink_left_index': 0.0, 'eye_happy_wink_right_index': 0.0, 'eye_relaxed_left_index': 0.4, 'eye_relaxed_right_index': 0.4, 'eye_raised_lower_eyelid_left_index': 0.0, 'eye_raised_lower_eyelid_right_index': 0.0, 'iris_small_left_index': 0.0, 'iris_small_right_index': 0.0, 'iris_rotation_x_index': 0.0, 'iris_rotation_y_index': 0.0, 'head_x_index': 0.0, 'head_y_index': 0.0, 'neck_z_index': 0.0, 'mouth_aaa_index': 0.6, 'mouth_iii_index': 0.0, 'mouth_uuu_index': 0.0, 'mouth_eee_index': 0.0, 'mouth_ooo_index': 0.0, 'mouth_lowered_corner_left_index': 0.0, 'mouth_lowered_corner_right_index': 0.0, 'mouth_raised_corner_left_index': 0.3, 'mouth_raised_corner_right_index': 0.0, 'body_y_index': 0.0, 'body_z_index': 0.0, 'breathing_index': 0.0},
+            'amusement': {'eyebrow_troubled_left_index': 0.0, 'eyebrow_troubled_right_index': 0.0, 'eyebrow_angry_left_index': 0.0, 'eyebrow_angry_right_index': 0.0, 'eyebrow_happy_left_index': 0.6, 'eyebrow_happy_right_index': 0.6, 'eyebrow_raised_left_index': 0.0, 'eyebrow_raised_right_index': 0.0, 'eyebrow_lowered_left_index': 0.0, 'eyebrow_lowered_right_index': 0.0, 'eyebrow_serious_left_index': 0.0, 'eyebrow_serious_right_index': 0.0, 'eye_surprised_left_index': 0.0, 'eye_surprised_right_index': 0.0, 'eye_wink_left_index': 0.0, 'eye_wink_right_index': 0.0, 'eye_happy_wink_left_index': 0.4, 'eye_happy_wink_right_index': 0.4, 'eye_relaxed_left_index': 0.0, 'eye_relaxed_right_index': 0.0, 'eye_raised_lower_eyelid_left_index': 0.0, 'eye_raised_lower_eyelid_right_index': 0.0, 'iris_small_left_index': 0.0, 'iris_small_right_index': 0.0, 'iris_rotation_x_index': 0.0, 'iris_rotation_y_index': 0.0, 'head_x_index': 0.0, 'head_y_index': 0.0, 'neck_z_index': 0.0, 'mouth_aaa_index': 0.8, 'mouth_iii_index': 0.0, 'mouth_uuu_index': 0.0, 'mouth_eee_index': 0.0, 'mouth_ooo_index': 0.0, 'mouth_lowered_corner_left_index': 0.0, 'mouth_lowered_corner_right_index': 0.0, 'mouth_raised_corner_left_index': 0.5, 'mouth_raised_corner_right_index': 0.5, 'body_y_index': 0.0, 'body_z_index': 0.0, 'breathing_index': 0.0},
+            'anger': {'eyebrow_troubled_left_index': 0.0, 'eyebrow_troubled_right_index': 0.0, 'eyebrow_angry_left_index': 1.0, 'eyebrow_angry_right_index': 1.0, 'eyebrow_happy_left_index': 0.0, 'eyebrow_happy_right_index': 0.0, 'eyebrow_raised_left_index': 0.0, 'eyebrow_raised_right_index': 0.0, 'eyebrow_lowered_left_index': 0.0, 'eyebrow_lowered_right_index': 0.0, 'eyebrow_serious_left_index': 0.0, 'eyebrow_serious_right_index': 0.0, 'eye_surprised_left_index': 0.0, 'eye_surprised_right_index': 0.0, 'eye_wink_left_index': 0.0, 'eye_wink_right_index': 0.0, 'eye_happy_wink_left_index': 0.0, 'eye_happy_wink_right_index': 0.0, 'eye_relaxed_left_index': 0.0, 'eye_relaxed_right_index': 0.0, 'eye_raised_lower_eyelid_left_index': 0.0, 'eye_raised_lower_eyelid_right_index': 0.0, 'iris_small_left_index': 0.0, 'iris_small_right_index': 0.0, 'iris_rotation_x_index': 0.0, 'iris_rotation_y_index': 0.0, 'head_x_index': 0.0, 'head_y_index': 0.0, 'neck_z_index': 0.0, 'mouth_aaa_index': 0.0, 'mouth_iii_index': 0.0, 'mouth_uuu_index': 0.0, 'mouth_eee_index': 0.0, 'mouth_ooo_index': 0.0, 'mouth_lowered_corner_left_index': 0.0, 'mouth_lowered_corner_right_index': 0.0, 'mouth_raised_corner_left_index': 0.0, 'mouth_raised_corner_right_index': 0.0, 'body_y_index': 0.0, 'body_z_index': 0.0, 'breathing_index': 0.0},
+            'annoyance': {'eyebrow_troubled_left_index': 0.0, 'eyebrow_troubled_right_index': 0.0, 'eyebrow_angry_left_index': 1.0, 'eyebrow_angry_right_index': 1.0, 'eyebrow_happy_left_index': 0.0, 'eyebrow_happy_right_index': 0.0, 'eyebrow_raised_left_index': 0.0, 'eyebrow_raised_right_index': 0.0, 'eyebrow_lowered_left_index': 0.0, 'eyebrow_lowered_right_index': 0.0, 'eyebrow_serious_left_index': 0.0, 'eyebrow_serious_right_index': 0.0, 'eye_surprised_left_index': 0.0, 'eye_surprised_right_index': 0.0, 'eye_wink_left_index': 0.0, 'eye_wink_right_index': 0.0, 'eye_happy_wink_left_index': 0.0, 'eye_happy_wink_right_index': 0.0, 'eye_relaxed_left_index': 0.0, 'eye_relaxed_right_index': 0.0, 'eye_raised_lower_eyelid_left_index': 0.0, 'eye_raised_lower_eyelid_right_index': 0.0, 'iris_small_left_index': 0.0, 'iris_small_right_index': 0.0, 'iris_rotation_x_index': 0.0, 'iris_rotation_y_index': 0.0, 'head_x_index': 0.0, 'head_y_index': 0.0, 'neck_z_index': 0.0, 'mouth_aaa_index': 0.0, 'mouth_iii_index': 0.0, 'mouth_uuu_index': 0.0, 'mouth_eee_index': 0.0, 'mouth_ooo_index': 0.0, 'mouth_lowered_corner_left_index': 0.0, 'mouth_lowered_corner_right_index': 0.0, 'mouth_raised_corner_left_index': 0.0, 'mouth_raised_corner_right_index': 0.0, 'body_y_index': 0.0, 'body_z_index': 0.0, 'breathing_index': 0.0},
+            'approval': {'eyebrow_troubled_left_index': 0.0, 'eyebrow_troubled_right_index': 0.0, 'eyebrow_angry_left_index': 0.0, 'eyebrow_angry_right_index': 0.0, 'eyebrow_happy_left_index': 0.0, 'eyebrow_happy_right_index': 0.0, 'eyebrow_raised_left_index': 0.0, 'eyebrow_raised_right_index': 0.0, 'eyebrow_lowered_left_index': 0.0, 'eyebrow_lowered_right_index': 0.0, 'eyebrow_serious_left_index': 0.0, 'eyebrow_serious_right_index': 0.0, 'eye_surprised_left_index': 0.0, 'eye_surprised_right_index': 0.0, 'eye_wink_left_index': 0.0, 'eye_wink_right_index': 0.0, 'eye_happy_wink_left_index': 0.0, 'eye_happy_wink_right_index': 0.0, 'eye_relaxed_left_index': 0.0, 'eye_relaxed_right_index': 0.0, 'eye_raised_lower_eyelid_left_index': 0.0, 'eye_raised_lower_eyelid_right_index': 0.0, 'iris_small_left_index': 0.0, 'iris_small_right_index': 0.0, 'iris_rotation_x_index': 0.0, 'iris_rotation_y_index': 0.0, 'head_x_index': 0.0, 'head_y_index': 0.0, 'neck_z_index': 0.0, 'mouth_aaa_index': 0.0, 'mouth_iii_index': 0.0, 'mouth_uuu_index': 0.0, 'mouth_eee_index': 0.0, 'mouth_ooo_index': 0.0, 'mouth_lowered_corner_left_index': 0.0, 'mouth_lowered_corner_right_index': 0.0, 'mouth_raised_corner_left_index': 0.6, 'mouth_raised_corner_right_index': 0.6, 'body_y_index': 0.0, 'body_z_index': 0.0, 'breathing_index': 0.0},
+            'caring': {'eyebrow_troubled_left_index': 0.0, 'eyebrow_troubled_right_index': 0.0, 'eyebrow_angry_left_index': 0.0, 'eyebrow_angry_right_index': 0.0, 'eyebrow_happy_left_index': 0.0, 'eyebrow_happy_right_index': 0.0, 'eyebrow_raised_left_index': 0.0, 'eyebrow_raised_right_index': 0.0, 'eyebrow_lowered_left_index': 0.0, 'eyebrow_lowered_right_index': 0.0, 'eyebrow_serious_left_index': 0.0, 'eyebrow_serious_right_index': 0.0, 'eye_surprised_left_index': 0.0, 'eye_surprised_right_index': 0.0, 'eye_wink_left_index': 0.0, 'eye_wink_right_index': 0.0, 'eye_happy_wink_left_index': 0.0, 'eye_happy_wink_right_index': 0.0, 'eye_relaxed_left_index': 0.0, 'eye_relaxed_right_index': 0.0, 'eye_raised_lower_eyelid_left_index': 0.0, 'eye_raised_lower_eyelid_right_index': 0.0, 'iris_small_left_index': 0.0, 'iris_small_right_index': 0.0, 'iris_rotation_x_index': 0.0, 'iris_rotation_y_index': 0.0, 'head_x_index': 0.0, 'head_y_index': 0.0, 'neck_z_index': 0.0, 'mouth_aaa_index': 0.5, 'mouth_iii_index': 0.0, 'mouth_uuu_index': 0.0, 'mouth_eee_index': 0.0, 'mouth_ooo_index': 0.0, 'mouth_lowered_corner_left_index': 0.0, 'mouth_lowered_corner_right_index': 0.0, 'mouth_raised_corner_left_index': 0.6, 'mouth_raised_corner_right_index': 0.6, 'body_y_index': 0.0, 'body_z_index': 0.0, 'breathing_index': 0.0},
+            'confusion': {'eyebrow_troubled_left_index': 0.0, 'eyebrow_troubled_right_index': 0.0, 'eyebrow_angry_left_index': 0.0, 'eyebrow_angry_right_index': 0.0, 'eyebrow_happy_left_index': 0.0, 'eyebrow_happy_right_index': 0.0, 'eyebrow_raised_left_index': 0.0, 'eyebrow_raised_right_index': 0.0, 'eyebrow_lowered_left_index': 0.0, 'eyebrow_lowered_right_index': 0.0, 'eyebrow_serious_left_index': 0.0, 'eyebrow_serious_right_index': 0.0, 'eye_surprised_left_index': 0.0, 'eye_surprised_right_index': 0.0, 'eye_wink_left_index': 0.0, 'eye_wink_right_index': 0.0, 'eye_happy_wink_left_index': 0.0, 'eye_happy_wink_right_index': 0.0, 'eye_relaxed_left_index': 1.0, 'eye_relaxed_right_index': 1.0, 'eye_raised_lower_eyelid_left_index': 0.0, 'eye_raised_lower_eyelid_right_index': 0.0, 'iris_small_left_index': 0.0, 'iris_small_right_index': 0.0, 'iris_rotation_x_index': 0.0, 'iris_rotation_y_index': 0.0, 'head_x_index': 0.0, 'head_y_index': 0.0, 'neck_z_index': 0.0, 'mouth_aaa_index': 0.0, 'mouth_iii_index': 0.2, 'mouth_uuu_index': 0.0, 'mouth_eee_index': 0.0, 'mouth_ooo_index': 0.0, 'mouth_lowered_corner_left_index': 0.0, 'mouth_lowered_corner_right_index': 0.0, 'mouth_raised_corner_left_index': 0.0, 'mouth_raised_corner_right_index': 0.0, 'body_y_index': 0.0, 'body_z_index': 0.0, 'breathing_index': 0.0},
+            'curiosity': {'eyebrow_troubled_left_index': 0.0, 'eyebrow_troubled_right_index': 0.0, 'eyebrow_angry_left_index': 0.0, 'eyebrow_angry_right_index': 0.0, 'eyebrow_happy_left_index': 0.0, 'eyebrow_happy_right_index': 0.0, 'eyebrow_raised_left_index': 1.0, 'eyebrow_raised_right_index': 1.0, 'eyebrow_lowered_left_index': 0.0, 'eyebrow_lowered_right_index': 0.0, 'eyebrow_serious_left_index': 0.0, 'eyebrow_serious_right_index': 0.0, 'eye_surprised_left_index': 0.0, 'eye_surprised_right_index': 0.0, 'eye_wink_left_index': 0.0, 'eye_wink_right_index': 0.0, 'eye_happy_wink_left_index': 0.0, 'eye_happy_wink_right_index': 0.0, 'eye_relaxed_left_index': 1.0, 'eye_relaxed_right_index': 1.0, 'eye_raised_lower_eyelid_left_index': 0.0, 'eye_raised_lower_eyelid_right_index': 0.0, 'iris_small_left_index': 0.0, 'iris_small_right_index': 0.0, 'iris_rotation_x_index': 0.0, 'iris_rotation_y_index': 0.0, 'head_x_index': 0.0, 'head_y_index': 0.0, 'neck_z_index': 0.0, 'mouth_aaa_index': 0.0, 'mouth_iii_index': 0.2, 'mouth_uuu_index': 0.0, 'mouth_eee_index': 0.0, 'mouth_ooo_index': 0.0, 'mouth_lowered_corner_left_index': 0.0, 'mouth_lowered_corner_right_index': 0.0, 'mouth_raised_corner_left_index': 0.0, 'mouth_raised_corner_right_index': 0.0, 'body_y_index': 0.0, 'body_z_index': 0.0, 'breathing_index': 0.0},
+            'desire': {'eyebrow_troubled_left_index': 0.0, 'eyebrow_troubled_right_index': 0.0, 'eyebrow_angry_left_index': 0.0, 'eyebrow_angry_right_index': 0.0, 'eyebrow_happy_left_index': 0.0, 'eyebrow_happy_right_index': 0.0, 'eyebrow_raised_left_index': 0.0, 'eyebrow_raised_right_index': 0.0, 'eyebrow_lowered_left_index': 0.0, 'eyebrow_lowered_right_index': 0.0, 'eyebrow_serious_left_index': 0.0, 'eyebrow_serious_right_index': 0.0, 'eye_surprised_left_index': 0.0, 'eye_surprised_right_index': 0.0, 'eye_wink_left_index': 0.0, 'eye_wink_right_index': 0.0, 'eye_happy_wink_left_index': 0.0, 'eye_happy_wink_right_index': 0.0, 'eye_relaxed_left_index': 0.0, 'eye_relaxed_right_index': 0.0, 'eye_raised_lower_eyelid_left_index': 0.0, 'eye_raised_lower_eyelid_right_index': 0.0, 'iris_small_left_index': 0.0, 'iris_small_right_index': 0.0, 'iris_rotation_x_index': 0.0, 'iris_rotation_y_index': 0.0, 'head_x_index': 0.0, 'head_y_index': 0.0, 'neck_z_index': 0.0, 'mouth_aaa_index': 1.0, 'mouth_iii_index': 0.0, 'mouth_uuu_index': 0.0, 'mouth_eee_index': 0.0, 'mouth_ooo_index': 0.0, 'mouth_lowered_corner_left_index': 0.0, 'mouth_lowered_corner_right_index': 0.0, 'mouth_raised_corner_left_index': 0.0, 'mouth_raised_corner_right_index': 0.0, 'body_y_index': 0.0, 'body_z_index': 0.0, 'breathing_index': 0.0},
+            'disappointment': {'eyebrow_troubled_left_index': 0.0, 'eyebrow_troubled_right_index': 0.0, 'eyebrow_angry_left_index': 0.0, 'eyebrow_angry_right_index': 0.0, 'eyebrow_happy_left_index': 0.0, 'eyebrow_happy_right_index': 0.0, 'eyebrow_raised_left_index': 0.0, 'eyebrow_raised_right_index': 0.0, 'eyebrow_lowered_left_index': 0.0, 'eyebrow_lowered_right_index': 0.0, 'eyebrow_serious_left_index': 0.5, 'eyebrow_serious_right_index': 0.5, 'eye_surprised_left_index': 0.0, 'eye_surprised_right_index': 0.0, 'eye_wink_left_index': 0.0, 'eye_wink_right_index': 0.0, 'eye_happy_wink_left_index': 0.0, 'eye_happy_wink_right_index': 0.0, 'eye_relaxed_left_index': 0.0, 'eye_relaxed_right_index': 0.0, 'eye_raised_lower_eyelid_left_index': 0.0, 'eye_raised_lower_eyelid_right_index': 0.0, 'iris_small_left_index': 0.0, 'iris_small_right_index': 0.0, 'iris_rotation_x_index': 0.0, 'iris_rotation_y_index': 0.0, 'head_x_index': 0.0, 'head_y_index': 0.0, 'neck_z_index': 0.0, 'mouth_aaa_index': 0.0, 'mouth_iii_index': 0.0, 'mouth_uuu_index': 0.0, 'mouth_eee_index': 0.0, 'mouth_ooo_index': 0.0, 'mouth_lowered_corner_left_index': 0.5, 'mouth_lowered_corner_right_index': 0.5, 'mouth_raised_corner_left_index': 0.0, 'mouth_raised_corner_right_index': 0.0, 'body_y_index': 0.0, 'body_z_index': 0.0, 'breathing_index': 0.0},
+            'disapproval': {'eyebrow_troubled_left_index': 0.0, 'eyebrow_troubled_right_index': 0.0, 'eyebrow_angry_left_index': 0.5, 'eyebrow_angry_right_index': 0.5, 'eyebrow_happy_left_index': 0.0, 'eyebrow_happy_right_index': 0.0, 'eyebrow_raised_left_index': 0.0, 'eyebrow_raised_right_index': 0.0, 'eyebrow_lowered_left_index': 0.0, 'eyebrow_lowered_right_index': 0.0, 'eyebrow_serious_left_index': 0.0, 'eyebrow_serious_right_index': 0.0, 'eye_surprised_left_index': 0.0, 'eye_surprised_right_index': 0.0, 'eye_wink_left_index': 0.0, 'eye_wink_right_index': 0.0, 'eye_happy_wink_left_index': 0.0, 'eye_happy_wink_right_index': 0.0, 'eye_relaxed_left_index': 0.0, 'eye_relaxed_right_index': 0.0, 'eye_raised_lower_eyelid_left_index': 0.0, 'eye_raised_lower_eyelid_right_index': 0.0, 'iris_small_left_index': 0.0, 'iris_small_right_index': 0.0, 'iris_rotation_x_index': 0.0, 'iris_rotation_y_index': 0.0, 'head_x_index': 0.0, 'head_y_index': 0.0, 'neck_z_index': 0.0, 'mouth_aaa_index': 0.0, 'mouth_iii_index': 0.0, 'mouth_uuu_index': 0.0, 'mouth_eee_index': 0.0, 'mouth_ooo_index': 0.0, 'mouth_lowered_corner_left_index': 0.0, 'mouth_lowered_corner_right_index': 0.0, 'mouth_raised_corner_left_index': 0.0, 'mouth_raised_corner_right_index': 0.0, 'body_y_index': 0.0, 'body_z_index': 0.0, 'breathing_index': 0.0},
+            'disgust': {'eyebrow_troubled_left_index': 0.0, 'eyebrow_troubled_right_index': 0.0, 'eyebrow_angry_left_index': 0.5, 'eyebrow_angry_right_index': 0.5, 'eyebrow_happy_left_index': 0.0, 'eyebrow_happy_right_index': 0.0, 'eyebrow_raised_left_index': 0.0, 'eyebrow_raised_right_index': 0.0, 'eyebrow_lowered_left_index': 0.0, 'eyebrow_lowered_right_index': 0.0, 'eyebrow_serious_left_index': 0.0, 'eyebrow_serious_right_index': 0.0, 'eye_surprised_left_index': 0.0, 'eye_surprised_right_index': 0.0, 'eye_wink_left_index': 0.0, 'eye_wink_right_index': 0.0, 'eye_happy_wink_left_index': 0.0, 'eye_happy_wink_right_index': 0.0, 'eye_relaxed_left_index': 0.0, 'eye_relaxed_right_index': 0.0, 'eye_raised_lower_eyelid_left_index': 0.0, 'eye_raised_lower_eyelid_right_index': 0.0, 'iris_small_left_index': 0.0, 'iris_small_right_index': 0.0, 'iris_rotation_x_index': 0.0, 'iris_rotation_y_index': 0.0, 'head_x_index': 0.0, 'head_y_index': 0.0, 'neck_z_index': 0.0, 'mouth_aaa_index': 1.0, 'mouth_iii_index': 0.0, 'mouth_uuu_index': 0.0, 'mouth_eee_index': 0.0, 'mouth_ooo_index': 0.0, 'mouth_lowered_corner_left_index': 0.5, 'mouth_lowered_corner_right_index': 0.5, 'mouth_raised_corner_left_index': 0.0, 'mouth_raised_corner_right_index': 0.0, 'body_y_index': 0.0, 'body_z_index': 0.0, 'breathing_index': 0.0},
+            'embarrassment': {'eyebrow_troubled_left_index': 0.0, 'eyebrow_troubled_right_index': 0.0, 'eyebrow_angry_left_index': 0.0, 'eyebrow_angry_right_index': 0.0, 'eyebrow_happy_left_index': 0.0, 'eyebrow_happy_right_index': 0.0, 'eyebrow_raised_left_index': 0.0, 'eyebrow_raised_right_index': 0.0, 'eyebrow_lowered_left_index': 0.0, 'eyebrow_lowered_right_index': 0.0, 'eyebrow_serious_left_index': 0.0, 'eyebrow_serious_right_index': 0.0, 'eye_surprised_left_index': 0.0, 'eye_surprised_right_index': 0.0, 'eye_wink_left_index': 0.0, 'eye_wink_right_index': 0.0, 'eye_happy_wink_left_index': 0.0, 'eye_happy_wink_right_index': 0.0, 'eye_relaxed_left_index': 0.0, 'eye_relaxed_right_index': 0.0, 'eye_raised_lower_eyelid_left_index': 0.0, 'eye_raised_lower_eyelid_right_index': 0.0, 'iris_small_left_index': 0.0, 'iris_small_right_index': 0.0, 'iris_rotation_x_index': 0.0, 'iris_rotation_y_index': 0.0, 'head_x_index': 0.0, 'head_y_index': 0.0, 'neck_z_index': 0.0, 'mouth_aaa_index': 0.0, 'mouth_iii_index': 0.0, 'mouth_uuu_index': 0.0, 'mouth_eee_index': 0.0, 'mouth_ooo_index': 0.0, 'mouth_lowered_corner_left_index': 0.0, 'mouth_lowered_corner_right_index': 0.0, 'mouth_raised_corner_left_index': 0.0, 'mouth_raised_corner_right_index': 0.0, 'body_y_index': 0.0, 'body_z_index': 0.0, 'breathing_index': 0.0},
+            'excitement': {'eyebrow_troubled_left_index': 0.0, 'eyebrow_troubled_right_index': 0.0, 'eyebrow_angry_left_index': 0.0, 'eyebrow_angry_right_index': 0.0, 'eyebrow_happy_left_index': 0.0, 'eyebrow_happy_right_index': 0.0, 'eyebrow_raised_left_index': 1.0, 'eyebrow_raised_right_index': 1.0, 'eyebrow_lowered_left_index': 0.0, 'eyebrow_lowered_right_index': 0.0, 'eyebrow_serious_left_index': 0.0, 'eyebrow_serious_right_index': 0.0, 'eye_surprised_left_index': 0.0, 'eye_surprised_right_index': 0.0, 'eye_wink_left_index': 0.0, 'eye_wink_right_index': 0.0, 'eye_happy_wink_left_index': 0.0, 'eye_happy_wink_right_index': 0.0, 'eye_relaxed_left_index': 0.0, 'eye_relaxed_right_index': 0.0, 'eye_raised_lower_eyelid_left_index': 0.0, 'eye_raised_lower_eyelid_right_index': 0.0, 'iris_small_left_index': 0.0, 'iris_small_right_index': 0.0, 'iris_rotation_x_index': 0.0, 'iris_rotation_y_index': 0.0, 'head_x_index': 0.0, 'head_y_index': 0.0, 'neck_z_index': 0.0, 'mouth_aaa_index': 0.0, 'mouth_iii_index': 0.0, 'mouth_uuu_index': 0.0, 'mouth_eee_index': 0.0, 'mouth_ooo_index': 0.0, 'mouth_lowered_corner_left_index': 0.0, 'mouth_lowered_corner_right_index': 0.0, 'mouth_raised_corner_left_index': 0.0, 'mouth_raised_corner_right_index': 0.0, 'body_y_index': 0.0, 'body_z_index': 0.0, 'breathing_index': 0.0},
+            'fear': {'eyebrow_troubled_left_index': 1.0, 'eyebrow_troubled_right_index': 1.0, 'eyebrow_angry_left_index': 0.0, 'eyebrow_angry_right_index': 0.0, 'eyebrow_happy_left_index': 0.0, 'eyebrow_happy_right_index': 0.0, 'eyebrow_raised_left_index': 0.0, 'eyebrow_raised_right_index': 0.0, 'eyebrow_lowered_left_index': 0.0, 'eyebrow_lowered_right_index': 0.0, 'eyebrow_serious_left_index': 0.0, 'eyebrow_serious_right_index': 0.0, 'eye_surprised_left_index': 0.0, 'eye_surprised_right_index': 0.0, 'eye_wink_left_index': 0.0, 'eye_wink_right_index': 0.0, 'eye_happy_wink_left_index': 0.0, 'eye_happy_wink_right_index': 0.0, 'eye_relaxed_left_index': 0.0, 'eye_relaxed_right_index': 0.0, 'eye_raised_lower_eyelid_left_index': 0.0, 'eye_raised_lower_eyelid_right_index': 0.0, 'iris_small_left_index': 1.0, 'iris_small_right_index': 1.0, 'iris_rotation_x_index': 0.0, 'iris_rotation_y_index': 0.0, 'head_x_index': 0.0, 'head_y_index': 0.0, 'neck_z_index': 0.0, 'mouth_aaa_index': 0.0, 'mouth_iii_index': 0.0, 'mouth_uuu_index': 0.0, 'mouth_eee_index': 0.0, 'mouth_ooo_index': 0.0, 'mouth_lowered_corner_left_index': 0.0, 'mouth_lowered_corner_right_index': 0.0, 'mouth_raised_corner_left_index': 0.0, 'mouth_raised_corner_right_index': 0.0, 'body_y_index': 0.0, 'body_z_index': 0.0, 'breathing_index': 0.0},
+            'gratitude': {'eyebrow_troubled_left_index': 0.0, 'eyebrow_troubled_right_index': 0.0, 'eyebrow_angry_left_index': 0.0, 'eyebrow_angry_right_index': 0.0, 'eyebrow_happy_left_index': 0.0, 'eyebrow_happy_right_index': 0.0, 'eyebrow_raised_left_index': 0.0, 'eyebrow_raised_right_index': 0.0, 'eyebrow_lowered_left_index': 0.0, 'eyebrow_lowered_right_index': 0.0, 'eyebrow_serious_left_index': 0.0, 'eyebrow_serious_right_index': 0.0, 'eye_surprised_left_index': 0.0, 'eye_surprised_right_index': 0.0, 'eye_wink_left_index': 0.0, 'eye_wink_right_index': 0.0, 'eye_happy_wink_left_index': 0.0, 'eye_happy_wink_right_index': 0.0, 'eye_relaxed_left_index': 1.0, 'eye_relaxed_right_index': 1.0, 'eye_raised_lower_eyelid_left_index': 0.0, 'eye_raised_lower_eyelid_right_index': 0.0, 'iris_small_left_index': 0.0, 'iris_small_right_index': 0.0, 'iris_rotation_x_index': 0.0, 'iris_rotation_y_index': 0.0, 'head_x_index': 0.0, 'head_y_index': 0.0, 'neck_z_index': 0.0, 'mouth_aaa_index': 0.0, 'mouth_iii_index': 0.0, 'mouth_uuu_index': 0.0, 'mouth_eee_index': 0.0, 'mouth_ooo_index': 0.0, 'mouth_lowered_corner_left_index': 0.0, 'mouth_lowered_corner_right_index': 0.0, 'mouth_raised_corner_left_index': 0.5, 'mouth_raised_corner_right_index': 0.5, 'body_y_index': 0.0, 'body_z_index': 0.0, 'breathing_index': 0.0},
+            'grief': {'eyebrow_troubled_left_index': 0.0, 'eyebrow_troubled_right_index': 0.0, 'eyebrow_angry_left_index': 0.0, 'eyebrow_angry_right_index': 0.0, 'eyebrow_happy_left_index': 0.0, 'eyebrow_happy_right_index': 0.0, 'eyebrow_raised_left_index': 0.0, 'eyebrow_raised_right_index': 0.0, 'eyebrow_lowered_left_index': 0.0, 'eyebrow_lowered_right_index': 0.0, 'eyebrow_serious_left_index': 0.0, 'eyebrow_serious_right_index': 0.0, 'eye_surprised_left_index': 0.0, 'eye_surprised_right_index': 0.0, 'eye_wink_left_index': 0.0, 'eye_wink_right_index': 0.0, 'eye_happy_wink_left_index': 0.0, 'eye_happy_wink_right_index': 0.0, 'eye_relaxed_left_index': 0.0, 'eye_relaxed_right_index': 0.0, 'eye_raised_lower_eyelid_left_index': 0.0, 'eye_raised_lower_eyelid_right_index': 0.0, 'iris_small_left_index': 0.0, 'iris_small_right_index': 0.0, 'iris_rotation_x_index': 0.0, 'iris_rotation_y_index': 0.0, 'head_x_index': 0.0, 'head_y_index': 0.0, 'neck_z_index': 0.0, 'mouth_aaa_index': 0.0, 'mouth_iii_index': 0.0, 'mouth_uuu_index': 0.0, 'mouth_eee_index': 0.0, 'mouth_ooo_index': 0.0, 'mouth_lowered_corner_left_index': 0.0, 'mouth_lowered_corner_right_index': 0.0, 'mouth_raised_corner_left_index': 0.0, 'mouth_raised_corner_right_index': 0.0, 'body_y_index': 0.0, 'body_z_index': 0.0, 'breathing_index': 0.0},
+            'joy': {'eyebrow_troubled_left_index': 0.0, 'eyebrow_troubled_right_index': 0.0, 'eyebrow_angry_left_index': 0.0, 'eyebrow_angry_right_index': 0.0, 'eyebrow_happy_left_index': 1.0, 'eyebrow_happy_right_index': 1.0, 'eyebrow_raised_left_index': 0.0, 'eyebrow_raised_right_index': 0.0, 'eyebrow_lowered_left_index': 0.0, 'eyebrow_lowered_right_index': 0.0, 'eyebrow_serious_left_index': 0.0, 'eyebrow_serious_right_index': 0.0, 'eye_surprised_left_index': 0.0, 'eye_surprised_right_index': 0.0, 'eye_wink_left_index': 0.0, 'eye_wink_right_index': 1.0, 'eye_happy_wink_left_index': 0.0, 'eye_happy_wink_right_index': 1.0, 'eye_relaxed_left_index': 0.0, 'eye_relaxed_right_index': 0.0, 'eye_raised_lower_eyelid_left_index': 0.0, 'eye_raised_lower_eyelid_right_index': 0.0, 'iris_small_left_index': 0.0, 'iris_small_right_index': 0.0, 'iris_rotation_x_index': 0.0, 'iris_rotation_y_index': 0.0, 'head_x_index': 0.0, 'head_y_index': 0.0, 'neck_z_index': 0.0, 'mouth_aaa_index': 0.0, 'mouth_iii_index': 0.0, 'mouth_uuu_index': 0.0, 'mouth_eee_index': 0.0, 'mouth_ooo_index': 0.5, 'mouth_lowered_corner_left_index': 0.0, 'mouth_lowered_corner_right_index': 0.0, 'mouth_raised_corner_left_index': 1.0, 'mouth_raised_corner_right_index': 1.0, 'body_y_index': 0.0, 'body_z_index': 0.0, 'breathing_index': 0.0},
+            'love': {'eyebrow_troubled_left_index': 0.0, 'eyebrow_troubled_right_index': 0.0, 'eyebrow_angry_left_index': 0.0, 'eyebrow_angry_right_index': 0.0, 'eyebrow_happy_left_index': 0.5, 'eyebrow_happy_right_index': 0.5, 'eyebrow_raised_left_index': 0.0, 'eyebrow_raised_right_index': 0.0, 'eyebrow_lowered_left_index': 0.0, 'eyebrow_lowered_right_index': 0.0, 'eyebrow_serious_left_index': 0.0, 'eyebrow_serious_right_index': 0.0, 'eye_surprised_left_index': 0.0, 'eye_surprised_right_index': 0.0, 'eye_wink_left_index': 0.0, 'eye_wink_right_index': 0.0, 'eye_happy_wink_left_index': 0.0, 'eye_happy_wink_right_index': 0.0, 'eye_relaxed_left_index': 0.5, 'eye_relaxed_right_index': 0.5, 'eye_raised_lower_eyelid_left_index': 0.0, 'eye_raised_lower_eyelid_right_index': 0.0, 'iris_small_left_index': 0.0, 'iris_small_right_index': 0.0, 'iris_rotation_x_index': 0.0, 'iris_rotation_y_index': 0.0, 'head_x_index': 0.0, 'head_y_index': 0.0, 'neck_z_index': 0.0, 'mouth_aaa_index': 0.0, 'mouth_iii_index': 0.0, 'mouth_uuu_index': 0.0, 'mouth_eee_index': 0.5, 'mouth_ooo_index': 0.0, 'mouth_lowered_corner_left_index': 0.0, 'mouth_lowered_corner_right_index': 0.0, 'mouth_raised_corner_left_index': 0.5, 'mouth_raised_corner_right_index': 0.5, 'body_y_index': 0.0, 'body_z_index': 0.0, 'breathing_index': 0.0},
+            'nervousness': {'eyebrow_troubled_left_index': 0.5, 'eyebrow_troubled_right_index': 0.5, 'eyebrow_angry_left_index': 0.0, 'eyebrow_angry_right_index': 0.0, 'eyebrow_happy_left_index': 0.0, 'eyebrow_happy_right_index': 0.0, 'eyebrow_raised_left_index': 0.0, 'eyebrow_raised_right_index': 0.0, 'eyebrow_lowered_left_index': 0.0, 'eyebrow_lowered_right_index': 0.0, 'eyebrow_serious_left_index': 0.0, 'eyebrow_serious_right_index': 0.0, 'eye_surprised_left_index': 0.0, 'eye_surprised_right_index': 0.0, 'eye_wink_left_index': 0.0, 'eye_wink_right_index': 0.0, 'eye_happy_wink_left_index': 0.0, 'eye_happy_wink_right_index': 0.0, 'eye_relaxed_left_index': 0.0, 'eye_relaxed_right_index': 0.0, 'eye_raised_lower_eyelid_left_index': 0.5, 'eye_raised_lower_eyelid_right_index': 0.5, 'iris_small_left_index': 0.0, 'iris_small_right_index': 0.0, 'iris_rotation_x_index': 0.0, 'iris_rotation_y_index': 0.0, 'head_x_index': 0.0, 'head_y_index': 0.0, 'neck_z_index': 0.0, 'mouth_aaa_index': 0.0, 'mouth_iii_index': 0.0, 'mouth_uuu_index': 0.0, 'mouth_eee_index': 0.0, 'mouth_ooo_index': 0.0, 'mouth_lowered_corner_left_index': 0.0, 'mouth_lowered_corner_right_index': 0.0, 'mouth_raised_corner_left_index': 1.2, 'mouth_raised_corner_right_index': 1.2, 'body_y_index': 0.0, 'body_z_index': 0.0, 'breathing_index': 1.0},
+            'neutral': {'eyebrow_troubled_left_index': 0.0, 'eyebrow_troubled_right_index': 0.0, 'eyebrow_angry_left_index': 0.0, 'eyebrow_angry_right_index': 0.0, 'eyebrow_happy_left_index': 0.0, 'eyebrow_happy_right_index': 0.0, 'eyebrow_raised_left_index': 1.0, 'eyebrow_raised_right_index': 1.0, 'eyebrow_lowered_left_index': 0.0, 'eyebrow_lowered_right_index': 0.0, 'eyebrow_serious_left_index': 0.0, 'eyebrow_serious_right_index': 0.0, 'eye_surprised_left_index': 0.0, 'eye_surprised_right_index': 0.0, 'eye_wink_left_index': 0.0, 'eye_wink_right_index': 0.0, 'eye_happy_wink_left_index': 0.0, 'eye_happy_wink_right_index': 0.0, 'eye_relaxed_left_index': 0.5, 'eye_relaxed_right_index': 0.5, 'eye_raised_lower_eyelid_left_index': 0.0, 'eye_raised_lower_eyelid_right_index': 0.0, 'iris_small_left_index': 0.0, 'iris_small_right_index': 0.0, 'iris_rotation_x_index': 0.0, 'iris_rotation_y_index': 0.0, 'head_x_index': 0.0, 'head_y_index': 0.0, 'neck_z_index': 0.0, 'mouth_aaa_index': 0.0, 'mouth_iii_index': 0.0, 'mouth_uuu_index': 0.0, 'mouth_eee_index': 0.5, 'mouth_ooo_index': 0.0, 'mouth_lowered_corner_left_index': 0.0, 'mouth_lowered_corner_right_index': 0.0, 'mouth_raised_corner_left_index': 0.0, 'mouth_raised_corner_right_index': 0.0, 'body_y_index': 0.0, 'body_z_index': 0.0, 'breathing_index': 0.0},
+            'optimism': {'eyebrow_troubled_left_index': 0.0, 'eyebrow_troubled_right_index': 0.0, 'eyebrow_angry_left_index': 0.0, 'eyebrow_angry_right_index': 0.0, 'eyebrow_happy_left_index': 0.0, 'eyebrow_happy_right_index': 0.0, 'eyebrow_raised_left_index': 0.0, 'eyebrow_raised_right_index': 0.0, 'eyebrow_lowered_left_index': 0.0, 'eyebrow_lowered_right_index': 0.0, 'eyebrow_serious_left_index': 0.0, 'eyebrow_serious_right_index': 0.0, 'eye_surprised_left_index': 0.0, 'eye_surprised_right_index': 0.0, 'eye_wink_left_index': 0.0, 'eye_wink_right_index': 0.0, 'eye_happy_wink_left_index': 0.0, 'eye_happy_wink_right_index': 0.0, 'eye_relaxed_left_index': 0.5, 'eye_relaxed_right_index': 0.5, 'eye_raised_lower_eyelid_left_index': 0.0, 'eye_raised_lower_eyelid_right_index': 0.0, 'iris_small_left_index': 0.0, 'iris_small_right_index': 0.0, 'iris_rotation_x_index': 0.0, 'iris_rotation_y_index': 0.0, 'head_x_index': 0.0, 'head_y_index': 0.0, 'neck_z_index': 0.0, 'mouth_aaa_index': 0.0, 'mouth_iii_index': 0.0, 'mouth_uuu_index': 0.0, 'mouth_eee_index': 0.5, 'mouth_ooo_index': 0.0, 'mouth_lowered_corner_left_index': 0.0, 'mouth_lowered_corner_right_index': 0.0, 'mouth_raised_corner_left_index': 0.0, 'mouth_raised_corner_right_index': 0.0, 'body_y_index': 0.0, 'body_z_index': 0.0, 'breathing_index': 0.0},
+            'pride': {'eyebrow_troubled_left_index': 0.0, 'eyebrow_troubled_right_index': 0.0, 'eyebrow_angry_left_index': 0.0, 'eyebrow_angry_right_index': 0.0, 'eyebrow_happy_left_index': 0.0, 'eyebrow_happy_right_index': 0.0, 'eyebrow_raised_left_index': 0.0, 'eyebrow_raised_right_index': 0.0, 'eyebrow_lowered_left_index': 0.0, 'eyebrow_lowered_right_index': 0.0, 'eyebrow_serious_left_index': 0.5, 'eyebrow_serious_right_index': 0.5, 'eye_surprised_left_index': 0.0, 'eye_surprised_right_index': 0.0, 'eye_wink_left_index': 1.0, 'eye_wink_right_index': 0.0, 'eye_happy_wink_left_index': 0.0, 'eye_happy_wink_right_index': 0.0, 'eye_relaxed_left_index': 0.0, 'eye_relaxed_right_index': 0.5, 'eye_raised_lower_eyelid_left_index': 0.0, 'eye_raised_lower_eyelid_right_index': 0.0, 'iris_small_left_index': 0.0, 'iris_small_right_index': 0.0, 'iris_rotation_x_index': 0.0, 'iris_rotation_y_index': 0.0, 'head_x_index': 0.0, 'head_y_index': 0.0, 'neck_z_index': 0.0, 'mouth_aaa_index': 0.0, 'mouth_iii_index': 0.0, 'mouth_uuu_index': 0.0, 'mouth_eee_index': 0.0, 'mouth_ooo_index': 0.5, 'mouth_lowered_corner_left_index': 0.0, 'mouth_lowered_corner_right_index': 0.0, 'mouth_raised_corner_left_index': 0.5, 'mouth_raised_corner_right_index': 0.5, 'body_y_index': 0.0, 'body_z_index': 0.0, 'breathing_index': 0.0},
+            'realization': {'eyebrow_troubled_left_index': 0.0, 'eyebrow_troubled_right_index': 0.0, 'eyebrow_angry_left_index': 0.0, 'eyebrow_angry_right_index': 0.0, 'eyebrow_happy_left_index': 0.0, 'eyebrow_happy_right_index': 0.0, 'eyebrow_raised_left_index': 1.0, 'eyebrow_raised_right_index': 1.0, 'eyebrow_lowered_left_index': 0.0, 'eyebrow_lowered_right_index': 0.0, 'eyebrow_serious_left_index': 0.0, 'eyebrow_serious_right_index': 0.0, 'eye_surprised_left_index': 0.0, 'eye_surprised_right_index': 0.0, 'eye_wink_left_index': 0.0, 'eye_wink_right_index': 0.0, 'eye_happy_wink_left_index': 0.0, 'eye_happy_wink_right_index': 0.0, 'eye_relaxed_left_index': 0.5, 'eye_relaxed_right_index': 0.5, 'eye_raised_lower_eyelid_left_index': 0.0, 'eye_raised_lower_eyelid_right_index': 0.0, 'iris_small_left_index': 0.0, 'iris_small_right_index': 0.0, 'iris_rotation_x_index': 0.0, 'iris_rotation_y_index': 0.0, 'head_x_index': 0.0, 'head_y_index': 0.0, 'neck_z_index': 0.0, 'mouth_aaa_index': 0.0, 'mouth_iii_index': 0.0, 'mouth_uuu_index': 0.0, 'mouth_eee_index': 0.0, 'mouth_ooo_index': 0.5, 'mouth_lowered_corner_left_index': -0.2, 'mouth_lowered_corner_right_index': -0.2, 'mouth_raised_corner_left_index': 0.0, 'mouth_raised_corner_right_index': 0.0, 'body_y_index': 0.0, 'body_z_index': 0.0, 'breathing_index': 0.0},
+            'relief': {'eyebrow_troubled_left_index': 0.0, 'eyebrow_troubled_right_index': 0.0, 'eyebrow_angry_left_index': 0.0, 'eyebrow_angry_right_index': 0.0, 'eyebrow_happy_left_index': 0.5, 'eyebrow_happy_right_index': 0.5, 'eyebrow_raised_left_index': 0.0, 'eyebrow_raised_right_index': 0.0, 'eyebrow_lowered_left_index': 0.0, 'eyebrow_lowered_right_index': 0.0, 'eyebrow_serious_left_index': 0.0, 'eyebrow_serious_right_index': 0.0, 'eye_surprised_left_index': 0.0, 'eye_surprised_right_index': 0.0, 'eye_wink_left_index': 0.0, 'eye_wink_right_index': 0.0, 'eye_happy_wink_left_index': 0.0, 'eye_happy_wink_right_index': 0.0, 'eye_relaxed_left_index': 1.0, 'eye_relaxed_right_index': 1.0, 'eye_raised_lower_eyelid_left_index': 0.0, 'eye_raised_lower_eyelid_right_index': 0.0, 'iris_small_left_index': 0.0, 'iris_small_right_index': 0.0, 'iris_rotation_x_index': 0.0, 'iris_rotation_y_index': 0.0, 'head_x_index': 0.0, 'head_y_index': 0.0, 'neck_z_index': 0.0, 'mouth_aaa_index': 0.6, 'mouth_iii_index': 0.0, 'mouth_uuu_index': 0.0, 'mouth_eee_index': 0.0, 'mouth_ooo_index': 0.0, 'mouth_lowered_corner_left_index': 0.0, 'mouth_lowered_corner_right_index': 0.0, 'mouth_raised_corner_left_index': 0.5, 'mouth_raised_corner_right_index': 0.5, 'body_y_index': 0.0, 'body_z_index': 0.0, 'breathing_index': 0.0},
+            'remorse': {'eyebrow_troubled_left_index': 0.0, 'eyebrow_troubled_right_index': 0.0, 'eyebrow_angry_left_index': 0.0, 'eyebrow_angry_right_index': 0.0, 'eyebrow_happy_left_index': 0.0, 'eyebrow_happy_right_index': 0.0, 'eyebrow_raised_left_index': 0.0, 'eyebrow_raised_right_index': 0.0, 'eyebrow_lowered_left_index': 0.0, 'eyebrow_lowered_right_index': 0.0, 'eyebrow_serious_left_index': 0.0, 'eyebrow_serious_right_index': 0.0, 'eye_surprised_left_index': 0.0, 'eye_surprised_right_index': 0.0, 'eye_wink_left_index': 0.0, 'eye_wink_right_index': 0.0, 'eye_happy_wink_left_index': 0.0, 'eye_happy_wink_right_index': 0.0, 'eye_relaxed_left_index': 0.0, 'eye_relaxed_right_index': 0.0, 'eye_raised_lower_eyelid_left_index': 0.0, 'eye_raised_lower_eyelid_right_index': 0.0, 'iris_small_left_index': 0.0, 'iris_small_right_index': 0.0, 'iris_rotation_x_index': 0.0, 'iris_rotation_y_index': 0.0, 'head_x_index': 0.0, 'head_y_index': 0.0, 'neck_z_index': 0.0, 'mouth_aaa_index': 0.0, 'mouth_iii_index': 0.0, 'mouth_uuu_index': 0.0, 'mouth_eee_index': 0.0, 'mouth_ooo_index': 0.0, 'mouth_lowered_corner_left_index': -0.2, 'mouth_lowered_corner_right_index': -0.2, 'mouth_raised_corner_left_index': 0.0, 'mouth_raised_corner_right_index': 0.0, 'body_y_index': 0.0, 'body_z_index': 0.0, 'breathing_index': 0.0},
+            'sadness': {'eyebrow_troubled_left_index': 0.0, 'eyebrow_troubled_right_index': 0.0, 'eyebrow_angry_left_index': 0.0, 'eyebrow_angry_right_index': 0.0, 'eyebrow_happy_left_index': 0.0, 'eyebrow_happy_right_index': 0.0, 'eyebrow_raised_left_index': 0.0, 'eyebrow_raised_right_index': 0.0, 'eyebrow_lowered_left_index': 0.1, 'eyebrow_lowered_right_index': 0.1, 'eyebrow_serious_left_index': 0.0, 'eyebrow_serious_right_index': 0.0, 'eye_surprised_left_index': 0.0, 'eye_surprised_right_index': 0.0, 'eye_wink_left_index': 0.0, 'eye_wink_right_index': 0.0, 'eye_happy_wink_left_index': 0.0, 'eye_happy_wink_right_index': 0.0, 'eye_relaxed_left_index': 0.0, 'eye_relaxed_right_index': 0.0, 'eye_raised_lower_eyelid_left_index': 0.0, 'eye_raised_lower_eyelid_right_index': 0.0, 'iris_small_left_index': 0.0, 'iris_small_right_index': 0.0, 'iris_rotation_x_index': 0.0, 'iris_rotation_y_index': 0.0, 'head_x_index': 0.0, 'head_y_index': 0.0, 'neck_z_index': 0.0, 'mouth_aaa_index': 0.0, 'mouth_iii_index': 0.0, 'mouth_uuu_index': 0.0, 'mouth_eee_index': 0.0, 'mouth_ooo_index': 0.0, 'mouth_lowered_corner_left_index': -0.1, 'mouth_lowered_corner_right_index': -0.1, 'mouth_raised_corner_left_index': 0.0, 'mouth_raised_corner_right_index': 0.0, 'body_y_index': 0.0, 'body_z_index': 0.0, 'breathing_index': 0.0},
+            'surprise': {'eyebrow_troubled_left_index': 0.0, 'eyebrow_troubled_right_index': 0.0, 'eyebrow_angry_left_index': 0.0, 'eyebrow_angry_right_index': 0.0, 'eyebrow_happy_left_index': 0.0, 'eyebrow_happy_right_index': 0.0, 'eyebrow_raised_left_index': 1.0, 'eyebrow_raised_right_index': 1.0, 'eyebrow_lowered_left_index': 0.0, 'eyebrow_lowered_right_index': 0.0, 'eyebrow_serious_left_index': 0.0, 'eyebrow_serious_right_index': 0.0, 'eye_surprised_left_index': 1.0, 'eye_surprised_right_index': 1.0, 'eye_wink_left_index': 0.0, 'eye_wink_right_index': 0.0, 'eye_happy_wink_left_index': 0.0, 'eye_happy_wink_right_index': 0.0, 'eye_relaxed_left_index': 0.0, 'eye_relaxed_right_index': 0.0, 'eye_raised_lower_eyelid_left_index': 0.0, 'eye_raised_lower_eyelid_right_index': 0.0, 'iris_small_left_index': 0.8, 'iris_small_right_index': 0.8, 'iris_rotation_x_index': 0.0, 'iris_rotation_y_index': 0.0, 'head_x_index': 0.0, 'head_y_index': 0.0, 'neck_z_index': 0.0, 'mouth_aaa_index': 0.5, 'mouth_iii_index': 0.0, 'mouth_uuu_index': 0.0, 'mouth_eee_index': 0.0, 'mouth_ooo_index': 0.0, 'mouth_lowered_corner_left_index': 0.0, 'mouth_lowered_corner_right_index': 0.0, 'mouth_raised_corner_left_index': 0.0, 'mouth_raised_corner_right_index': 0.0, 'body_y_index': 0.0, 'body_z_index': 0.0, 'breathing_index': 0.0},
+            'zero': {'eyebrow_troubled_left_index': 0.0, 'eyebrow_troubled_right_index': 0.0, 'eyebrow_angry_left_index': 0.0, 'eyebrow_angry_right_index': 0.0, 'eyebrow_happy_left_index': 0.0, 'eyebrow_happy_right_index': 0.0, 'eyebrow_raised_left_index': 0.0, 'eyebrow_raised_right_index': 1.0, 'eyebrow_lowered_left_index': 0.0, 'eyebrow_lowered_right_index': 0.0, 'eyebrow_serious_left_index': 0.0, 'eyebrow_serious_right_index': 0.0, 'eye_surprised_left_index': 0.0, 'eye_surprised_right_index': 0.0, 'eye_wink_left_index': 0.0, 'eye_wink_right_index': 0.0, 'eye_happy_wink_left_index': 0.0, 'eye_happy_wink_right_index': 0.0, 'eye_relaxed_left_index': 0.0, 'eye_relaxed_right_index': 0.0, 'eye_raised_lower_eyelid_left_index': 0.0, 'eye_raised_lower_eyelid_right_index': 0.0, 'iris_small_left_index': 0.0, 'iris_small_right_index': 0.0, 'iris_rotation_x_index': 0.0, 'iris_rotation_y_index': 0.0, 'head_x_index': 0.0, 'head_y_index': 0.0, 'neck_z_index': 0.0, 'mouth_aaa_index': 0.0, 'mouth_iii_index': 0.0, 'mouth_uuu_index': 0.0, 'mouth_eee_index': 0.0, 'mouth_ooo_index': 0.0, 'mouth_lowered_corner_left_index': 0.0, 'mouth_lowered_corner_right_index': 0.0, 'mouth_raised_corner_left_index': 0.0, 'mouth_raised_corner_right_index': 0.0, 'body_y_index': 0.0, 'body_z_index': 0.0, 'breathing_index': 0.0}
         }
-        return emotions.get(emotion, {})
+        
+        targetpose = emotions.get(emotion, {})
+        #print("targetpose ", targetpose)
+
+        targetpose_values = list(targetpose.values())
+        #print("targetpose_values ", targetpose_values)
+        return targetpose_values
+
+    def animateToEmotion(self, current_pose_list, target_pose_str):
+        current_pose = {part.split(": ")[0]: float(part.split(": ")[1]) for part in current_pose_list if part.split(": ")[0] != "unknown"}
+
+        new_pose = {}
+
+        for part, current_value in current_pose.items():
+            if part in target_pose_str:
+                target_value = target_pose_str[part]
+                if current_value < target_value:
+                    new_value = min(current_value + 0.10, target_value)
+                elif current_value > target_value:
+                    new_value = max(current_value - 0.10, target_value)
+                else:
+                    new_value = current_value
+                new_pose[part] = new_value
+
+        return new_pose
+    
 
     def animationMain(self): 
         self.ifacialmocap_pose =  self.animationBlink()
@@ -258,6 +398,9 @@ class MainFrame(wx.Frame):
 
         separator = wx.StaticLine(self.animation_left_panel, -1, size=(256, 1))
         self.animation_left_panel_sizer.Add(separator, 0, wx.EXPAND)
+        
+        self.fps_text = wx.StaticText(self.animation_left_panel, label="")
+        self.animation_left_panel_sizer.Add(self.fps_text, wx.SizerFlags().Border())
 
         self.animation_left_panel_sizer.Fit(self.animation_left_panel)
 
@@ -291,9 +434,6 @@ class MainFrame(wx.Frame):
         self.animation_right_panel_sizer.Add(self.output_background_choice, 0, wx.EXPAND)
 
 
-        #self.pose_converter.init_pose_converter_panel(self.animation_panel) # this changes sliders to breathing on
-
-        #sliders go here
 
 
         blendshape_groups = {
@@ -391,28 +531,74 @@ class MainFrame(wx.Frame):
     def paint_result_image_panel(self, event: wx.Event):
         wx.BufferedPaintDC(self.result_image_panel, self.result_image_bitmap)
 
+    def combine_pose_with_names(combine_pose):
+        pose_names = [
+            'eyeLookInLeft', 'eyeLookOutLeft', 'eyeLookDownLeft', 'eyeLookUpLeft',
+            'eyeBlinkLeft', 'eyeSquintLeft', 'eyeWideLeft', 'eyeLookInRight',
+            'eyeLookOutRight', 'eyeLookDownRight', 'eyeLookUpRight', 'eyeBlinkRight',
+            'eyeSquintRight', 'eyeWideRight', 'browDownLeft', 'browOuterUpLeft',
+            'browDownRight', 'browOuterUpRight', 'browInnerUp', 'noseSneerLeft',
+            'noseSneerRight', 'cheekSquintLeft', 'cheekSquintRight', 'cheekPuff',
+            'mouthLeft', 'mouthDimpleLeft', 'mouthFrownLeft', 'mouthLowerDownLeft',
+            'mouthPressLeft', 'mouthSmileLeft', 'mouthStretchLeft', 'mouthUpperUpLeft',
+            'mouthRight', 'mouthDimpleRight', 'mouthFrownRight', 'mouthLowerDownRight',
+            'mouthPressRight', 'mouthSmileRight', 'mouthStretchRight', 'mouthUpperUpRight',
+            'mouthClose', 'mouthFunnel', 'mouthPucker', 'mouthRollLower', 'mouthRollUpper',
+            'mouthShrugLower', 'mouthShrugUpper', 'jawLeft', 'jawRight', 'jawForward',
+            'jawOpen', 'tongueOut', 'headBoneX', 'headBoneY', 'headBoneZ', 'headBoneQuat',
+            'leftEyeBoneX', 'leftEyeBoneY', 'leftEyeBoneZ', 'leftEyeBoneQuat',
+            'rightEyeBoneX', 'rightEyeBoneY', 'rightEyeBoneZ', 'rightEyeBoneQuat'
+        ]
+        pose_dict = dict(zip(pose_names, combine_pose))
+        return pose_dict
+
     def update_result_image_bitmap(self, event: Optional[wx.Event] = None):
         global global_timer_paused
         global initAMI
         global global_result_image
         global global_reload
+        global emotion
+        global fps
 
         if global_timer_paused:
             return
 
         try:
-
             if global_reload is not None:
                 MainFrame.load_image(self, event=None, file_path=None)  # call load_image function here
                 return
+            
+            ################ START ANIMATION CHANGES ##########################
 
             ifacialmocap_pose = self.animationMain() #GET ANIMATION CHANGES
-            current_pose = self.pose_converter.convert(ifacialmocap_pose)
 
-            if self.last_pose is not None and self.last_pose == current_pose:
+            #print("-------------------------------------------")
+            current_pose = self.pose_converter.convert(ifacialmocap_pose)
+            #print("current_pose ", current_pose)
+
+            ############### ADD BREATHING TALKING HEAD MOVEMENTS HERE ########
+            #print("-------------------------------------------")
+            #mod_pose = self.pose_converter.convert(ifacialmocap_pose)
+            #print("mod_pose ", mod_pose)
+
+
+            #print("-------------------------------------------")
+            #adjusted_pose = self.get_emotion_values(emotion) #Set emotion tage
+            #print("adjusted_pose ", adjusted_pose)
+
+            #print("-------------------------------------------")
+            #n = len(adjusted_pose)
+            #combined_pose = adjusted_pose + current_pose[n:]
+            #print("combined_pose ", combined_pose)
+
+            ################ END ANIMATION CHANGES ##########################
+
+            combined_pose = current_pose
+
+            if self.last_pose is not None and self.last_pose == combined_pose:
                 return
             
-            self.last_pose = current_pose
+            self.last_pose = combined_pose
 
             if self.torch_source_image is None:
                 dc = wx.MemoryDC()
@@ -421,7 +607,7 @@ class MainFrame(wx.Frame):
                 del dc
                 return
 
-            pose = torch.tensor(current_pose, device=self.device, dtype=self.poser.get_dtype())
+            pose = torch.tensor(combined_pose, device=self.device, dtype=self.poser.get_dtype())
 
             with torch.no_grad():
                 output_image = self.poser.pose(self.torch_source_image, pose)[0].float()
@@ -450,15 +636,33 @@ class MainFrame(wx.Frame):
 
             del dc
 
+
+            time_now = time.time_ns()
+            if self.last_update_time is not None:
+                elapsed_time = time_now - self.last_update_time
+                fps = 1.0 / (elapsed_time / 10**9)
+
+                if self.torch_source_image is not None:
+                    self.fps_statistics.add_fps(fps)
+                self.fps_text.SetLabelText("FPS = %0.2f" % self.fps_statistics.get_average_fps())
+
+            self.last_update_time = time_now
+
             if(initAMI == True): #If the models are just now initalized stop animation to save
                 global_timer_paused = True
                 initAMI = False
+
+            if random.random() <= 0.01:
+                trimmed_fps = round(fps, 1)
+                print("Current FPS: {:.1f}".format(trimmed_fps))
 
             self.Refresh()
 
         except KeyboardInterrupt:
             print("Update process was interrupted by the user.")
             wx.Exit()
+    
+
 
     def resize_image(image, size=(512, 512)):
         image.thumbnail(size, Image.LANCZOS)  # Step 1: Resize the image to maintain the aspect ratio with the larger dimension being 512 pixels
