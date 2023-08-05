@@ -21,6 +21,7 @@ import torch
 import time
 import os
 import gc
+import sys
 import secrets
 from PIL import Image
 import base64
@@ -33,6 +34,9 @@ from colorama import Fore, Style, init as colorama_init
 
 colorama_init()
 
+if sys.hexversion < 0x030b0000:
+    print(f"{Fore.BLUE}{Style.BRIGHT}Python 3.11 or newer is recommended to run this program.{Style.RESET_ALL}")
+    time.sleep(2)
 
 class SplitArgs(argparse.Action):
     def __call__(self, parser, namespace, values, option_string=None):
@@ -280,7 +284,7 @@ if "coqui-tts" in modules:
     import tts_coqui as coqui
     from tts_coqui import *
     if mode == "GPU":
-        coqui.setGPU(True)    
+        coqui.setGPU(True)
     if args.coqui_model is not None:
         coqui.coqui_modeldownload(args.coqui_model)
 
