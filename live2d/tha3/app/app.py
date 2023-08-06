@@ -41,6 +41,7 @@ global_timer_paused = False
 emotion = "joy"
 fps = 0
 current_pose = None
+storepath = os.path.join(os.getcwd(), "live2d")
 
 # Flask setup
 app = Flask(__name__)
@@ -101,6 +102,7 @@ def live2d_load_file(stream):
     global global_reload
     global global_timer_paused
     global_timer_paused = False
+
     try:
         pil_image = Image.open(stream) # Load the image using PIL.Image.open
         img_data = BytesIO() # Create a copy of the image data in memory using BytesIO
@@ -309,7 +311,9 @@ class MainFrame(wx.Frame):
         return output
     
     def get_emotion_values(self, emotion): # Place to define emotion presets
-        file_path = r"live2d\emotions.json"  
+        global storepath
+
+        file_path = storepath + "\emotions.json"  
         with open(file_path, 'r') as json_file:
             emotions = json.load(json_file)
 
@@ -317,7 +321,7 @@ class MainFrame(wx.Frame):
         targetpose_values = targetpose
 
         #targetpose_values = list(targetpose.values())
-        print("targetpose: ", targetpose, "for ", emotion)
+        #print("targetpose: ", targetpose, "for ", emotion)
         return targetpose_values
     
     def animateToEmotion(self, current_pose_list, target_pose_str):

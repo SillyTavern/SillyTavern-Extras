@@ -6,6 +6,7 @@ import PIL.Image
 import numpy
 import torch
 import wx
+import json
 from typing import List
 
 # Set the working directory to the "live2d" subdirectory to work with file structure
@@ -462,15 +463,16 @@ class MainFrame(wx.Frame):
         pil_image.save(image_file_name)
         
  
-        data_str = str(self.get_current_posedict())  # Get values
-        txt_file_path = os.path.splitext(image_file_name)[0] + ".txt"
-
+        data_dict = self.get_current_posedict()  # Get values
+        json_file_path = os.path.splitext(image_file_name)[0] + ".json"  # Generate JSON file path
 
         filename_without_extension = os.path.splitext(os.path.basename(image_file_name))[0]
-        data_str_with_filename = "'{}': {}".format(filename_without_extension, data_str)
+        data_dict_with_filename = {filename_without_extension: data_dict}  # Create a new dict with the filename as the key
 
-        with open(txt_file_path, "w") as file:
-            file.write(data_str_with_filename)
+        with open(json_file_path, "w") as file:
+            json.dump(data_dict_with_filename, file, indent=4)
+
+
 
 
 if __name__ == "__main__":
