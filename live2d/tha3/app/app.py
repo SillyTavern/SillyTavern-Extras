@@ -39,6 +39,7 @@ is_talking = False
 global_timer_paused = False
 emotion = "joy"
 fps = 0
+current_pose = None
 
 # Flask setup
 app = Flask(__name__)
@@ -127,7 +128,7 @@ def launch_gui(device, model):
 
     try:
         poser = load_poser(model, device)
-        pose_converter = create_ifacialmocap_pose_converter()
+        pose_converter = create_ifacialmocap_pose_converter() #creates a list of 45
 
         app = wx.App(redirect=False)
         main_frame = MainFrame(poser, pose_converter, device)
@@ -180,7 +181,6 @@ class MainFrame(wx.Frame):
         self.result_image_bitmap = wx.Bitmap(self.poser.get_image_size(), self.poser.get_image_size())
         self.wx_source_image = None
         self.torch_source_image = None
-        self.last_pose = None
         self.last_update_time = None
 
         self.create_ui()
@@ -377,6 +377,12 @@ class MainFrame(wx.Frame):
         #print("1", current_pose_list)
         #print("2", target_pose_str)
         #print("3", new_pose_list)
+        
+        #track changes of values
+        value_trk = 'body_z_index'
+        #print("Current", self.filter_by_index(current_pose_list, value_trk))
+        #print("Emotion ['body_z_index:", target_pose_str[value_trk],"']")
+        #print("Result_", self.filter_by_index(new_pose_list, value_trk))
         return new_pose_list
 
 
@@ -385,6 +391,19 @@ class MainFrame(wx.Frame):
         self.ifacialmocap_pose =  self.animationHeadMove()
         self.ifacialmocap_pose =  self.animationTalking()
         return self.ifacialmocap_pose
+
+    def filter_by_index(self, current_pose_list, index):
+        # Create an empty list to store the filtered dictionaries
+        filtered_list = []
+
+        # Iterate through each dictionary in the current_pose_list
+        for pose_dict in current_pose_list:
+            # Check if the 'breathing_index' key exists in the dictionary
+            if index in pose_dict:
+                # If the key exists, append the dictionary to the filtered list
+                filtered_list.append(pose_dict)
+
+        return filtered_list
 
     def on_erase_background(self, event: wx.Event):
         pass
@@ -598,6 +617,61 @@ class MainFrame(wx.Frame):
 
         return result_dict
 
+    def update_ifacualmocap_pose(self, ifacualmocap_pose, emotion_pose):
+        # Update eyebrow values
+        ifacualmocap_pose['browDownLeft'] = emotion_pose['eyebrow_troubled_left_index']
+        ifacualmocap_pose['browDownRight'] = emotion_pose['eyebrow_troubled_right_index']
+        ifacualmocap_pose['browOuterUpLeft'] = emotion_pose['eyebrow_angry_left_index']
+        ifacualmocap_pose['browOuterUpRight'] = emotion_pose['eyebrow_angry_right_index']
+        ifacualmocap_pose['browInnerUp'] = emotion_pose['eyebrow_happy_left_index']
+        ifacualmocap_pose['browInnerUp'] += emotion_pose['eyebrow_happy_right_index']
+        ifacualmocap_pose['browDownLeft'] = emotion_pose['eyebrow_raised_left_index']
+        ifacualmocap_pose['browDownRight'] = emotion_pose['eyebrow_raised_right_index']
+        ifacualmocap_pose['browDownLeft'] += emotion_pose['eyebrow_lowered_left_index']
+        ifacualmocap_pose['browDownRight'] += emotion_pose['eyebrow_lowered_right_index']
+        ifacualmocap_pose['browDownLeft'] += emotion_pose['eyebrow_serious_left_index']
+        ifacualmocap_pose['browDownRight'] += emotion_pose['eyebrow_serious_right_index']
+
+        # Update eye values
+        ifacualmocap_pose['eyeWideLeft'] = emotion_pose['eye_surprised_left_index']
+        ifacualmocap_pose['eyeWideRight'] = emotion_pose['eye_surprised_right_index']
+
+        # Update wink values
+        if random.random() <= 0.03: #RANDOM BLINK ELSE GOTO EMO
+            ifacualmocap_pose["eyeBlinkRight"] = 1
+            ifacualmocap_pose["eyeBlinkLeft"] = 1
+        else:
+            ifacualmocap_pose['eyeBlinkLeft'] = emotion_pose['eye_wink_left_index']
+            ifacualmocap_pose['eyeBlinkRight'] = emotion_pose['eye_wink_right_index']
+
+        # Update iris rotation values
+        ifacualmocap_pose['eyeLookInLeft'] = -emotion_pose['iris_rotation_y_index']
+        ifacualmocap_pose['eyeLookOutLeft'] = emotion_pose['iris_rotation_y_index']
+        ifacualmocap_pose['eyeLookInRight'] = emotion_pose['iris_rotation_y_index']
+        ifacualmocap_pose['eyeLookOutRight'] = -emotion_pose['iris_rotation_y_index']
+        ifacualmocap_pose['eyeLookUpLeft'] = emotion_pose['iris_rotation_x_index']
+        ifacualmocap_pose['eyeLookDownLeft'] = -emotion_pose['iris_rotation_x_index']
+        ifacualmocap_pose['eyeLookUpRight'] = emotion_pose['iris_rotation_x_index']
+        ifacualmocap_pose['eyeLookDownRight'] = -emotion_pose['iris_rotation_x_index']
+
+        # Update iris size values
+        ifacualmocap_pose['irisWideLeft'] = emotion_pose['iris_small_left_index']
+        ifacualmocap_pose['irisWideRight'] = emotion_pose['iris_small_right_index']
+
+        # Update head rotation values
+        ifacualmocap_pose['headBoneX'] = -emotion_pose['head_x_index'] * 15.0
+        ifacualmocap_pose['headBoneY'] = -emotion_pose['head_y_index'] * 10.0
+        ifacualmocap_pose['headBoneZ'] = emotion_pose['neck_z_index'] * 15.0
+
+        # Update mouth values
+        ifacualmocap_pose['mouthSmileLeft'] = emotion_pose['mouth_aaa_index']
+        ifacualmocap_pose['mouthSmileRight'] = emotion_pose['mouth_aaa_index']
+        ifacualmocap_pose['mouthFrownLeft'] = emotion_pose['mouth_lowered_corner_left_index']
+        ifacualmocap_pose['mouthFrownRight'] = emotion_pose['mouth_lowered_corner_right_index']
+        ifacualmocap_pose['mouthPressLeft'] = emotion_pose['mouth_raised_corner_left_index']
+        ifacualmocap_pose['mouthPressRight'] = emotion_pose['mouth_raised_corner_right_index']
+
+        return ifacualmocap_pose
 
     def update_result_image_bitmap(self, event: Optional[wx.Event] = None):
         global global_timer_paused
@@ -606,7 +680,8 @@ class MainFrame(wx.Frame):
         global global_reload
         global emotion
         global fps
-
+        global current_pose
+        
         if global_timer_paused:
             return
 
@@ -621,15 +696,31 @@ class MainFrame(wx.Frame):
             #combined_posesaved = current_posesaved
 
             #NEW METHOD
-            ifacialmocap_pose = self.animationMain() #GET ANIMATION CHANGES
-            #ifacialmocap_pose = self.ifacialmocap_pose #bypass animation changer
+            ifacialmocap_pose = self.animationMain() #CREATES THE DEFAULT POSE AND STORES OBJ IN STRING
+          
+            #GET EMOTION SETTING
+            emotion_pose = self.get_emotion_values(emotion)
+            #print("emotion_pose: ", emotion_pose)
             
+            #MERGE EMOTION SETTING WITH CURRENT OUTPUT
+            updated_pose = self.update_ifacualmocap_pose(ifacialmocap_pose, emotion_pose)
+            #print("updated_pose: ", updated_pose)
+
+            #CONVERT RESULT TO FORMAT NN CAN USE
+            current_pose = self.pose_converter.convert(updated_pose) 
+            #print("current_pose: ", current_pose)
+  
+
+
+
+            #SEND THROUGH CONVERT
             current_pose = self.pose_converter.convert(ifacialmocap_pose) 
+
+
             names_current_pose = MainFrame.addNamestoConvert(current_pose) 
             adjusted_pose = self.get_emotion_values(emotion)  # APPLY EMOTION VALUES
-
             tranisitiondPose = self.animateToEmotion(names_current_pose, adjusted_pose)  
-            #targetpose_values = [float(item.split(': ')[1]) for item in tranisitiondPose]
+
 
             parsed_data = []
             for item in tranisitiondPose:
@@ -641,13 +732,10 @@ class MainFrame(wx.Frame):
             ifacialmocap_pose = tranisitiondPosenew
             combined_pose = tranisitiondPosenew
 
-            #ifacialmocap_pose = combined_pose
-            #self.ifacialmocap_pose = combined_pose
-
-            if self.last_pose is not None and self.last_pose == combined_pose:
-                return
+            #print("current_pose", current_pose[12])
+            #print("tranisitiondPosenew ", tranisitiondPosenew[12])    
             
-            self.last_pose = combined_pose
+
 
             if self.torch_source_image is None:
                 dc = wx.MemoryDC()
@@ -703,7 +791,7 @@ class MainFrame(wx.Frame):
 
             if random.random() <= 0.01:
                 trimmed_fps = round(fps, 1)
-                print("Current FPS: {:.1f}".format(trimmed_fps))
+                print("Live2d FPS: {:.1f}".format(trimmed_fps))
 
             self.Refresh()
 
