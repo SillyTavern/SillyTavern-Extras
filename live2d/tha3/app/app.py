@@ -313,7 +313,6 @@ class MainFrame(wx.Frame):
         with open(file_path, 'r') as json_file:
             emotions = json.load(json_file)
 
-
         targetpose = emotions.get(emotion, {})
         targetpose_values = targetpose
 
