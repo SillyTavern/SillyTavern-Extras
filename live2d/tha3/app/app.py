@@ -41,7 +41,7 @@ global_timer_paused = False
 emotion = "joy"
 fps = 0
 current_pose = None
-storepath = os.path.join(os.getcwd(), "live2d")
+storepath = os.path.join(os.getcwd(), "live2d", "emotions")
 
 # Flask setup
 app = Flask(__name__)
@@ -313,7 +313,16 @@ class MainFrame(wx.Frame):
     def get_emotion_values(self, emotion): # Place to define emotion presets
         global storepath
 
-        file_path = storepath + "\emotions.json"  
+       
+    
+
+        file_path = os.path.join(storepath, emotion + ".json")
+
+        if not os.path.exists(file_path):
+            print("using backup")
+            file_path = os.path.join(storepath, "defaults.json")
+
+
         with open(file_path, 'r') as json_file:
             emotions = json.load(json_file)
 
@@ -861,7 +870,7 @@ class MainFrame(wx.Frame):
 
             if random.random() <= 0.01:
                 trimmed_fps = round(fps, 1)
-                print("Live2d FPS: {:.1f}".format(trimmed_fps))
+                #print("Live2d FPS: {:.1f}".format(trimmed_fps))
 
             self.Refresh()
 
