@@ -38,7 +38,7 @@ global_reload = None
 is_talking_override = False
 is_talking = False
 global_timer_paused = False
-emotion = "joy"
+emotion = "neutral"
 fps = 0
 current_pose = None
 storepath = os.path.join(os.getcwd(), "live2d", "emotions")
@@ -313,14 +313,13 @@ class MainFrame(wx.Frame):
     def get_emotion_values(self, emotion): # Place to define emotion presets
         global storepath
 
-       
-    
-
+        #print(emotion)
         file_path = os.path.join(storepath, emotion + ".json")
+        #print("trying: ", file_path)
 
         if not os.path.exists(file_path):
             print("using backup")
-            file_path = os.path.join(storepath, "defaults.json")
+            file_path = os.path.join(storepath, "_defaults.json")
 
 
         with open(file_path, 'r') as json_file:
@@ -774,33 +773,32 @@ class MainFrame(wx.Frame):
             #current_posesaved = self.pose_converter.convert(ifacialmocap_pose)
             #combined_posesaved = current_posesaved
 
-            #NEW METHOD
-            ifacialmocap_pose = self.animationMain() #CREATES THE DEFAULT POSE AND STORES OBJ IN STRING
+            #NEW METHOD 
+            #CREATES THE DEFAULT POSE AND STORES OBJ IN STRING
+            ifacialmocap_pose = self.animationMain()
           
             #GET EMOTION SETTING
             emotion_pose = self.get_emotion_values(emotion)
-            #print("emotion_pose: ", emotion_pose)
             
             #MERGE EMOTION SETTING WITH CURRENT OUTPUT
             updated_pose = self.update_ifacualmocap_pose(ifacialmocap_pose, emotion_pose)
-            #print("updated_pose: ", updated_pose)
 
             #CONVERT RESULT TO FORMAT NN CAN USE
             current_pose = self.pose_converter.convert(updated_pose) 
-            #print("current_pose: ", current_pose)
-  
-
-
 
             #SEND THROUGH CONVERT
             current_pose = self.pose_converter.convert(ifacialmocap_pose) 
 
-
+            #ADD LABELS/NAMES TO THE POSE
             names_current_pose = MainFrame.addNamestoConvert(current_pose) 
-            adjusted_pose = self.get_emotion_values(emotion)  # APPLY EMOTION VALUES
+
+            #GET THE EMOTION VALUES
+            adjusted_pose = self.get_emotion_values(emotion)  
+            
+            #APPLY VALUES TO THE POSE
             tranisitiondPose = self.animateToEmotion(names_current_pose, adjusted_pose)  
 
-
+            #reformate the data correctly
             parsed_data = []
             for item in tranisitiondPose:
                 key, value_str = item.split(': ')
@@ -808,13 +806,12 @@ class MainFrame(wx.Frame):
                 parsed_data.append((key, value))
             tranisitiondPosenew = [value for _, value in parsed_data]
 
+            #Set the pose for future updates
             ifacialmocap_pose = tranisitiondPosenew
-            combined_pose = tranisitiondPosenew
 
             #print("current_pose", current_pose[12])
             #print("tranisitiondPosenew ", tranisitiondPosenew[12])    
             
-
 
             if self.torch_source_image is None:
                 dc = wx.MemoryDC()
@@ -823,7 +820,7 @@ class MainFrame(wx.Frame):
                 del dc
                 return
 
-            pose = torch.tensor(combined_pose, device=self.device, dtype=self.poser.get_dtype())
+            pose = torch.tensor(tranisitiondPosenew, device=self.device, dtype=self.poser.get_dtype())
 
             with torch.no_grad():
                 output_image = self.poser.pose(self.torch_source_image, pose)[0].float()
