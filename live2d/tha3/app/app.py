@@ -38,7 +38,9 @@ global_reload = None
 is_talking_override = False
 is_talking = False
 global_timer_paused = False
-emotion = "anger"
+emotion = "neutral"
+lasttranisitiondPose = "NotInit"
+inMotion = False
 fps = 0
 current_pose = None
 storepath = os.path.join(os.getcwd(), "live2d", "emotions")
@@ -267,24 +269,24 @@ class MainFrame(wx.Frame):
             1: 'eyebrow_troubled_right_index',#COMBACK TO UNK
             2: 'eyebrow_angry_left_index',    
             3: 'eyebrow_angry_right_index',
-            4: 'unknown',
-            5: 'unknown',
+            4: 'unknown1', #COMBACK TO UNK
+            5: 'unknown2', #COMBACK TO UNK
             6: 'eyebrow_raised_left_index',
             7: 'eyebrow_raised_right_index',
             8: 'eyebrow_happy_left_index',
             9: 'eyebrow_happy_right_index',
-            10: 'unknown',
-            11: 'unknown',
+            10: 'unknown3', #COMBACK TO UNK
+            11: 'unknown4', #COMBACK TO UNK
             12: 'wink_left_index',
             13: 'wink_right_index',
             14: 'eye_happy_wink_left_index',
             15: 'eye_happy_wink_right_index',
             16: 'eye_surprised_left_index',
             17: 'eye_surprised_right_index',
-            18: 'unknown',
-            19: 'unknown',
-            20: 'unknown',
-            21: 'unknown',
+            18: 'unknown5', #COMBACK TO UNK
+            19: 'unknown6', #COMBACK TO UNK
+            20: 'unknown7', #COMBACK TO UNK
+            21: 'unknown8', #COMBACK TO UNK
             22: 'eye_raised_lower_eyelid_left_index',
             23: 'eye_raised_lower_eyelid_right_index',
             24: 'iris_small_left_index',
@@ -292,14 +294,14 @@ class MainFrame(wx.Frame):
             26: 'mouth_aaa_index',
             27: 'mouth_iii_index',
             28: 'mouth_ooo_index',
-            29: 'unknown',
-            30: 'mouth_ooo_index',
-            31: 'unknown',
-            32: 'unknown',
-            33: 'unknown',
+            29: 'unknown9a', #COMBACK TO UNK
+            30: 'mouth_ooo_index2',
+            31: 'unknown9', #COMBACK TO UNK
+            32: 'unknown10', #COMBACK TO UNK
+            33: 'unknown11', #COMBACK TO UNK
             34: 'mouth_raised_corner_left_index',
             35: 'mouth_raised_corner_right_index',
-            36: 'unknown',
+            36: 'unknown12', 
             37: 'iris_rotation_x_index',
             38: 'iris_rotation_y_index',
             39: 'head_x_index',
@@ -633,8 +635,8 @@ class MainFrame(wx.Frame):
 
         # Update wink values
         if random.random() <= 0.03: #RANDOM BLINK ELSE GOTO EMO
-            ifacualmocap_pose["eyeBlinkRight"] = 1
-            ifacualmocap_pose["eyeBlinkLeft"] = 1
+            ifacualmocap_pose["eyeBlinkRight"] = 100000
+            ifacualmocap_pose["eyeBlinkLeft"] = 100000
         else:
             ifacualmocap_pose['eyeBlinkLeft'] = emotion_pose['eye_wink_left_index']
             ifacualmocap_pose['eyeBlinkRight'] = emotion_pose['eye_wink_right_index']
@@ -757,13 +759,53 @@ class MainFrame(wx.Frame):
                         self.progress[key] = 0  # Reset progress when setting a new target
 
                 # Update progress based on direction
-                self.progress[key] += 0.02 * self.direction[key]
+                self.progress[key] += 0.04 * self.direction[key]
 
                 updated_list.append(f"{key}: {new_value}")
             else:
                 updated_list.append(item)
 
         return updated_list
+
+    def update_transition_pose(self, last_transition_pose_s, transition_pose_s):
+        inMotion = True
+
+        # Create dictionaries from the lists for easier comparison
+        last_transition_dict = {}
+        for item in last_transition_pose_s:
+            key = item.split(': ')[0]
+            value = float(item.split(': ')[1])
+            if key == 'unknown':
+                key += f"_{list(last_transition_dict.values()).count(value)}"
+            last_transition_dict[key] = value
+
+        transition_dict = {}
+        for item in transition_pose_s:
+            key = item.split(': ')[0]
+            value = float(item.split(': ')[1])
+            if key == 'unknown':
+                key += f"_{list(transition_dict.values()).count(value)}"
+            transition_dict[key] = value
+
+        updated_last_transition_pose = []
+
+        for key, last_value in last_transition_dict.items():
+            # If the key exists in transition_dict, increment its value by 0.4 and clip it to the target
+            if key in transition_dict:
+                delta = transition_dict[key] - last_value
+                last_value += delta * 0.1
+
+            # Reconstruct the string and append it to the updated list
+            updated_last_transition_pose.append(f"{key}: {last_value}")
+
+        # If any value is less than the target, set inMotion to True
+        if any(last_transition_dict[k] < transition_dict[k] for k in last_transition_dict if k in transition_dict):
+            inMotion = True
+        else:
+            inMotion = False
+
+        return updated_last_transition_pose
+
 
 
     def update_result_image_bitmap(self, event: Optional[wx.Event] = None):
@@ -776,7 +818,8 @@ class MainFrame(wx.Frame):
         global current_pose
         global is_talking
         global is_talking_override
-        
+        global lasttranisitiondPose
+
         if global_timer_paused:
             return
 
@@ -826,8 +869,18 @@ class MainFrame(wx.Frame):
             #Animate Talking
             tranisitiondPose = self.update_talking_pose(tranisitiondPose)
             
-            #Animate Talking
+            #Animate Head Sway
             tranisitiondPose = self.update_sway_pose(tranisitiondPose)
+
+            #smooth animate
+            #print("LAST   VALUES: ", lasttranisitiondPose)
+            #print("TARGER VALUES: ", tranisitiondPose)
+
+            if lasttranisitiondPose != "NotInit":
+                tranisitiondPose = self.update_transition_pose(lasttranisitiondPose, tranisitiondPose)
+                #print("smoothed: ", tranisitiondPose)
+
+
 
             #reformat the data correctly
             parsed_data = []
@@ -836,25 +889,9 @@ class MainFrame(wx.Frame):
                 value = float(value_str)
                 parsed_data.append((key, value))
             tranisitiondPosenew = [value for _, value in parsed_data]
-            #tranisitiondPosenew = tranisitiondPose
-            #print(tranisitiondPosenew)
 
-            #print("Pose sent to : ", tranisitiondPosenew)
-
-
-            #tranisitiondPosenew = list(tranisitiondPosenew.values())
-            
-
-            #Set the pose for future updates
+            #not sure what this is for TBH
             ifacialmocap_pose = tranisitiondPosenew
-            #print("tranisitiondPosenew ", tranisitiondPosenew)
-
-            #print("current_pose", current_pose[12])
-            #print("tranisitiondPosenew ", tranisitiondPosenew[12])    
-            
-
-            #NEEDS LIST OF 45 NUMS
-            # [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.2051042893950685]
 
             if self.torch_source_image is None:
                 dc = wx.MemoryDC()
@@ -912,6 +949,10 @@ class MainFrame(wx.Frame):
             if random.random() <= 0.01:
                 trimmed_fps = round(fps, 1)
                 #print("Live2d FPS: {:.1f}".format(trimmed_fps))
+
+
+            #Store current pose to use as last pose on next loop
+            lasttranisitiondPose = tranisitiondPose
 
             self.Refresh()
 
