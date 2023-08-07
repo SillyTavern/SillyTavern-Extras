@@ -728,7 +728,7 @@ class MainFrame(wx.Frame):
         MOVEPARTS = ['head_y_index']
         updated_list = []
 
-        print( self.start_values, self.targets, self.progress, self.direction )
+        #print( self.start_values, self.targets, self.progress, self.direction )
 
         for item in tranisitiondPose:
             key, value = item.split(': ')
