@@ -38,7 +38,7 @@ global_reload = None
 is_talking_override = False
 is_talking = False
 global_timer_paused = False
-emotion = "neutral"
+emotion = "anger"
 fps = 0
 current_pose = None
 storepath = os.path.join(os.getcwd(), "live2d", "emotions")
@@ -58,7 +58,7 @@ def setEmotion(_emotion):
             highest_score = item['score']
             highest_label = item['label']
 
-    print("Applying ", emotion)
+    #print("Applying ", emotion)
     emotion = highest_label
 
 def unload():
@@ -174,6 +174,14 @@ class MainFrame(wx.Frame):
         self.poser = poser
         self.device = device
 
+
+        self.targets = {"head_y_index": 0}
+        self.progress = {"head_y_index": 0}
+        self.direction = {"head_y_index": 1}
+        self.originals = {"head_y_index": 0}
+        self.forward = {"head_y_index": True}  # Direction of interpolation
+        self.start_values = {"head_y_index": 0}
+
         self.fps_statistics = FpsStatistics()
         self.image_load_counter = 0
         self.custom_background_image = None  # Add this line
@@ -255,9 +263,9 @@ class MainFrame(wx.Frame):
     
     def addNamestoConvert(pose):
         index_to_name = {
-            0: 'unknown',
-            1: 'unknown',
-            2: 'eyebrow_angry_left_index',
+            0: 'eyebrow_troubled_left_index', #COMBACK TO UNK
+            1: 'eyebrow_troubled_right_index',#COMBACK TO UNK
+            2: 'eyebrow_angry_left_index',    
             3: 'eyebrow_angry_right_index',
             4: 'unknown',
             5: 'unknown',
@@ -318,7 +326,7 @@ class MainFrame(wx.Frame):
         #print("trying: ", file_path)
 
         if not os.path.exists(file_path):
-            print("using backup")
+            print("using backup for: ",  file_path)
             file_path = os.path.join(storepath, "_defaults.json")
 
 
@@ -332,43 +340,23 @@ class MainFrame(wx.Frame):
         #print("targetpose: ", targetpose, "for ", emotion)
         return targetpose_values
     
-    def animateToEmotion(self, current_pose_list, target_pose_str):
-        new_pose_list = []
-
-        # Loop through the current_pose_list and update the values if needed
-        for index_str in current_pose_list:
-            index, value_str = index_str.split(': ')
-            value = float(value_str)
-
-            if index in target_pose_str:
-                target_value = target_pose_str[index]
-                if value < target_value:
-                    value += 0.1
-                    value = min(value, target_value)
-                elif value > target_value:
-                    value -= 0.1
-                    value = max(value, target_value)
-
-            new_pose_list.append(f"{index}: {value}")
-
-        # Check if there are extra indices in target_pose_str and add them to the new_pose_list
-        extra_indices = set(target_pose_str.keys()) - set(index.split(': ')[0] for index in current_pose_list)
+    def animateToEmotion(self, current_pose_list, target_pose_dict):
+        transitionPose = []
         
-        for extra_index in extra_indices:
-            new_pose_list.append(f"{extra_index}: {target_pose_str[extra_index]}")
-        # Limit the number of elements in the new_pose_list to 45
-        new_pose_list = new_pose_list[:45]
+        # Loop through the current_pose_list
+        for item in current_pose_list:
+            index, value = item.split(': ')
+            
+            # Always take the value from target_pose_dict if the key exists
+            if index in target_pose_dict and index != "breathing_index":
+                transitionPose.append(f"{index}: {target_pose_dict[index]}")
+            else:
+                transitionPose.append(item)
 
-        #print("1", current_pose_list)
-        #print("2", target_pose_str)
-        #print("3", new_pose_list)
-        
-        #track changes of values
-        value_trk = 'body_z_index'
-        #print("Current", self.filter_by_index(current_pose_list, value_trk))
-        #print("Emotion ['body_z_index:", target_pose_str[value_trk],"']")
-        #print("Result_", self.filter_by_index(new_pose_list, value_trk))
-        return new_pose_list
+        # Ensure that the number of elements in transitionPose matches with current_pose_list
+        assert len(transitionPose) == len(current_pose_list)
+
+        return transitionPose
 
     def animationMain(self): 
         self.ifacialmocap_pose =  self.animationBlink()
@@ -601,8 +589,31 @@ class MainFrame(wx.Frame):
 
         return result_dict
 
+    def dict_to_tensor(self, d):
+        if isinstance(d, dict):
+            return torch.tensor(list(d.values()))
+        elif isinstance(d, list):
+            return torch.tensor(d)
+        else:
+            raise ValueError("Unsupported data type passed to dict_to_tensor.")
+    
     def update_ifacualmocap_pose(self, ifacualmocap_pose, emotion_pose):
-        # Update eyebrow values
+        # Update Values - The following values are in emotion_pose but not defined in ifacualmocap_pose
+        # eye_happy_wink_left_index, eye_happy_wink_right_index
+        # eye_surprised_left_index, eye_surprised_right_index
+        # eye_relaxed_left_index, eye_relaxed_right_index
+        # eye_unimpressed
+        # eye_raised_lower_eyelid_left_index, eye_raised_lower_eyelid_right_index
+        # mouth_uuu_index
+        # mouth_eee_index
+        # mouth_ooo_index
+        # mouth_delta
+        # mouth_smirk
+        # body_y_index
+        # body_z_index
+        # breathing_index
+
+
         ifacualmocap_pose['browDownLeft'] = emotion_pose['eyebrow_troubled_left_index']
         ifacualmocap_pose['browDownRight'] = emotion_pose['eyebrow_troubled_right_index']
         ifacualmocap_pose['browOuterUpLeft'] = emotion_pose['eyebrow_angry_left_index']
@@ -656,101 +667,105 @@ class MainFrame(wx.Frame):
         ifacualmocap_pose['mouthPressRight'] = emotion_pose['mouth_raised_corner_right_index']
 
         return ifacualmocap_pose
-
-    def update_ifacualmocap_pose_anmi(self, ifacualmocap_pose, emotion_pose):
-        for key in emotion_pose:
-            emotion_pose[key] *= 0.1
-
-        # Update eyebrow values
-        eyebrow_troubled_left_target = emotion_pose['eyebrow_troubled_left_index']
-        eyebrow_troubled_left_current = ifacualmocap_pose['browDownLeft']
-        ifacualmocap_pose['browDownLeft'] += (eyebrow_troubled_left_target - eyebrow_troubled_left_current) * 0.1
-
-        eyebrow_troubled_right_target = emotion_pose['eyebrow_troubled_right_index']
-        eyebrow_troubled_right_current = ifacualmocap_pose['browDownRight']
-        ifacualmocap_pose['browDownRight'] += (eyebrow_troubled_right_target - eyebrow_troubled_right_current) * 0.1
-
-        eyebrow_angry_left_target = emotion_pose['eyebrow_angry_left_index']
-        eyebrow_angry_left_current = ifacualmocap_pose['browOuterUpLeft']
-        ifacualmocap_pose['browOuterUpLeft'] += (eyebrow_angry_left_target - eyebrow_angry_left_current) * 0.1
-
-        eyebrow_angry_right_target = emotion_pose['eyebrow_angry_right_index']
-        eyebrow_angry_right_current = ifacualmocap_pose['browOuterUpRight']
-        ifacualmocap_pose['browOuterUpRight'] += (eyebrow_angry_right_target - eyebrow_angry_right_current) * 0.1
-
-        eyebrow_happy_left_target = emotion_pose['eyebrow_happy_left_index']
-        eyebrow_happy_left_current = ifacualmocap_pose['browInnerUp']
-        ifacualmocap_pose['browInnerUp'] += (eyebrow_happy_left_target - eyebrow_happy_left_current) * 0.1
-
-        eyebrow_happy_right_target = emotion_pose['eyebrow_happy_right_index']
-        eyebrow_happy_right_current = ifacualmocap_pose['browInnerUp']
-        ifacualmocap_pose['browInnerUp'] += (eyebrow_happy_right_target - eyebrow_happy_right_current) * 0.1
-
-        eyebrow_raised_left_target = emotion_pose['eyebrow_raised_left_index']
-        eyebrow_raised_left_current = ifacualmocap_pose['browDownLeft']
-        ifacualmocap_pose['browDownLeft'] += (eyebrow_raised_left_target - eyebrow_raised_left_current) * 0.1
-
-        eyebrow_raised_right_target = emotion_pose['eyebrow_raised_right_index']
-        eyebrow_raised_right_current = ifacualmocap_pose['browDownRight']
-        ifacualmocap_pose['browDownRight'] += (eyebrow_raised_right_target - eyebrow_raised_right_current) * 0.1
-
-        eyebrow_lowered_left_target = emotion_pose['eyebrow_lowered_left_index']
-        eyebrow_lowered_left_current = ifacualmocap_pose['browDownLeft']
-        ifacualmocap_pose['browDownLeft'] += (eyebrow_lowered_left_target - eyebrow_lowered_left_current) * 0.1
-
-        eyebrow_lowered_right_target = emotion_pose['eyebrow_lowered_right_index']
-        eyebrow_lowered_right_current = ifacualmocap_pose['browDownRight']
-        ifacualmocap_pose['browDownRight'] += (eyebrow_lowered_right_target - eyebrow_lowered_right_current) * 0.1
-
-        eyebrow_serious_left_target = emotion_pose['eyebrow_serious_left_index']
-        eyebrow_serious_left_current = ifacualmocap_pose['browDownLeft']
-        ifacualmocap_pose['browDownLeft'] += (eyebrow_serious_left_target - eyebrow_serious_left_current) * 0.1
-
-        eyebrow_serious_right_target = emotion_pose['eyebrow_serious_right_index']
-        eyebrow_serious_right_current = ifacualmocap_pose['browDownRight']
-        ifacualmocap_pose['browDownRight'] += (eyebrow_serious_right_target - eyebrow_serious_right_current) * 0.1
-
-        # Update eye values
-        ifacualmocap_pose['eyeWideLeft'] = emotion_pose['eye_surprised_left_index']
-        ifacualmocap_pose['eyeWideRight'] = emotion_pose['eye_surprised_right_index']
-
-        # Update iris rotation values
-        ifacualmocap_pose['eyeLookInLeft'] = -emotion_pose['iris_rotation_y_index']
-        ifacualmocap_pose['eyeLookOutLeft'] = emotion_pose['iris_rotation_y_index']
-        ifacualmocap_pose['eyeLookInRight'] = emotion_pose['iris_rotation_y_index']
-        ifacualmocap_pose['eyeLookOutRight'] = -emotion_pose['iris_rotation_y_index']
-        ifacualmocap_pose['eyeLookUpLeft'] = emotion_pose['iris_rotation_x_index']
-        ifacualmocap_pose['eyeLookDownLeft'] = -emotion_pose['iris_rotation_x_index']
-        ifacualmocap_pose['eyeLookUpRight'] = emotion_pose['iris_rotation_x_index']
-        ifacualmocap_pose['eyeLookDownRight'] = -emotion_pose['iris_rotation_x_index']
-
-        # Update iris size values
-        ifacualmocap_pose['irisWideLeft'] = emotion_pose['iris_small_left_index']
-        ifacualmocap_pose['irisWideRight'] = emotion_pose['iris_small_right_index']
-
-        # Update head rotation values
-        ifacualmocap_pose['headBoneX'] = -emotion_pose['head_x_index'] * 15.0
-        ifacualmocap_pose['headBoneY'] = -emotion_pose['head_y_index'] * 10.0
-        ifacualmocap_pose['headBoneZ'] = emotion_pose['neck_z_index'] * 15.0
-
-        # Update mouth values
-        ifacualmocap_pose['mouthSmileLeft'] = emotion_pose['mouth_aaa_index']
-        ifacualmocap_pose['mouthSmileRight'] = emotion_pose['mouth_aaa_index']
-        ifacualmocap_pose['mouthFrownLeft'] = emotion_pose['mouth_lowered_corner_left_index']
-        ifacualmocap_pose['mouthFrownRight'] = emotion_pose['mouth_lowered_corner_right_index']
-        ifacualmocap_pose['mouthPressLeft'] = emotion_pose['mouth_raised_corner_left_index']
-        ifacualmocap_pose['mouthPressRight'] = emotion_pose['mouth_raised_corner_right_index']
-
-        # Update wink values
-        if random.random() <= 0.03: #RANDOM BLINK ELSE GOTO EMO
-            ifacualmocap_pose["eyeBlinkRight"] = 1
-            ifacualmocap_pose["eyeBlinkLeft"] = 1
-        else:
-            ifacualmocap_pose['eyeBlinkLeft'] = emotion_pose['eye_wink_left_index']
-            ifacualmocap_pose['eyeBlinkRight'] = emotion_pose['eye_wink_right_index']
-
-        return ifacualmocap_pose
     
+    def update_talking_pose(self, tranisitiondPose):
+        global is_talking, is_talking_override
+
+        MOUTHPARTS = ['mouth_aaa_index']
+
+        updated_list = []
+
+        for item in tranisitiondPose:
+            key, value = item.split(': ')
+            
+            if key in MOUTHPARTS and is_talking_override:
+                new_value = self.random_generate_value(-5000, 5000, abs(1 - float(value)))
+                updated_list.append(f"{key}: {new_value}")
+            else:
+                updated_list.append(item)
+        
+        return updated_list
+
+    def update_sway_pose_good(self, tranisitiondPose):
+        MOVEPARTS = ['head_y_index']
+        updated_list = []
+
+        print( self.start_values, self.targets, self.progress, self.direction )
+
+        for item in tranisitiondPose:
+            key, value = item.split(': ')
+            
+            if key in MOVEPARTS:
+                current_value = float(value)
+                
+                # If progress reaches 1 or 0
+                if self.progress[key] >= 1 or self.progress[key] <= 0:
+                    # Reverse direction
+                    self.direction[key] *= -1
+
+                    # If direction is now forward, set a new target and store starting value
+                    if self.direction[key] == 1:
+                        self.start_values[key] = current_value
+                        self.targets[key] = current_value + random.uniform(-1, 1)
+                        self.progress[key] = 0  # Reset progress when setting a new target
+
+                # Use lerp to interpolate between start and target values
+                new_value = self.start_values[key] + self.progress[key] * (self.targets[key] - self.start_values[key])
+                
+                # Ensure the value remains within bounds (just in case)
+                new_value = min(max(new_value, -1), 1)
+                
+                # Update progress based on direction
+                self.progress[key] += 0.02 * self.direction[key]
+
+                updated_list.append(f"{key}: {new_value}")
+            else:
+                updated_list.append(item)
+
+        return updated_list
+
+    def update_sway_pose(self, tranisitiondPose):
+        MOVEPARTS = ['head_y_index']
+        updated_list = []
+
+        print( self.start_values, self.targets, self.progress, self.direction )
+
+        for item in tranisitiondPose:
+            key, value = item.split(': ')
+            
+            if key in MOVEPARTS:
+                current_value = float(value)
+
+                # Use lerp to interpolate between start and target values
+                new_value = self.start_values[key] + self.progress[key] * (self.targets[key] - self.start_values[key])
+                
+                # Ensure the value remains within bounds (just in case)
+                new_value = min(max(new_value, -1), 1)
+                
+                # Check if we've reached the target or start value
+                is_close_to_target = abs(new_value - self.targets[key]) < 0.04
+                is_close_to_start = abs(new_value - self.start_values[key]) < 0.04
+
+                if (self.direction[key] == 1 and is_close_to_target) or (self.direction[key] == -1 and is_close_to_start):
+                    # Reverse direction
+                    self.direction[key] *= -1
+
+                    # If direction is now forward, set a new target and store starting value
+                    if self.direction[key] == 1:
+                        self.start_values[key] = new_value
+                        self.targets[key] = current_value + random.uniform(-0.6, 0.6)
+                        self.progress[key] = 0  # Reset progress when setting a new target
+
+                # Update progress based on direction
+                self.progress[key] += 0.02 * self.direction[key]
+
+                updated_list.append(f"{key}: {new_value}")
+            else:
+                updated_list.append(item)
+
+        return updated_list
+
+
     def update_result_image_bitmap(self, event: Optional[wx.Event] = None):
         global global_timer_paused
         global initAMI
@@ -759,6 +774,8 @@ class MainFrame(wx.Frame):
         global emotion
         global fps
         global current_pose
+        global is_talking
+        global is_talking_override
         
         if global_timer_paused:
             return
@@ -776,42 +793,68 @@ class MainFrame(wx.Frame):
             #NEW METHOD 
             #CREATES THE DEFAULT POSE AND STORES OBJ IN STRING
             ifacialmocap_pose = self.animationMain()
-          
+            #print("ifacialmocap_pose", ifacialmocap_pose)
+            
             #GET EMOTION SETTING
             emotion_pose = self.get_emotion_values(emotion)
-            
+            #print("emotion_pose ", emotion_pose)
+
             #MERGE EMOTION SETTING WITH CURRENT OUTPUT
             updated_pose = self.update_ifacualmocap_pose(ifacialmocap_pose, emotion_pose)
+            #print("updated_pose ", updated_pose)
 
             #CONVERT RESULT TO FORMAT NN CAN USE
             current_pose = self.pose_converter.convert(updated_pose) 
+            #print("current_pose ", current_pose)
 
             #SEND THROUGH CONVERT
             current_pose = self.pose_converter.convert(ifacialmocap_pose) 
+            #print("current_pose2 ", current_pose)         
 
             #ADD LABELS/NAMES TO THE POSE
             names_current_pose = MainFrame.addNamestoConvert(current_pose) 
+            #print("current pose :", names_current_pose)
 
-            #GET THE EMOTION VALUES
-            adjusted_pose = self.get_emotion_values(emotion)  
+            #GET THE EMOTION VALUES again for some reason
+            emotion_pose2 = self.get_emotion_values(emotion)  
+            #print("target pose  :", emotion_pose2)
+
+            #APPLY VALUES TO THE POSE AGAIN?? This needs to overwrite the values
+            tranisitiondPose = self.animateToEmotion(names_current_pose, emotion_pose2)  
+            #print("combine pose :", tranisitiondPose)
+
+            #Animate Talking
+            tranisitiondPose = self.update_talking_pose(tranisitiondPose)
             
-            #APPLY VALUES TO THE POSE
-            tranisitiondPose = self.animateToEmotion(names_current_pose, adjusted_pose)  
+            #Animate Talking
+            tranisitiondPose = self.update_sway_pose(tranisitiondPose)
 
-            #reformate the data correctly
+            #reformat the data correctly
             parsed_data = []
             for item in tranisitiondPose:
                 key, value_str = item.split(': ')
                 value = float(value_str)
                 parsed_data.append((key, value))
             tranisitiondPosenew = [value for _, value in parsed_data]
+            #tranisitiondPosenew = tranisitiondPose
+            #print(tranisitiondPosenew)
+
+            #print("Pose sent to : ", tranisitiondPosenew)
+
+
+            #tranisitiondPosenew = list(tranisitiondPosenew.values())
+            
 
             #Set the pose for future updates
             ifacialmocap_pose = tranisitiondPosenew
+            #print("tranisitiondPosenew ", tranisitiondPosenew)
 
             #print("current_pose", current_pose[12])
             #print("tranisitiondPosenew ", tranisitiondPosenew[12])    
             
+
+            #NEEDS LIST OF 45 NUMS
+            # [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.2051042893950685]
 
             if self.torch_source_image is None:
                 dc = wx.MemoryDC()
@@ -820,7 +863,8 @@ class MainFrame(wx.Frame):
                 del dc
                 return
 
-            pose = torch.tensor(tranisitiondPosenew, device=self.device, dtype=self.poser.get_dtype())
+            #pose = torch.tensor(tranisitiondPosenew, device=self.device, dtype=self.poser.get_dtype())
+            pose = self.dict_to_tensor(tranisitiondPosenew).to(device=self.device, dtype=self.poser.get_dtype())
 
             with torch.no_grad():
                 output_image = self.poser.pose(self.torch_source_image, pose)[0].float()
