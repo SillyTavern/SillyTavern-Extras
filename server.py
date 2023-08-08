@@ -925,8 +925,6 @@ def chromadb_purge():
 
     count = collection.count()
     collection.delete()
-    #Write deletion to persistent folder
-    chromadb_client.persist()
     print("ChromaDB embeddings deleted", count)
     return 'Ok', 200
 
