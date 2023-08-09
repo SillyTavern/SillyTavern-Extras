@@ -2,7 +2,7 @@
 
 # Recent news
 
-* We're migrating SillyTavern - Extras to Python 3.11, some of the modules new will be incompatible with old Python 3.10 installs. Stay tuned.
+* We're migrating SillyTavern - Extras to Python 3.11, some of the modules new will be incompatible with old Python 3.10 installs. To migrate using conda, please remove the old environment using `conda remove --name extras --all` and reinstall using the instructions below.
 
 ## What is this
 A set of APIs for various SillyTavern extensions.
