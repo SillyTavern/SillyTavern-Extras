@@ -885,13 +885,7 @@ class MainFrame(wx.Frame):
             #APPLY VALUES TO THE POSE AGAIN?? This needs to overwrite the values
             tranisitiondPose = self.animateToEmotion(names_current_pose, emotion_pose2)  
             #print("combine pose :", tranisitiondPose)
-
-            #Animate Talking
-            tranisitiondPose = self.update_talking_pose(tranisitiondPose)
-            
-            #Animate Head Sway
-            tranisitiondPose = self.update_sway_pose(tranisitiondPose)
-
+        
             #smooth animate
             #print("LAST   VALUES: ", lasttranisitiondPose)
             #print("TARGER VALUES: ", tranisitiondPose)
@@ -902,6 +896,12 @@ class MainFrame(wx.Frame):
 
             #Animate blinking
             tranisitiondPose = self.update_blinking_pose(tranisitiondPose)
+
+            #Animate Head Sway
+            tranisitiondPose = self.update_sway_pose(tranisitiondPose)
+
+            #Animate Talking
+            tranisitiondPose = self.update_talking_pose(tranisitiondPose)
 
             #reformat the data correctly
             parsed_data = []
