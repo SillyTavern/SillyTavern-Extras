@@ -176,7 +176,8 @@ class MainFrame(wx.Frame):
         self.poser = poser
         self.device = device
 
-
+        self.last_blink_timestamp = 0
+        self.is_blinked = False
         self.targets = {"head_y_index": 0}
         self.progress = {"head_y_index": 0}
         self.direction = {"head_y_index": 1}
@@ -633,13 +634,9 @@ class MainFrame(wx.Frame):
         ifacualmocap_pose['eyeWideLeft'] = emotion_pose['eye_surprised_left_index']
         ifacualmocap_pose['eyeWideRight'] = emotion_pose['eye_surprised_right_index']
 
-        # Update wink values
-        if random.random() <= 0.03: #RANDOM BLINK ELSE GOTO EMO
-            ifacualmocap_pose["eyeBlinkRight"] = 100000
-            ifacualmocap_pose["eyeBlinkLeft"] = 100000
-        else:
-            ifacualmocap_pose['eyeBlinkLeft'] = emotion_pose['eye_wink_left_index']
-            ifacualmocap_pose['eyeBlinkRight'] = emotion_pose['eye_wink_right_index']
+        # Update eye blink (though we will overwrite it later)
+        ifacualmocap_pose['eyeBlinkLeft'] = emotion_pose['eye_wink_left_index']
+        ifacualmocap_pose['eyeBlinkRight'] = emotion_pose['eye_wink_right_index']
 
         # Update iris rotation values
         ifacualmocap_pose['eyeLookInLeft'] = -emotion_pose['iris_rotation_y_index']
@@ -669,7 +666,24 @@ class MainFrame(wx.Frame):
         ifacualmocap_pose['mouthPressRight'] = emotion_pose['mouth_raised_corner_right_index']
 
         return ifacualmocap_pose
-    
+
+    def update_blinking_pose(self, tranisitiondPose):
+        PARTS = ['wink_left_index', 'wink_right_index']
+        updated_list = []
+
+        should_blink = random.random() <= 0.03  # Determine if there should be a blink
+
+        for item in tranisitiondPose:
+            key, value = item.split(': ')
+            if key in PARTS:
+                # If there should be a blink, set value to 1; otherwise, use the provided value
+                new_value = 1 if should_blink else float(value)
+                updated_list.append(f"{key}: {new_value}")
+            else:
+                updated_list.append(item)
+
+        return updated_list
+
     def update_talking_pose(self, tranisitiondPose):
         global is_talking, is_talking_override
 
@@ -792,8 +806,15 @@ class MainFrame(wx.Frame):
         for key, last_value in last_transition_dict.items():
             # If the key exists in transition_dict, increment its value by 0.4 and clip it to the target
             if key in transition_dict:
-                delta = transition_dict[key] - last_value
-                last_value += delta * 0.1
+
+                # If the key is 'wink_left_index' or 'wink_right_index', set the value directly dont animate blinks
+                if key in ['wink_left_index', 'wink_right_index']: # BLINK FIX
+                    last_value = transition_dict[key]
+
+                # For all other keys, increment its value by 0.1 of the delta and clip it to the target
+                else:
+                    delta = transition_dict[key] - last_value
+                    last_value += delta * 0.1
 
             # Reconstruct the string and append it to the updated list
             updated_last_transition_pose.append(f"{key}: {last_value}")
@@ -805,8 +826,6 @@ class MainFrame(wx.Frame):
             inMotion = False
 
         return updated_last_transition_pose
-
-
 
     def update_result_image_bitmap(self, event: Optional[wx.Event] = None):
         global global_timer_paused
@@ -835,7 +854,8 @@ class MainFrame(wx.Frame):
 
             #NEW METHOD 
             #CREATES THE DEFAULT POSE AND STORES OBJ IN STRING
-            ifacialmocap_pose = self.animationMain()
+            #ifacialmocap_pose = self.animationMain() #DISABLE FOR TESTING!!!!!!!!!!!!!!!!!!!!!!!!
+            ifacialmocap_pose = self.ifacialmocap_pose
             #print("ifacialmocap_pose", ifacialmocap_pose)
             
             #GET EMOTION SETTING
@@ -865,13 +885,7 @@ class MainFrame(wx.Frame):
             #APPLY VALUES TO THE POSE AGAIN?? This needs to overwrite the values
             tranisitiondPose = self.animateToEmotion(names_current_pose, emotion_pose2)  
             #print("combine pose :", tranisitiondPose)
-
-            #Animate Talking
-            tranisitiondPose = self.update_talking_pose(tranisitiondPose)
-            
-            #Animate Head Sway
-            tranisitiondPose = self.update_sway_pose(tranisitiondPose)
-
+        
             #smooth animate
             #print("LAST   VALUES: ", lasttranisitiondPose)
             #print("TARGER VALUES: ", tranisitiondPose)
@@ -880,7 +894,14 @@ class MainFrame(wx.Frame):
                 tranisitiondPose = self.update_transition_pose(lasttranisitiondPose, tranisitiondPose)
                 #print("smoothed: ", tranisitiondPose)
 
+            #Animate blinking
+            tranisitiondPose = self.update_blinking_pose(tranisitiondPose)
 
+            #Animate Head Sway
+            tranisitiondPose = self.update_sway_pose(tranisitiondPose)
+
+            #Animate Talking
+            tranisitiondPose = self.update_talking_pose(tranisitiondPose)
 
             #reformat the data correctly
             parsed_data = []
