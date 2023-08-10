@@ -20,8 +20,8 @@ import os
 import logging
 
 DEBUG_PREFIX = "<RVC module>"
-INPUT_FILE_PATH = "rvc_input.wav" #"./data/tmp/rvc_input.wav"
-OUTPUT_FILE_PATH = "rvc_output.wav" #"./data/tmp/rvc_output.wav"
+INPUT_FILE_PATH = "data/tmp/rvc_input.wav" #"./data/tmp/rvc_input.wav"
+OUTPUT_FILE_PATH = "data/tmp/rvc_output.wav" #"./data/tmp/rvc_output.wav"
 
 def rvc_process_audio():
     """
