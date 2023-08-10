@@ -226,6 +226,8 @@ def get_coqui_models(): #DROPDOWN MODELS
                     file_paths.append(str(Path(folder, file)))
 
     merged_json = json.dumps(file_paths)
+
+    os.chdir(cwd)
     return merged_json
 
 def coqui_checkmap():
@@ -262,6 +264,8 @@ def coqui_checkmap():
 
     # Replace double backslashes with single backslashes
     #keyed_json_string = keyed_json_string.replace("\\\\", "\\")
+
+    os.chdir(cwd)
 
     return keyed_json_string
 

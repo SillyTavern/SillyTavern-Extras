@@ -17,10 +17,12 @@ silero-api-server
 chromadb
 sentence_transformers
 edge-tts
-TTS
+
 vosk
 sounddevice
 openai-whisper
+
+TTS
 fastapi
 wxpython
 mecab-python3
