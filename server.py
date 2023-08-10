@@ -371,6 +371,9 @@ if "streaming-stt" in modules:
 
 if "rvc" in modules:
     print("Initializing RVC voice conversion (from ST request file)")
+    
+    import sys
+    sys.path.insert(0,'modules/voice_conversion')
 
     import modules.voice_conversion.rvc_module as rvc_module
     #app.add_url_rule("/api/voice-conversion/rvc/load-model", view_func=rvc_module.rvc_load_model, methods=["POST"])
