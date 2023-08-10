@@ -96,9 +96,10 @@ def load_model(_model, _gpu, _progress):
         if model_type(_config_path) == "tortoise":
             print("Loading Tortoise...")
             print("_model", _model)
-            print("Tortoise not supported at the moment im tired of working on this")
-            #_loadtortoisemodel = _model_directory.replace("--", "/")
-            #print("_loadtortoisemodel", _loadtortoisemodel)
+            #print("Tortoise not supported at the moment im tired of working on this")
+
+            _loadtortoisemodel = _model_directory.replace("--", "/")
+            print("_loadtortoisemodel", _loadtortoisemodel)
 
             #config = TortoiseConfig()
             #model = Tortoise.init_from_config(config)
@@ -106,9 +107,11 @@ def load_model(_model, _gpu, _progress):
 
             #tts = TTS(_loadtortoisemodel)
             #tts = TTS(model_name="tts_models/en/multi-dataset/tortoise-v2", progress_bar=True, gpu=True)
+            tts = TTS(_loadtortoisemodel, gpu=_gpu)
 
-            #loadedModel = _model
-            #print("loaded model", loadedModel)
+
+            loadedModel = _model
+            print("loaded model", loadedModel)
 
         if model_type(_config_path) == "bark":
             print("Loading Bark...")
