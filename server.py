@@ -86,7 +86,7 @@ parser.add_argument('--chroma-persist', help="ChromaDB persistence", default=Tru
 parser.add_argument(
     "--secure", action="store_true", help="Enforces the use of an API key"
 )
-parser.add_argument("--live2d-gpu", action="store_true", help="Run the live2d animation on the GPU (CPU is default)")
+parser.add_argument("--talkinghead-gpu", action="store_true", help="Run the talkinghead animation on the GPU (CPU is default)")
 parser.add_argument("--coqui-gpu", action="store_false", help="Run the voice models on the GPU (CPU is default)")
 parser.add_argument("--coqui-model", help="Load a custom Coqui TTS model")
 parser.add_argument("--stt-vosk-model-path", help="Load a custom vosk speech-to-text model")
@@ -175,27 +175,27 @@ if not torch.cuda.is_available() and not args.cpu:
 
 print(f"{Fore.GREEN}{Style.BRIGHT}Using torch device: {device_string}{Style.RESET_ALL}")
 
-if "live2d" in modules:
+if "talkinghead" in modules:
     import sys
     import threading
-    mode = "cuda" if args.live2d_gpu else "cpu"
-    print("Initializing live2d pipeline in " + mode + " mode....")
-    live2d_path = os.path.abspath(os.path.join(os.getcwd(), "live2d"))
-    sys.path.append(live2d_path) # Add the path to the 'tha3' module to the sys.path list
+    mode = "cuda" if args.talkinghead_gpu else "cpu"
+    print("Initializing talkinghead pipeline in " + mode + " mode....")
+    talkinghead_path = os.path.abspath(os.path.join(os.getcwd(), "talkinghead"))
+    sys.path.append(talkinghead_path) # Add the path to the 'tha3' module to the sys.path list
 
     try:
-        import live2d.tha3.app.app as live2d
-        from live2d import *
-        def launch_live2d_gui():
-            live2d.launch_gui(mode, "separable_float")
+        import talkinghead.tha3.app.app as talkinghead
+        from talkinghead import *
+        def launch_talkinghead_gui():
+            talkinghead.launch_gui(mode, "separable_float")
         #choices=['standard_float', 'separable_float', 'standard_half', 'separable_half'],
         #choices='The device to use for PyTorch ("cuda" for GPU, "cpu" for CPU).'
-        live2d_thread = threading.Thread(target=launch_live2d_gui)
-        live2d_thread.daemon = True  # Set the thread as a daemon thread
-        live2d_thread.start()
+        talkinghead_thread = threading.Thread(target=launch_talkinghead_gui)
+        talkinghead_thread.daemon = True  # Set the thread as a daemon thread
+        talkinghead_thread.start()
 
     except ModuleNotFoundError:
-        print("Error: Could not import the 'live2d' module.")
+        print("Error: Could not import the 'talkinghead' module.")
 
 if "caption" in modules:
     print("Initializing an image captioning model...")
@@ -625,8 +625,8 @@ def api_classify():
     classification = classify_text(data["text"])
     print("Classification output:", classification, sep="\n")
     gc.collect()
-    if "live2d" in modules: #send emotion to live2d
-        live2d.setEmotion(classification)
+    if "talkinghead" in modules: #send emotion to talkinghead
+        talkinghead.setEmotion(classification)
     return jsonify({"classification": classification})
 
 
@@ -635,31 +635,31 @@ def api_classify():
 def api_classify_labels():
     classification = classify_text("")
     labels = [x["label"] for x in classification]
-    if "live2d" in modules:
-        labels.append('live2d')  # Add 'live2d' to the labels list
+    if "talkinghead" in modules:
+        labels.append('talkinghead')  # Add 'talkinghead' to the labels list
     return jsonify({"labels": labels})
 
-@app.route("/api/live2d/load", methods=["POST"])
+@app.route("/api/talkinghead/load", methods=["POST"])
 def live_load():
     file = request.files['file']
-    # convert stream to bytes and pass to live2d_load
-    return live2d.live2d_load_file(file.stream)
+    # convert stream to bytes and pass to talkinghead_load
+    return talkinghead.talkinghead_load_file(file.stream)
 
-@app.route('/api/live2d/unload')
+@app.route('/api/talkinghead/unload')
 def live_unload():
-    return live2d.unload()
+    return talkinghead.unload()
 
-@app.route('/api/live2d/start_talking')
+@app.route('/api/talkinghead/start_talking')
 def start_talking():
-    return live2d.start_talking()
+    return talkinghead.start_talking()
 
-@app.route('/api/live2d/stop_talking')
+@app.route('/api/talkinghead/stop_talking')
 def stop_talking():
-    return live2d.stop_talking()
+    return talkinghead.stop_talking()
 
-@app.route('/api/live2d/result_feed')
+@app.route('/api/talkinghead/result_feed')
 def result_feed():
-    return live2d.result_feed()
+    return talkinghead.result_feed()
 
 @app.route("/api/coqui-tts/load", methods=["GET"])
 @require_module("coqui-tts")

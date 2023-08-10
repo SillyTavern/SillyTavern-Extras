@@ -138,7 +138,7 @@ cd SillyTavern-extras
 | `edge-tts` | [Microsoft Edge TTS client](https://github.com/rany2/edge-tts) | ✔️ Yes |
 | `coqui-tts` | [Coqui TTS server](https://github.com/coqui-ai/TTS) | :x: No |
 | `chromadb`  | Infinity context server           | :x: No |
-| `live2d`  | Talking Head Sprites           | :x: No |
+| `talkinghead`  | Talking Head Sprites           | :x: No |
 
 ## Additional options
 | Flag                     | Description                                                            |
@@ -152,7 +152,7 @@ cd SillyTavern-extras
 | `--mps` or `--m1`        | Run the models on Apple Silicon. Only for M1 and M2 processors. |
 | `--cuda`                 | Uses CUDA (GPU+VRAM) to run modules if it is available. Otherwise, falls back to using CPU. |
 | `--cuda-device`          | Specifies a CUDA device to use. Defaults to `cuda:0` (first available GPU). |
-| `--live2d-gpu`           | Uses GPU for live2d (10x FPS increase in animation). |
+| `--talkinghead-gpu`           | Uses GPU for talkinghead (10x FPS increase in animation). |
 | `--coqui-gpu`            | Uses GPU for coqui TTS (if available). |
 | `--coqui-model`          | If provided, downloads and preloads a coqui TTS model. Default: none.<br>Example: `tts_models/multilingual/multi-dataset/bark` |
 | `--summarization-model`  | Load a custom summarization model.<br>Expects a HuggingFace model ID.<br>Default: [Qiliang/bart-large-cnn-samsum-ChatGPT_v3](https://huggingface.co/Qiliang/bart-large-cnn-samsum-ChatGPT_v3) |
@@ -512,31 +512,31 @@ _progress (string, Optional): Show progress bar in terminal.
 #### **Output**
 MP3 audio file.
 
-### Loads a Live2D character by specifying the character's image URL.
-`GET /api/live2d/load`
+### Loads a talkinghead character by specifying the character's image URL.
+`GET /api/talkinghead/load`
 #### **Parameters**
 loadchar (string, required): The URL of the character's image. The URL should point to a PNG image.
 { "loadchar": "http://localhost:8000/characters/Aqua.png" }
 #### **Example**
-'http://localhost:5100/api/live2d/load?loadchar=http://localhost:8000/characters/Aqua.png'
+'http://localhost:5100/api/talkinghead/load?loadchar=http://localhost:8000/characters/Aqua.png'
 #### **Output**
 'OK'
 
-### Animates the live2d sprite to start talking.
-`GET /api/live2d/start_talking`
+### Animates the talkinghead sprite to start talking.
+`GET /api/talkinghead/start_talking`
 #### **Example**
-'http://localhost:5100/api/live2d/start_talking'
+'http://localhost:5100/api/talkinghead/start_talking'
 #### **Output**
 "started"
 
-### Animates the live2d sprite to stop talking.
-`GET /api/live2d/stop_talking`
+### Animates the talkinghead sprite to stop talking.
+`GET /api/talkinghead/stop_talking`
 #### **Example**
-'http://localhost:5100/api/live2d/stop_talking'
+'http://localhost:5100/api/talkinghead/stop_talking'
 #### **Output**
 "stopped"
 
-### Outputs the animated live2d sprite.
-`GET /api/live2d/result_feed`
+### Outputs the animated talkinghead sprite.
+`GET /api/talkinghead/result_feed`
 #### **Output**
 Animated transparent image

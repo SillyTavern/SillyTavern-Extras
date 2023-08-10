@@ -6,11 +6,11 @@ from torch import Tensor
 from torch.nn import Module
 from torch.nn.functional import interpolate
 
-from tha3.nn.eyebrow_decomposer.eyebrow_decomposer_03 import EyebrowDecomposer03Factory, \
-    EyebrowDecomposer03Args, EyebrowDecomposer03
-from tha3.nn.eyebrow_morphing_combiner.eyebrow_morphing_combiner_03 import \
-    EyebrowMorphingCombiner03Factory, EyebrowMorphingCombiner03Args, EyebrowMorphingCombiner03
-from tha3.nn.face_morpher.face_morpher_09 import FaceMorpher09Factory, FaceMorpher09Args
+from tha3.nn.eyebrow_decomposer.eyebrow_decomposer_00 import EyebrowDecomposer00, \
+    EyebrowDecomposer00Factory, EyebrowDecomposer00Args
+from tha3.nn.eyebrow_morphing_combiner.eyebrow_morphing_combiner_00 import \
+    EyebrowMorphingCombiner00Factory, EyebrowMorphingCombiner00Args, EyebrowMorphingCombiner00
+from tha3.nn.face_morpher.face_morpher_08 import FaceMorpher08Args, FaceMorpher08Factory
 from tha3.poser.general_poser_02 import GeneralPoser02
 from tha3.poser.poser import PoseParameterCategory, PoseParameters
 from tha3.nn.editor.editor_07 import Editor07, Editor07Args
@@ -81,8 +81,8 @@ class FiveStepPoserComputationProtocol(CachedComputationProtocol):
             return modules[Network.eyebrow_decomposer.name].forward(input_image)
         elif key == Network.eyebrow_morphing_combiner.outputs_key:
             eyebrow_decomposer_output = self.get_output(Network.eyebrow_decomposer.outputs_key, modules, batch, outputs)
-            background_layer = eyebrow_decomposer_output[EyebrowDecomposer03.BACKGROUND_LAYER_INDEX]
-            eyebrow_layer = eyebrow_decomposer_output[EyebrowDecomposer03.EYEBROW_LAYER_INDEX]
+            background_layer = eyebrow_decomposer_output[EyebrowDecomposer00.BACKGROUND_LAYER_INDEX]
+            eyebrow_layer = eyebrow_decomposer_output[EyebrowDecomposer00.EYEBROW_LAYER_INDEX]
             eyebrow_pose = batch[1][:, :NUM_EYEBROW_PARAMS]
             return modules[Network.eyebrow_morphing_combiner.name].forward(
                 background_layer,
@@ -143,8 +143,8 @@ class FiveStepPoserComputationProtocol(CachedComputationProtocol):
 
 
 def load_eyebrow_decomposer(file_name: str):
-    factory = EyebrowDecomposer03Factory(
-        EyebrowDecomposer03Args(
+    factory = EyebrowDecomposer00Factory(
+        EyebrowDecomposer00Args(
             image_size=128,
             image_channels=4,
             start_channels=64,
@@ -157,15 +157,15 @@ def load_eyebrow_decomposer(file_name: str):
                 normalization_layer_factory=InstanceNorm2dFactory(),
                 nonlinearity_factory=ReLUFactory(inplace=True))))
     print("Loading the eyebrow decomposer ... ", end="")
-    module = factory.create().half()
+    module = factory.create()
     module.load_state_dict(torch_load(file_name))
     print("DONE!!!")
     return module
 
 
 def load_eyebrow_morphing_combiner(file_name: str):
-    factory = EyebrowMorphingCombiner03Factory(
-        EyebrowMorphingCombiner03Args(
+    factory = EyebrowMorphingCombiner00Factory(
+        EyebrowMorphingCombiner00Args(
             image_size=128,
             image_channels=4,
             start_channels=64,
@@ -179,18 +179,18 @@ def load_eyebrow_morphing_combiner(file_name: str):
                 normalization_layer_factory=InstanceNorm2dFactory(),
                 nonlinearity_factory=ReLUFactory(inplace=True))))
     print("Loading the eyebrow morphing conbiner ... ", end="")
-    module = factory.create().half()
+    module = factory.create()
     module.load_state_dict(torch_load(file_name))
     print("DONE!!!")
     return module
 
 
 def load_face_morpher(file_name: str):
-    factory = FaceMorpher09Factory(
-        FaceMorpher09Args(
+    factory = FaceMorpher08Factory(
+        FaceMorpher08Args(
             image_size=192,
             image_channels=4,
-            num_pose_params=27,
+            num_expression_params=27,
             start_channels=64,
             bottleneck_image_size=24,
             num_bottleneck_blocks=6,
@@ -201,7 +201,7 @@ def load_face_morpher(file_name: str):
                 normalization_layer_factory=InstanceNorm2dFactory(),
                 nonlinearity_factory=ReLUFactory(inplace=False))))
     print("Loading the face morpher ... ", end="")
-    module = factory.create().half()
+    module = factory.create()
     module.load_state_dict(torch_load(file_name))
     print("DONE!!!")
     return module
@@ -218,12 +218,11 @@ def load_two_algo_generator(file_name) -> Module:
             num_bottleneck_blocks=6,
             max_channels=512,
             upsample_mode='nearest',
-            use_separable_convolution=True,
             block_args=BlockArgs(
                 initialization_method='he',
                 use_spectral_norm=False,
                 normalization_layer_factory=InstanceNorm2dFactory(),
-                nonlinearity_factory=LeakyReLUFactory(inplace=False, negative_slope=0.1)))).half()
+                nonlinearity_factory=LeakyReLUFactory(inplace=False, negative_slope=0.1))))
     print("Loading the face-body rotator ... ", end="")
     module.load_state_dict(torch_load(file_name))
     print("DONE!!!")
@@ -241,12 +240,11 @@ def load_editor(file_name) -> Module:
             num_bottleneck_blocks=6,
             max_channels=512,
             upsampling_mode='nearest',
-            use_separable_convolution=True,
             block_args=BlockArgs(
                 initialization_method='he',
                 use_spectral_norm=False,
                 normalization_layer_factory=InstanceNorm2dFactory(),
-                nonlinearity_factory=LeakyReLUFactory(inplace=False, negative_slope=0.1)))).half()
+                nonlinearity_factory=LeakyReLUFactory(inplace=False, negative_slope=0.1))))
     print("Loading the combiner ... ", end="")
     module.load_state_dict(torch_load(file_name))
     print("DONE!!!")
@@ -291,28 +289,28 @@ def get_pose_parameters():
 def create_poser(
         device: torch.device,
         module_file_names: Optional[Dict[str, str]] = None,
-        eyebrow_morphed_image_index: int = EyebrowMorphingCombiner03.EYEBROW_IMAGE_NO_COMBINE_ALPHA_INDEX,
+        eyebrow_morphed_image_index: int = EyebrowMorphingCombiner00.EYEBROW_IMAGE_NO_COMBINE_ALPHA_INDEX,
         default_output_index: int = 0) -> GeneralPoser02:
     if module_file_names is None:
         module_file_names = {}
     if Network.eyebrow_decomposer.name not in module_file_names:
-        dir = "live2d/tha3/models/separable_half"
+        dir = "talkinghead/tha3/models/standard_float"
         file_name = dir + "/eyebrow_decomposer.pt"
         module_file_names[Network.eyebrow_decomposer.name] = file_name
     if Network.eyebrow_morphing_combiner.name not in module_file_names:
-        dir = "live2d/tha3/models/separable_half"
+        dir = "talkinghead/tha3/models/standard_float"
         file_name = dir + "/eyebrow_morphing_combiner.pt"
         module_file_names[Network.eyebrow_morphing_combiner.name] = file_name
     if Network.face_morpher.name not in module_file_names:
-        dir = "live2d/tha3/models/separable_half"
+        dir = "talkinghead/tha3/models/standard_float"
         file_name = dir + "/face_morpher.pt"
         module_file_names[Network.face_morpher.name] = file_name
     if Network.two_algo_face_body_rotator.name not in module_file_names:
-        dir = "live2d/tha3/models/separable_half"
+        dir = "talkinghead/tha3/models/standard_float"
         file_name = dir + "/two_algo_face_body_rotator.pt"
         module_file_names[Network.two_algo_face_body_rotator.name] = file_name
     if Network.editor.name not in module_file_names:
-        dir = "live2d/tha3/models/separable_half"
+        dir = "talkinghead/tha3/models/standard_float"
         file_name = dir + "/editor.pt"
         module_file_names[Network.editor.name] = file_name
 
@@ -336,7 +334,6 @@ def create_poser(
         subrect=None,
         device=device,
         output_length=29,
-        dtype=torch.half,
         default_output_index=default_output_index)
 
 
@@ -344,8 +341,8 @@ if __name__ == "__main__":
     device = torch.device('cuda')
     poser = create_poser(device)
 
-    image = torch.zeros(1, 4, 512, 512, device=device, dtype=torch.half)
-    pose = torch.zeros(1, 45, device=device, dtype=torch.half)
+    image = torch.zeros(1, 4, 512, 512, device=device)
+    pose = torch.zeros(1, 45, device=device)
 
     repeat = 100
     acc = 0.0
