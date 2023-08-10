@@ -369,6 +369,16 @@ if "streaming-stt" in modules:
     streaming_module.whisper_model, streaming_module.vosk_model = streaming_module.load_model(file_path=whisper_model_path)
     app.add_url_rule("/api/speech-recognition/streaming/record-and-transcript", view_func=streaming_module.record_and_transcript, methods=["POST"])
 
+if "rvc" in modules:
+    print("Initializing RVC voice conversion (from ST request file)")
+    
+    import sys
+    sys.path.insert(0,'modules/voice_conversion')
+
+    import modules.voice_conversion.rvc_module as rvc_module
+    #app.add_url_rule("/api/voice-conversion/rvc/load-model", view_func=rvc_module.rvc_load_model, methods=["POST"])
+    app.add_url_rule("/api/voice-conversion/rvc/process-audio", view_func=rvc_module.rvc_process_audio, methods=["POST"])
+
 def require_module(name):
     def wrapper(fn):
         @wraps(fn)
