@@ -143,7 +143,7 @@ def is_multi_speaker_model():
     try:
 
 
-        if type == "bark":
+        if type == "bark" or type == "tortoise":
             _target_directory = ModelManager().output_prefix
             # Convert _target_directory to a string and remove the trailing backslash if present
             _target_directory_str = str(_target_directory)
