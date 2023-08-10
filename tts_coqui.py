@@ -25,6 +25,7 @@ loadedModel = "None"
 spkdirectory = ""
 multspeakjson = ""
 _gpu = False
+is_coqui_available = os.environ.get("COQUI_STUDIO_TOKEN")
 
 def setGPU(flag):
     global _gpu
@@ -95,20 +96,9 @@ def load_model(_model, _gpu, _progress):
 
         if model_type(_config_path) == "tortoise":
             print("Loading Tortoise...")
-            print("_model", _model)
-            print("Tortoise not supported at the moment im tired of working on this")
-            #_loadtortoisemodel = _model_directory.replace("--", "/")
-            #print("_loadtortoisemodel", _loadtortoisemodel)
-
-            #config = TortoiseConfig()
-            #model = Tortoise.init_from_config(config)
-            #model.load_checkpoint(config, checkpoint_dir="C:/Users/jsviv/AppData/Local/tts/tts_models--en--multi-dataset--tortoise-v2", eval=False)
-
-            #tts = TTS(_loadtortoisemodel)
-            #tts = TTS(model_name="tts_models/en/multi-dataset/tortoise-v2", progress_bar=True, gpu=True)
-
-            #loadedModel = _model
-            #print("loaded model", loadedModel)
+            _loadtortoisemodel = _model_directory.replace("--", "/")
+            tts = TTS(_loadtortoisemodel, gpu=_gpu)
+            loadedModel = _model
 
         if model_type(_config_path) == "bark":
             print("Loading Bark...")
