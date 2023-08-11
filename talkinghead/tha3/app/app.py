@@ -43,7 +43,7 @@ lasttranisitiondPose = "NotInit"
 inMotion = False
 fps = 0
 current_pose = None
-storepath = os.path.join(os.getcwd(), "live2d", "emotions")
+storepath = os.path.join(os.getcwd(), "talkinghead", "emotions")
 
 # Flask setup
 app = Flask(__name__)
@@ -99,7 +99,7 @@ def result_feed():
                 time.sleep(0.1)
     return Response(generate(), mimetype='multipart/x-mixed-replace; boundary=frame')
 
-def live2d_load_file(stream):
+def talkinghead_load_file(stream):
     global global_source_image
     global global_reload
     global global_timer_paused
@@ -112,7 +112,7 @@ def live2d_load_file(stream):
         global_reload = Image.open(BytesIO(img_data.getvalue())) # Set the global_reload to the copy of the image data
     except Image.UnidentifiedImageError:
         print(f"Could not load image from file, loading blank")
-        full_path = os.path.join(os.getcwd(), "live2d\\tha3\\images\\inital.png")
+        full_path = os.path.join(os.getcwd(), "talkinghead\\tha3\\images\\inital.png")
         MainFrame.load_image(None, full_path)
         global_timer_paused = True
     return 'OK'
@@ -140,7 +140,7 @@ def launch_gui(device, model):
         main_frame.SetSize((750, 600))
 
         #Lload default image (you can pass args.char if required)
-        full_path = os.path.join(os.getcwd(), "live2d\\tha3\\images\\inital.png")
+        full_path = os.path.join(os.getcwd(), "talkinghead\\tha3\\images\\inital.png")
         main_frame.load_image(None, full_path)
 
         #main_frame.Show(True)
@@ -969,7 +969,7 @@ class MainFrame(wx.Frame):
 
             if random.random() <= 0.01:
                 trimmed_fps = round(fps, 1)
-                #print("Live2d FPS: {:.1f}".format(trimmed_fps))
+                #print("talkinghead FPS: {:.1f}".format(trimmed_fps))
 
 
             #Store current pose to use as last pose on next loop

@@ -17,41 +17,42 @@ import wave
 import modules.voice_conversion.rvc.rvc as rvc
 from scipy.io import wavfile
 import os
+import io
 import logging
 
 DEBUG_PREFIX = "<RVC module>"
-INPUT_FILE_PATH = "data/tmp/rvc_input.wav" #"./data/tmp/rvc_input.wav"
-OUTPUT_FILE_PATH = "data/tmp/rvc_output.wav" #"./data/tmp/rvc_output.wav"
 
 def rvc_process_audio():
     """
-    Process request audio file to with loaded RVC model
+    Process request audio file with the loaded RVC model
     """
-
-    try:    
-        file = request.files.get('AudioFile') # TODO: convert to valid format if not a wav file
-        print(DEBUG_PREFIX,"received:",file)
-        file.save(INPUT_FILE_PATH)
-        #data = file.read()
-        print("CURRENT DIR",os.getcwd())
-
+    try:
+        file = request.files.get('AudioFile')
+        print(DEBUG_PREFIX, "received:", file)
+        
+        # Create new instances of io.BytesIO() for each request
+        input_audio_path = io.BytesIO()
+        output_audio_path = io.BytesIO()
+        
+        file.save(input_audio_path)
+        input_audio_path.seek(0)
+        
         parameters = json.loads(request.form["json"])
-        #print(parameters)
-
-        print(DEBUG_PREFIX,"Received audio convertion request with model",parameters["modelName"])
-        model_path = "data/models/rvc/"+parameters["modelName"]+".pth"
-        print(DEBUG_PREFIX,"loading",model_path)
+        
+        print(DEBUG_PREFIX, "Received audio conversion request with model", parameters["modelName"])
+        model_path = "data/models/rvc/" + parameters["modelName"] + ".pth"
+        print(DEBUG_PREFIX, "loading", model_path)
         rvc.load_rvc(model_path)
 
-        file_index_path = "data/models/rvc/"+parameters["modelName"]+".index"
-        print(DEBUG_PREFIX,"Check for index file",file_index_path)
+        file_index_path = "data/models/rvc/" + parameters["modelName"] + ".index"
+        print(DEBUG_PREFIX, "Check for index file", file_index_path)
         if not os.path.isfile(file_index_path):
             file_index_path = ""
-            print(DEBUG_PREFIX,"no index file found, proceeding without index")
+            print(DEBUG_PREFIX, "no index file found, proceeding without index")
         
-        info, (tgt_sr,wav_opt) = rvc.vc_single(
+        info, (tgt_sr, wav_opt) = rvc.vc_single(
             sid=0,
-            input_audio_path=INPUT_FILE_PATH,
+            input_audio_path=input_audio_path,
             f0_up_key=parameters["pitchOffset"],
             f0_file=None,
             f0_method=parameters["pitchExtraction"],
@@ -67,13 +68,15 @@ def rvc_process_audio():
         #print(info) # DBG
 
         #out_path = os.path.join("data/", "rvc_output.wav")
-        wavfile.write(OUTPUT_FILE_PATH, tgt_sr, wav_opt)
-        #print(out_path) # DBG
-
+        wavfile.write(output_audio_path, tgt_sr, wav_opt)
+        output_audio_path.seek(0)  # Reset cursor position
+        
         print(DEBUG_PREFIX, "Audio converted using RVC model:", rvc.rvc_model_name)
-        response = send_file(OUTPUT_FILE_PATH, mimetype="audio/x-wav")
+        
+        # Return the output_audio_path object as a response
+        response = send_file(output_audio_path, mimetype="audio/x-wav")
         return response
 
-    except Exception as e: # No exception observed during test but we never know
+    except Exception as e:
         print(e)
-        abort(500, DEBUG_PREFIX+" Exception occurs while processing audio")
+        abort(500, DEBUG_PREFIX + " Exception occurs while processing audio")
