@@ -666,10 +666,7 @@ def result_feed():
 def load_model():
     # Accessing the URL parameters
     _model = request.args.get('_model')
-
     _gpu = False if args.coqui_gpu else True
-    print(_gpu)
-
     _progress = request.args.get('_progress')
     return coqui.load_model(_model, _gpu, _progress)
 

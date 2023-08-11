@@ -24,6 +24,7 @@ multspeak = "None"
 loadedModel = "None"
 spkdirectory = ""
 multspeakjson = ""
+status = ""
 _gpu = False
 is_coqui_available = os.environ.get("COQUI_STUDIO_TOKEN")
 
@@ -58,10 +59,9 @@ def load_model(_model, _gpu, _progress):
     global loadedModel
     global multlang
     global multspeak
-    
-    status = None
+    global status
 
-    print("GPU is set to: ", _gpu)
+    #print("GPU is set to: ", _gpu)
 
     _model_directory, _file = os.path.split(_model)
 
@@ -94,8 +94,22 @@ def load_model(_model, _gpu, _progress):
 
         _config_path = os.path.join(_target_directory, _modified_speaker_id, "config.json")
 
+
+        #prevent multiple loading
+        if status == "Loading": 
+            status = "Loading"
+            print(status)
+            return status
+        
+        #prevent multiple loading
+        if os.path.join(_modified_speaker_id, _file) == loadedModel: 
+            status = "Already Loaded"
+            print(status)
+            return status
+
         if model_type(_config_path) == "tortoise":
             print("Loading Tortoise...")
+            status = "Loading"
             _loadtortoisemodel = _model_directory.replace("--", "/")
             tts = TTS(_loadtortoisemodel, gpu=_gpu)
             loadedModel = _model
@@ -110,7 +124,7 @@ def load_model(_model, _gpu, _progress):
         if model_type(_config_path) not in _loadertypes:
             try:
                 print("Loading ", model_type(_config_path))
-                print("Load Line:", _model_path, _progress, _gpu)
+                #print("Load Line:", _model_path, _progress, _gpu)
                 tts = TTS(model_path=_model_path, config_path=_config_path, progress_bar=_progress, gpu=_gpu)
                 status = "Loaded"
                 loadedModel = _model
@@ -121,7 +135,8 @@ def load_model(_model, _gpu, _progress):
             pass
 
         type = model_type(_config_path)
-        print("Type: ", type)
+        #print("Type: ", type)
+        #print("Status", status)
 
     if status is None:
         status = "Unknown error occurred"
