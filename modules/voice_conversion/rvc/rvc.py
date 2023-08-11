@@ -13,6 +13,7 @@ import numpy as np
 import torch.cuda
 import argparse
 import torch
+import io
 from multiprocessing import cpu_count
 from fairseq import checkpoint_utils
 
@@ -137,19 +138,25 @@ def load_hubert():
         hubert_model.eval()
 
 
-def load_audio(file, sr):
+def load_audio(audio_source, sr):
     try:
-        # https://github.com/openai/whisper/blob/main/whisper/audio.py#L26
-        # This launches a subprocess to decode audio while down-mixing and resampling as necessary.
-        # Requires the ffmpeg CLI and `ffmpeg-python` package to be installed.
-        file = (
-            file.strip(" ").strip('"').strip("\n").strip('"').strip(" ")
-        )  # 防止小白拷路径头尾带了空格和"和回车
-        out, _ = (
-            ffmpeg.input(file, threads=0)
-            .output("-", format="f32le", acodec="pcm_f32le", ac=1, ar=sr)
-            .run(cmd=["ffmpeg", "-nostdin"], capture_stdout=True, capture_stderr=True)
-        )
+        if isinstance(audio_source, str):  # If it's a file path
+            audio_input = audio_source.strip(" ").strip('"').strip("\n").strip('"')
+            out, _ = (
+                ffmpeg.input(audio_input, threads=0)
+                .output("-", format="f32le", acodec="pcm_f32le", ac=1, ar=sr)
+                .run(cmd=["ffmpeg", "-nostdin"], capture_stdout=True, capture_stderr=True)
+            )
+        elif isinstance(audio_source, io.BytesIO):  # If it's a BytesIO object
+            audio_source.seek(0)
+            out, _ = (
+                ffmpeg.input("pipe:0", format="wav", threads=0)
+                .output("-", format="f32le", acodec="pcm_f32le", ac=1, ar=sr)
+                .run(input=audio_source.read(), cmd=["ffmpeg", "-nostdin"], capture_stdout=True, capture_stderr=True)
+            )
+        else:
+            raise ValueError("Invalid audio source")
+
     except Exception as e:
         raise RuntimeError(f"Failed to load audio: {e}")
 

@@ -17,11 +17,13 @@ import wave
 import modules.voice_conversion.rvc.rvc as rvc
 from scipy.io import wavfile
 import os
+import io
 import logging
 
 DEBUG_PREFIX = "<RVC module>"
-INPUT_FILE_PATH = "data/tmp/rvc_input.wav" #"./data/tmp/rvc_input.wav"
-OUTPUT_FILE_PATH = "data/tmp/rvc_output.wav" #"./data/tmp/rvc_output.wav"
+INPUT_FILE_PATH = io.BytesIO() #"./data/tmp/rvc_input.wav"
+OUTPUT_FILE_PATH = io.BytesIO() #"./data/tmp/rvc_output.wav"
+
 
 def rvc_process_audio():
     """
@@ -71,6 +73,7 @@ def rvc_process_audio():
         #print(out_path) # DBG
 
         print(DEBUG_PREFIX, "Audio converted using RVC model:", rvc.rvc_model_name)
+        OUTPUT_FILE_PATH.seek(0)
         response = send_file(OUTPUT_FILE_PATH, mimetype="audio/x-wav")
         return response
 
