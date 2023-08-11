@@ -88,9 +88,9 @@ def load_model(_model, _gpu, _progress):
         _modified_speaker_id = _model_directory.replace("\\", "--")
 
         if _file != None:
-            _model_path = os.path.join(_target_directory, _modified_speaker_id, _file)
+            _model_path = os.path.join(_modified_speaker_id, _file)
         else:
-            _model_path = os.path.join(_target_directory, _modified_speaker_id)
+            _model_path = os.path.join(_modified_speaker_id)
 
         _config_path = os.path.join(_target_directory, _modified_speaker_id, "config.json")
 
@@ -102,7 +102,7 @@ def load_model(_model, _gpu, _progress):
             return status
         
         #prevent multiple loading
-        if os.path.join(_modified_speaker_id, _file) == loadedModel: 
+        if os.path.join(_model_path) == loadedModel: 
             status = "Already Loaded"
             print(status)
             return status
@@ -125,7 +125,7 @@ def load_model(_model, _gpu, _progress):
             try:
                 print("Loading ", model_type(_config_path))
                 #print("Load Line:", _model_path, _progress, _gpu)
-                tts = TTS(model_path=_model_path, config_path=_config_path, progress_bar=_progress, gpu=_gpu)
+                tts = TTS(model_path=os.path.join(_target_directory, _model_path), config_path=_config_path, progress_bar=_progress, gpu=_gpu)
                 status = "Loaded"
                 loadedModel = _model
             except Exception as e:
@@ -336,8 +336,8 @@ def coqui_tts(text, speaker_id, mspker_id, style_wav, language_id):
         pass
         #print("exception 1")
 
-    print("mspker_id: ", mspker_id)
-    print("language_id: ", language_id)
+    #print("mspker_id: ", mspker_id)
+    #print("language_id: ", language_id)
 
 
 
@@ -371,10 +371,10 @@ def coqui_tts(text, speaker_id, mspker_id, style_wav, language_id):
     audio_buffer = io.BytesIO()
 
     if not isinstance(multspeak, (int, float)) and not isinstance(multlang, (int, float)): #if not a number
-        print("Single Model")
+        #print("Single Model")
         tts.tts_to_file(text, file_path=audio_buffer)
     elif isinstance(multspeak, (int, float)) and not isinstance(multlang, (int, float)):
-        print("speaker only")
+        #print("speaker only")
         if type == "bark" or type == "tortoise":
             try:
                 if multspeakjson == "": #failing because multispeakjson not loaded
@@ -389,17 +389,17 @@ def coqui_tts(text, speaker_id, mspker_id, style_wav, language_id):
                 if value_at_key == "random":
                     tts.tts_to_file(text, file_path=audio_buffer)
                 else:
-                    print("using speaker ", value_at_key)
+                    #print("using speaker ", value_at_key)
                     tts.tts_to_file(text, file_path=audio_buffer, voice_dir=spkdirectory, speaker=value_at_key)
             except Exception as e:
                 print("An error occurred:", str(e))
         else:
             tts.tts_to_file(text, speaker=tts.speakers[int(mspker_id)], file_path=audio_buffer)
     elif not isinstance(multspeak, (int, float)) and isinstance(multlang, (int, float)):
-        print("lang only")
+        #print("lang only")
         tts.tts_to_file(text, language=tts.languages[int(language_id)], file_path=audio_buffer)
     else:
-        print("spk and lang")
+        #print("spk and lang")
         tts.tts_to_file(text, speaker=tts.speakers[int(mspker_id)], language=tts.languages[int(language_id)], file_path=audio_buffer)
 
     audio_buffer.seek(0)
