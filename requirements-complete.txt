@@ -24,6 +24,6 @@ openai-whisper==20230314
 
 TTS==0.15.6
 fastapi==0.99.1
-wxpython==4.2.1
+wxpython==4.2.1; sys_platform == 'win32' or sys_platform == 'darwin'
 mecab-python3==1.0.6
 unidic-lite==1.0.8
