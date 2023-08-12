@@ -379,6 +379,15 @@ if "rvc" in modules:
     #app.add_url_rule("/api/voice-conversion/rvc/load-model", view_func=rvc_module.rvc_load_model, methods=["POST"])
     app.add_url_rule("/api/voice-conversion/rvc/process-audio", view_func=rvc_module.rvc_process_audio, methods=["POST"])
 
+if "coqui-tts" in modules:
+    mode = "CPU" if args.coqui_gpu else "GPU"
+    print("Initializing Coqui TTS client in " + mode + " mode")
+    import modules.text_to_speech.coqui.coqui_module as coqui_module
+    if mode == "GPU":
+        coqui_module.gpu = True
+    app.add_url_rule("/api/text-to-speech/coqui/supported-models", view_func=coqui_module.coqui_supported_models, methods=["POST"])
+    app.add_url_rule("/api/text-to-speech/coqui/process-text", view_func=coqui_module.coqui_process_text, methods=["POST"])
+
 def require_module(name):
     def wrapper(fn):
         @wraps(fn)
