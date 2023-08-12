@@ -1,7 +1,7 @@
-flask
-flask-cloudflared
-flask-cors
-flask-compress
+flask==2.3.2
+flask-cloudflared==0.0.13
+flask-cors==4.0.0
+flask-compress==1.13
 markdown==3.4.3
 Pillow==9.5.0
 colorama==0.4.6
