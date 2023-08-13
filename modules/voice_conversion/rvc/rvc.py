@@ -150,7 +150,7 @@ def load_audio(audio_source, sr):
         elif isinstance(audio_source, io.BytesIO):  # If it's a BytesIO object
             audio_source.seek(0)
             out, _ = (
-                ffmpeg.input("pipe:0", format="wav", threads=0)
+                ffmpeg.input("pipe:0", threads=0)
                 .output("-", format="f32le", acodec="pcm_f32le", ac=1, ar=sr)
                 .run(input=audio_source.read(), cmd=["ffmpeg", "-nostdin"], capture_stdout=True, capture_stderr=True)
             )
