@@ -188,7 +188,9 @@ def coqui_generate_tts():
 
         print(DEBUG_PREFIX,"Loading tts \n- model", model_name, "\n - speaker_id: ",speaker_id,"\n - language_id: ",language_id, "\n - using",("GPU" if gpu_mode else "CPU"))
 
+        is_downloading = True
         tts = TTS(model_name=model_name, progress_bar=True, gpu=gpu_mode)
+        is_downloading = False
 
         if tts.is_multi_lingual:
             if language_id is None:
