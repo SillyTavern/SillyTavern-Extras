@@ -88,7 +88,6 @@ parser.add_argument(
 )
 parser.add_argument("--talkinghead-gpu", action="store_true", help="Run the talkinghead animation on the GPU (CPU is default)")
 parser.add_argument("--coqui-gpu", action="store_false", help="Run the voice models on the GPU (CPU is default)")
-parser.add_argument("--coqui-model", help="Load a custom Coqui TTS model")
 parser.add_argument("--stt-vosk-model-path", help="Load a custom vosk speech-to-text model")
 parser.add_argument("--stt-whisper-model-path", help="Load a custom vosk speech-to-text model")
 sd_group = parser.add_mutually_exclusive_group()
@@ -277,16 +276,6 @@ if "silero-tts" in modules:
         print("Generating Silero TTS samples...")
         tts_service.update_sample_text(SILERO_SAMPLE_TEXT)
         tts_service.generate_samples()
-
-if "coqui-tts" in modules:
-    mode = "CPU" if args.coqui_gpu else "GPU"
-    print("Initializing Coqui TTS client in " + mode + " mode")
-    import tts_coqui as coqui
-    from tts_coqui import *
-    if mode == "GPU":
-        coqui.setGPU(True)
-    if args.coqui_model is not None:
-        coqui.coqui_modeldownload(args.coqui_model)
 
 if "edge-tts" in modules:
     print("Initializing Edge TTS client")
@@ -673,57 +662,6 @@ def stop_talking():
 @app.route('/api/talkinghead/result_feed')
 def result_feed():
     return talkinghead.result_feed()
-
-@app.route("/api/coqui-tts/load", methods=["GET"])
-@require_module("coqui-tts")
-def load_model():
-    # Accessing the URL parameters
-    _model = request.args.get('_model')
-    _gpu = False if args.coqui_gpu else True
-    _progress = request.args.get('_progress')
-    return coqui.load_model(_model, _gpu, _progress)
-
-@app.route("/api/coqui-tts/list", methods=["GET"]) #dropdown list
-@require_module("coqui-tts")
-def coqui_list():
-    return coqui.get_coqui_models()
-
-@app.route("/api/coqui-tts/multspeaker", methods=["GET"])
-@require_module("coqui-tts")
-def is_multi_speaker_model():
-    return coqui.is_multi_speaker_model()
-
-@app.route("/api/coqui-tts/multlang", methods=["GET"])
-@require_module("coqui-tts")
-def is_multi_lang_model():
-    return coqui.is_multi_lang_model()
-
-@app.route("/api/coqui-tts/speaker_id", methods=["GET"]) #available voices
-@require_module("coqui-tts")
-def coqui_download_models():
-    return coqui.get_coqui_download_models()
-
-@app.route("/api/coqui-tts/checkmap", methods=["GET"]) #checkmap
-@require_module("coqui-tts")
-def coqui_checkmap():
-    return coqui.coqui_checkmap()
-
-@app.route("/api/coqui-tts/download", methods=["GET"])
-@require_module("coqui-tts")
-def coqui_modeldownload():
-    _modeldownload = request.args.get('model')
-    return coqui.coqui_modeldownload(_modeldownload)
-
-@app.route("/api/coqui-tts/tts", methods=["GET"])
-@require_module("coqui-tts")
-def coqui_tts():
-    # Accessing the URL parameters
-    text = request.args.get('text')
-    speaker_id = request.args.get('speaker_id')
-    mspker_id = request.args.get('mspker')
-    language_id = request.args.get('language_id')
-    style_wav = request.args.get('style_wav')
-    return coqui.coqui_tts(text, speaker_id, mspker_id, style_wav, language_id)
 
 @app.route("/api/image", methods=["POST"])
 @require_module("sd")
