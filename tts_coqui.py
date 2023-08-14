@@ -18,7 +18,7 @@ from TTS.tts.models.tortoise import Tortoise
 from flask import send_file
 
 tts = None
-type = None
+tts_type = None
 multlang = "None"
 multspeak = "None"
 loadedModel = "None"
@@ -55,7 +55,7 @@ def model_type(_config_path):
 
 def load_model(_model, _gpu, _progress):
     global tts
-    global type
+    global tts_type
     global loadedModel
     global multlang
     global multspeak
@@ -96,13 +96,13 @@ def load_model(_model, _gpu, _progress):
 
 
         #prevent multiple loading
-        if status == "Loading": 
+        if status == "Loading":
             status = "Loading"
             print(status)
             return status
-        
+
         #prevent multiple loading
-        if os.path.join(_model_path) == loadedModel: 
+        if os.path.join(_model_path) == loadedModel:
             status = "Already Loaded"
             print(status)
             return status
@@ -134,20 +134,20 @@ def load_model(_model, _gpu, _progress):
         else:
             pass
 
-        type = model_type(_config_path)
+        tts_type = model_type(_config_path)
         #print("Type: ", type)
         #print("Status", status)
 
     if status is None:
         status = "Unknown error occurred"
-    if type is None:
-        type = "Unknown"
+    if tts_type is None:
+        tts_type = "Unknown"
 
     return status
 
 def is_multi_speaker_model():
     global multspeak
-    global type
+    global tts_type
     global spkdirectory
     global multspeakjson
     global tts
@@ -158,7 +158,7 @@ def is_multi_speaker_model():
     try:
 
 
-        if type == "bark" or type == "tortoise":
+        if tts_type == "bark" or tts_type == "tortoise":
             _target_directory = ModelManager().output_prefix
             # Convert _target_directory to a string and remove the trailing backslash if present
             _target_directory_str = str(_target_directory)
@@ -313,7 +313,7 @@ def coqui_modeldownload(_modeldownload): #Avail voices function
     return status
 
 def coqui_tts(text, speaker_id, mspker_id, style_wav, language_id):
-    global type
+    global tts_type
     global multlang
     global multspeak
     global loadedModel
@@ -365,7 +365,7 @@ def coqui_tts(text, speaker_id, mspker_id, style_wav, language_id):
         print("MODEL NOT LOADED!!! Loading... ", loadedModel, speaker_id)
         print("Loading :", speaker_id, "GPU is: ", _gpu)
 
-        load_model(speaker_id, _gpu, True) 
+        load_model(speaker_id, _gpu, True)
 
 
     audio_buffer = io.BytesIO()
@@ -375,7 +375,7 @@ def coqui_tts(text, speaker_id, mspker_id, style_wav, language_id):
         tts.tts_to_file(text, file_path=audio_buffer)
     elif isinstance(multspeak, (int, float)) and not isinstance(multlang, (int, float)):
         #print("speaker only")
-        if type == "bark" or type == "tortoise":
+        if tts_type == "bark" or tts_type == "tortoise":
             try:
                 if multspeakjson == "": #failing because multispeakjson not loaded
                     parsed_multspeak = json.loads(is_multi_speaker_model())

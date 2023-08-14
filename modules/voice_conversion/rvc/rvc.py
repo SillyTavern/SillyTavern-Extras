@@ -66,7 +66,7 @@ class Config:
                 or "1070" in self.gpu_name
                 or "1080" in self.gpu_name
             ):
-                print("16系/10系显卡和P40强制单精度")
+                print("Forcing full precision for 16/10 series cards.")
                 self.is_half = False
                 config_file_change_fp32()
             else:
@@ -84,12 +84,12 @@ class Config:
             #     with open("trainset_preprocess_pipeline_print.py", "w") as f:
             #         f.write(strr)
         elif torch.backends.mps.is_available():
-            print("没有发现支持的N卡, 使用MPS进行推理")
+            print("No compatible GPU found, using MPS for inference.")
             self.device = "mps"
             self.is_half = False
             config_file_change_fp32()
         else:
-            print("没有发现支持的N卡, 使用CPU进行推理")
+            print("No compatible GPU found, using CPU for inference.")
             self.device = "cpu"
             self.is_half = False
             config_file_change_fp32()
@@ -150,7 +150,7 @@ def load_audio(audio_source, sr):
         elif isinstance(audio_source, io.BytesIO):  # If it's a BytesIO object
             audio_source.seek(0)
             out, _ = (
-                ffmpeg.input("pipe:0", format="wav", threads=0)
+                ffmpeg.input("pipe:0", threads=0)
                 .output("-", format="f32le", acodec="pcm_f32le", ac=1, ar=sr)
                 .run(input=audio_source.read(), cmd=["ffmpeg", "-nostdin"], capture_stdout=True, capture_stderr=True)
             )
