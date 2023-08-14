@@ -385,14 +385,12 @@ if "coqui-tts" in modules:
     import modules.text_to_speech.coqui.coqui_module as coqui_module
     if mode == "GPU":
         coqui_module.gpu = True
-    app.add_url_rule("/api/text-to-speech/coqui/coqui-api/get-models", view_func=coqui_module.coqui_get_api_models, methods=["POST"])
     app.add_url_rule("/api/text-to-speech/coqui/coqui-api/check-model-state", view_func=coqui_module.coqui_check_model_state, methods=["POST"])
     app.add_url_rule("/api/text-to-speech/coqui/coqui-api/install-model", view_func=coqui_module.coqui_install_model, methods=["POST"])
-    app.add_url_rule("/api/text-to-speech/coqui/coqui-api/get-model-settings", view_func=coqui_module.coqui_get_model_settings, methods=["POST"])
 
     app.add_url_rule("/api/text-to-speech/coqui/local/get-models", view_func=coqui_module.coqui_get_local_models, methods=["POST"])
 
-    app.add_url_rule("/api/text-to-speech/coqui/process-text", view_func=coqui_module.coqui_process_text, methods=["POST"])
+    app.add_url_rule("/api/text-to-speech/coqui/generate-tts", view_func=coqui_module.coqui_generate_tts, methods=["POST"])
 
 def require_module(name):
     def wrapper(fn):
