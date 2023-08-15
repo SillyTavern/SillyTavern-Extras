@@ -24,7 +24,7 @@ from TTS.utils.manage import ModelManager
 
 
 DEBUG_PREFIX = "<Coqui-TTS module>"
-OUTPUT_PATH = "data/tmp/coqui_output.wav"
+audio_buffer = io.BytesIO()
 
 gpu_mode = False
 is_downloading = False
@@ -164,7 +164,8 @@ def coqui_generate_tts():
     """
     global gpu_mode
     global is_downloading
-    
+    global audio_buffer
+
     try:
         request_json = request.get_json()
         #print(request_json)
@@ -202,14 +203,16 @@ def coqui_generate_tts():
                 abort(400, DEBUG_PREFIX + " Requested model "+model_name+" is multi-speaker but no speaker id provided")
             speaker_id =tts.speakers[int(speaker_id)]
 
-        tts.tts_to_file(text=text, file_path=OUTPUT_PATH, speaker=speaker_id, language=language_id)
+        tts.tts_to_file(text=text, file_path=audio_buffer, speaker=speaker_id, language=language_id)
 
-        print(DEBUG_PREFIX, "Success, saved to",OUTPUT_PATH)
+        print(DEBUG_PREFIX, "Success, saved to",audio_buffer)
         
         # Return the output_audio_path object as a response
-        response = send_file(OUTPUT_PATH, mimetype="audio/x-wav")
+        response = send_file(audio_buffer, mimetype="audio/x-wav")
+        audio_buffer = io.BytesIO()
+        
         return response
-    
+
     except Exception as e:
         print(e)
         abort(500, DEBUG_PREFIX + " Exception occurs while trying to process request "+str(request_json))
