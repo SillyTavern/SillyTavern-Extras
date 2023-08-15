@@ -87,7 +87,10 @@ parser.add_argument(
     "--secure", action="store_true", help="Enforces the use of an API key"
 )
 parser.add_argument("--talkinghead-gpu", action="store_true", help="Run the talkinghead animation on the GPU (CPU is default)")
+
 parser.add_argument("--coqui-gpu", action="store_true", help="Run the voice models on the GPU (CPU is default)")
+parser.add_argument("--coqui-models", help="Install given Coqui-api TTS model at launch (comma separated list, last one will be loaded at start)")
+
 parser.add_argument("--stt-vosk-model-path", help="Load a custom vosk speech-to-text model")
 parser.add_argument("--stt-whisper-model-path", help="Load a custom vosk speech-to-text model")
 sd_group = parser.add_mutually_exclusive_group()
@@ -372,8 +375,23 @@ if "coqui-tts" in modules:
     mode = "GPU" if args.coqui_gpu else "CPU"
     print("Initializing Coqui TTS client in " + mode + " mode")
     import modules.text_to_speech.coqui.coqui_module as coqui_module
+    
     if mode == "GPU":
         coqui_module.gpu_mode = True
+
+    coqui_models = (
+    args.coqui_models
+    if args.coqui_models
+    else None
+    )
+
+    if coqui_models is not None:
+        coqui_models = coqui_models.split(",")
+        for i in coqui_models:
+            if not coqui_module.install_model(i):
+                raise ValueError("Coqui model loading failed, most likely a wrong model name in --coqui-models argument, check log above to see which one")
+
+
     app.add_url_rule("/api/text-to-speech/coqui/coqui-api/check-model-state", view_func=coqui_module.coqui_check_model_state, methods=["POST"])
     app.add_url_rule("/api/text-to-speech/coqui/coqui-api/install-model", view_func=coqui_module.coqui_install_model, methods=["POST"])
 
