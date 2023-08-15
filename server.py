@@ -373,7 +373,6 @@ if "coqui-tts" in modules:
     print("Initializing Coqui TTS client in " + mode + " mode")
     import modules.text_to_speech.coqui.coqui_module as coqui_module
     if mode == "GPU":
-        print("DEBUG: GPU MODE COQUI")
         coqui_module.gpu_mode = True
     app.add_url_rule("/api/text-to-speech/coqui/coqui-api/check-model-state", view_func=coqui_module.coqui_check_model_state, methods=["POST"])
     app.add_url_rule("/api/text-to-speech/coqui/coqui-api/install-model", view_func=coqui_module.coqui_install_model, methods=["POST"])
