@@ -1,0 +1,2 @@
+Put RVC models (in .pth format) here.
+.index files (should have the same name as .pth files) are optional but could help improve the processing time.
