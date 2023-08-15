@@ -28,6 +28,33 @@ DEBUG_PREFIX = "<Coqui-TTS module>"
 gpu_mode = False
 is_downloading = False
 
+def install_model(model_id):
+    global gpu_mode
+    audio_buffer = io.BytesIO()
+    speaker_id = None
+    language_id = None
+    
+    print(DEBUG_PREFIX,"Loading model",model_id)
+    try:
+        tts = TTS(model_name=model_id, progress_bar=True, gpu=gpu_mode)
+
+        if tts.is_multi_lingual:
+            language_id = tts.languages[0]
+
+        if tts.is_multi_speaker:
+            speaker_id =tts.speakers[0]
+
+        tts.tts_to_file(text="this is a test message", file_path=audio_buffer, speaker=speaker_id, language=language_id)
+    except Exception as e:
+        print(DEBUG_PREFIX,"ERROR:", e)
+        print("Model", model_id, "cannot be loaded, maybe wrong model name? Must be one of")
+        for i in TTS.list_models():
+            print(i)
+        return False
+    
+    print(DEBUG_PREFIX,"Success")
+    return True
+
 def coqui_check_model_state():
     """
         Check if the requested model is installed on the server machine
