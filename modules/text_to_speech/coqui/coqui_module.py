@@ -24,7 +24,6 @@ from TTS.utils.manage import ModelManager
 
 
 DEBUG_PREFIX = "<Coqui-TTS module>"
-audio_buffer = io.BytesIO()
 
 gpu_mode = False
 is_downloading = False
@@ -164,7 +163,7 @@ def coqui_generate_tts():
     """
     global gpu_mode
     global is_downloading
-    global audio_buffer
+    audio_buffer = io.BytesIO()
 
     try:
         request_json = request.get_json()
