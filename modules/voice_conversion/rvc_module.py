@@ -156,3 +156,90 @@ def rvc_process_audio():
     except Exception as e:
         print(e)
         abort(500, DEBUG_PREFIX + " Exception occurs while processing audio.")
+
+def fix_model_install():
+    """
+    Fix RVC model organisation, move found pth/index file into 
+    """
+    print(DEBUG_PREFIX,"Checking RVC models folder:",RVC_MODELS_PATH)
+
+    # 1) Search for pth and create corresponding folder
+    file_names = os.listdir(RVC_MODELS_PATH)
+    print("> Searching for pth files")
+    for file_name in file_names:
+        file_path = os.path.join(RVC_MODELS_PATH,file_name)
+
+        if file_name in IGNORED_FILES:
+            continue
+        
+        # Must be a folder
+        if not os.path.isdir(file_path):
+            new_folder_path, file_extension = os.path.splitext(file_path)
+            if file_extension != ".pth":
+                continue
+
+            print(" > WARNING: pth file found!",file_path)
+            print(" > Attempting to create a folder", new_folder_path)
+
+            if os.path.exists(new_folder_path):
+                print("  > Folder already exists")
+            else:
+                os.mkdir(new_folder_path)
+                print("  > New model folder created:",new_folder_path)
+
+            new_file_path = os.path.join(new_folder_path,file_name)
+            print(" > attempting to move",file_name,"to",new_file_path)
+
+            if os.path.exists(new_file_path):
+                print("  > WARNING, file already exists in folder")
+                print("   > Model should work.")
+                print("   > Clean",RVC_MODELS_PATH,"to stop warnings (all pth/index file must be together in a folder).")
+                print("  > File",file_name,"ignored")
+                continue
+            else:
+                os.rename(file_path, new_file_path)
+                print("  > File moved, new path:",new_file_path)
+
+    # 2) search for index file and put in corresponding folder   
+    file_names = os.listdir(RVC_MODELS_PATH)
+    print("> Searching for index files")    
+    for file_name in file_names:
+        file_path = os.path.join(RVC_MODELS_PATH,file_name)
+
+        if file_name in IGNORED_FILES:
+            continue
+        
+        # Must be a folder
+        if not os.path.isdir(file_path):
+            new_folder_path, file_extension = os.path.splitext(file_path)
+            if file_extension != ".index":
+                continue
+            
+            print(" > WARNING: index file found!",file_path)
+            print(" > Searching for possible model folder")
+
+            found = False
+            for folder_candidate in file_names:
+                folder_candidate_path = os.path.join(RVC_MODELS_PATH,folder_candidate)
+                if os.path.isdir(folder_candidate_path):
+                    if folder_candidate in file_name:
+                        print("  > Found corresponding model folder:",folder_candidate_path)
+
+                        new_file_path = os.path.join(folder_candidate_path,file_name)
+                        print("  > attempting to move",file_name,"to",new_file_path)
+
+                        if os.path.exists(new_file_path):
+                            print("   > WARNING: file already exists in folder")
+                            print("    > Model should work.")
+                            print("    > Clean",RVC_MODELS_PATH,"to stop warnings (all pth/index file must be together in a folder).")
+                            print("   > File",file_name,"ignored")
+                        else:
+                            os.rename(file_path, new_file_path)
+                            print("   > File moved, new path:",new_file_path)
+                        
+                        found = True
+                        break
+            if not found:
+                print("  > WARNING: no corresponding folder found, move or delete the file manually to stop warnings.")
+
+    print(DEBUG_PREFIX,"RVC model folder checked.")

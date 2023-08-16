@@ -368,6 +368,7 @@ if "rvc" in modules:
     sys.path.insert(0,'modules/voice_conversion')
 
     import modules.voice_conversion.rvc_module as rvc_module
+    rvc_module.fix_model_install()
     app.add_url_rule("/api/voice-conversion/rvc/get-models-list", view_func=rvc_module.rvc_get_models_list, methods=["POST"])
     app.add_url_rule("/api/voice-conversion/rvc/process-audio", view_func=rvc_module.rvc_process_audio, methods=["POST"])
 
