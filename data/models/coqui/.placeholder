@@ -1,2 +1,2 @@
-Put RVC models (in .pth format) here.
-.index files (should have the same name as .pth files) are optional but could help improve the processing time.
+Put Coqui models folders here.
+Must contains both a "model.pth" and "config.json" file.
