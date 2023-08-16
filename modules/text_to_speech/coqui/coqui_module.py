@@ -24,6 +24,10 @@ from TTS.utils.manage import ModelManager
 
 
 DEBUG_PREFIX = "<Coqui-TTS module>"
+COQUI_MODELS_PATH = "data/models/coqui/"
+IGNORED_FILES = [".placeholder"]
+COQUI_LOCAL_MODEL_FILE_NAME = "model.pth"
+COQUI_LOCAL_CONFIG_FILE_NAME = "config.json"
 
 gpu_mode = False
 is_downloading = False
@@ -165,8 +169,50 @@ def coqui_get_local_models():
     """
     Return user local models list in the following format: [language][dataset][name] = TTS_string_id
     """
+    try:
+        print(DEBUG_PREFIX, "Received request for list of RVC models")
 
-    abort(500, DEBUG_PREFIX + " Not implemented yet")
+        folder_names = os.listdir(COQUI_MODELS_PATH)
+
+        print(DEBUG_PREFIX,"Searching model in",COQUI_MODELS_PATH)
+
+        model_list = []
+        for folder_name in folder_names:
+            folder_path = COQUI_MODELS_PATH+folder_name
+
+            if folder_name in IGNORED_FILES:
+                continue
+
+            # Must be a folder
+            if not os.path.isdir(folder_path):
+                print("> WARNING:",folder_name,"is not a folder, it should not be there, ignored")
+                continue
+            
+            print("> Found model folder",folder_name)
+
+            # Check pth
+            valid_folder = False
+            for file_name in os.listdir(folder_path):
+                if file_name.endswith(".pth"):
+                    print(" > pth:",file_name)
+                    valid_folder = True
+                if file_name.endswith(".config"):
+                    print(" > config:",file_name)
+                
+            if valid_folder:
+                print(" > Valid folder added to list")
+                model_list.append(folder_name)
+            else:
+                print(" > WARNING: Missing pth or config file, ignored folder")
+
+        # Return the list of valid folders
+        response = json.dumps({"models_list":model_list})
+        return response
+
+    except Exception as e:
+        print(e)
+        abort(500, DEBUG_PREFIX + " Exception occurs while searching for Coqui models.")
+
 
 
 def coqui_generate_tts():
@@ -207,6 +253,12 @@ def coqui_generate_tts():
         language_id = None
         speaker_id =  None
 
+        # Local model
+        model_type = model_name.split("/")[0]
+        if model_type == "local":
+            return generate_tts_local(model_name.split("/")[1], text)
+
+
         if request_json["language_id"] != "none":
             language_id = request_json["language_id"]
         
@@ -242,3 +294,32 @@ def coqui_generate_tts():
     except Exception as e:
         print(e)
         abort(500, DEBUG_PREFIX + " Exception occurs while trying to process request "+str(request_json))
+
+def generate_tts_local(model_folder, text):
+    """
+    Generate tts using local coqui model
+    """
+    audio_buffer = io.BytesIO()
+
+    print(DEBUG_PREFIX,"Request for tts from local coqui model",model_folder)
+
+    model_path = os.path.join(COQUI_MODELS_PATH,model_folder,COQUI_LOCAL_MODEL_FILE_NAME)
+    config_path = os.path.join(COQUI_MODELS_PATH,model_folder,COQUI_LOCAL_CONFIG_FILE_NAME)
+
+    if not os.path.exists(model_path):
+        raise ValueError("File does not exists:",model_path)
+    
+    if not os.path.exists(config_path):
+        raise ValueError("File does not exists:",config_path)
+
+    print(DEBUG_PREFIX,"Loading local tts model", model_path,"using",("GPU" if gpu_mode else "CPU"))
+    tts = TTS(model_path=model_path, config_path=config_path, progress_bar=True, gpu=gpu_mode)
+    tts.tts_to_file(text=text, file_path=audio_buffer)
+
+    print(DEBUG_PREFIX, "Success, saved to",audio_buffer)
+        
+    # Return the output_audio_path object as a response
+    response = send_file(audio_buffer, mimetype="audio/x-wav")
+    audio_buffer = io.BytesIO()
+    
+    return response
