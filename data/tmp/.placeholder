@@ -1,0 +1,3 @@
+Put RVC models folder here.
+Must have ".pth" file in it
+.index file is optional but could help improve the processing time/quality.

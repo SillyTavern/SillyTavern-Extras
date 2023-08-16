@@ -23,6 +23,10 @@ DEBUG_PREFIX = "<RVC module>"
 RVC_MODELS_PATH = "data/models/rvc/"
 IGNORED_FILES = [".placeholder"]
 
+RVC_INPUT_PATH = "data/tmp/rvc_input.wav"
+RVC_OUTPUT_PATH ="data/tmp/rvc_output.wav"
+save_file = False
+
 def rvc_get_models_list():
     """
     Return the list of RVC model in the expected folder
@@ -83,6 +87,8 @@ def rvc_process_audio():
         rmsMixRate: rmsMixRate,
         protect: float [0,1]
     """
+    global save_file
+
     try:
         file = request.files.get('AudioFile')
         print(DEBUG_PREFIX, "received:", file)
@@ -90,9 +96,15 @@ def rvc_process_audio():
         # Create new instances of io.BytesIO() for each request
         input_audio_path = io.BytesIO()
         output_audio_path = io.BytesIO()
+
+        if save_file:
+            input_audio_path = RVC_INPUT_PATH
+            output_audio_path = RVC_OUTPUT_PATH
         
         file.save(input_audio_path)
-        input_audio_path.seek(0)
+        
+        if not save_file:
+            input_audio_path.seek(0)
         
         parameters = json.loads(request.form["json"])
         
@@ -145,7 +157,9 @@ def rvc_process_audio():
 
         #out_path = os.path.join("data/", "rvc_output.wav")
         wavfile.write(output_audio_path, tgt_sr, wav_opt)
-        output_audio_path.seek(0)  # Reset cursor position
+
+        if not save_file:
+            output_audio_path.seek(0)  # Reset cursor position
         
         print(DEBUG_PREFIX, "Audio converted using RVC model:", rvc.rvc_model_name)
         

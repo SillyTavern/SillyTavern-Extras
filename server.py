@@ -91,6 +91,8 @@ parser.add_argument("--talkinghead-gpu", action="store_true", help="Run the talk
 parser.add_argument("--coqui-gpu", action="store_true", help="Run the voice models on the GPU (CPU is default)")
 parser.add_argument("--coqui-models", help="Install given Coqui-api TTS model at launch (comma separated list, last one will be loaded at start)")
 
+parser.add_argument("--rvc-save-file", action="store_true", help="Save the last rvc input/output audio file into data/tmp/ folder (for research)")
+
 parser.add_argument("--stt-vosk-model-path", help="Load a custom vosk speech-to-text model")
 parser.add_argument("--stt-whisper-model-path", help="Load a custom vosk speech-to-text model")
 sd_group = parser.add_mutually_exclusive_group()
@@ -363,11 +365,19 @@ if "streaming-stt" in modules:
 
 if "rvc" in modules:
     print("Initializing RVC voice conversion (from ST request file)")
+    rvc_save_file = (
+    args.rvc_save_file
+    if args.rvc_save_file
+    else False)
+
+    if rvc_save_file:
+        print("RVC saving file option detected, input/output audio will be savec into data/tmp/ folder")
 
     import sys
     sys.path.insert(0,'modules/voice_conversion')
 
     import modules.voice_conversion.rvc_module as rvc_module
+    rvc_module.save_file = rvc_save_file
     rvc_module.fix_model_install()
     app.add_url_rule("/api/voice-conversion/rvc/get-models-list", view_func=rvc_module.rvc_get_models_list, methods=["POST"])
     app.add_url_rule("/api/voice-conversion/rvc/process-audio", view_func=rvc_module.rvc_process_audio, methods=["POST"])
