@@ -63,7 +63,7 @@ def rvc_get_models_list():
             else:
                 print(" > WARNING: Missing pth, ignored folder")
 
-        # Return the output_audio_path object as a response
+        # Return the list of valid folders
         response = json.dumps({"models_list":model_list})
         return response
 

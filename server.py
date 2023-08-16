@@ -392,12 +392,14 @@ if "coqui-tts" in modules:
             if not coqui_module.install_model(i):
                 raise ValueError("Coqui model loading failed, most likely a wrong model name in --coqui-models argument, check log above to see which one")
 
-
+    # Coqui-api models
     app.add_url_rule("/api/text-to-speech/coqui/coqui-api/check-model-state", view_func=coqui_module.coqui_check_model_state, methods=["POST"])
     app.add_url_rule("/api/text-to-speech/coqui/coqui-api/install-model", view_func=coqui_module.coqui_install_model, methods=["POST"])
 
+    # Users models
     app.add_url_rule("/api/text-to-speech/coqui/local/get-models", view_func=coqui_module.coqui_get_local_models, methods=["POST"])
 
+    # Handle both coqui-api/users models
     app.add_url_rule("/api/text-to-speech/coqui/generate-tts", view_func=coqui_module.coqui_generate_tts, methods=["POST"])
 
 def require_module(name):
