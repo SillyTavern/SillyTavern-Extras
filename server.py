@@ -389,6 +389,10 @@ if "rvc" in modules:
 
     import modules.voice_conversion.rvc_module as rvc_module
     rvc_module.save_file = rvc_save_file
+
+    if "classify" in modules:
+        rvc_module.classification_mode = True
+
     rvc_module.fix_model_install()
     app.add_url_rule("/api/voice-conversion/rvc/get-models-list", view_func=rvc_module.rvc_get_models_list, methods=["POST"])
     app.add_url_rule("/api/voice-conversion/rvc/upload-models", view_func=rvc_module.rvc_upload_models, methods=["POST"])

@@ -22,6 +22,7 @@ import io
 from py7zr import pack_7zarchive, unpack_7zarchive
 import shutil
 
+
 DEBUG_PREFIX = "<RVC module>"
 RVC_MODELS_PATH = "data/models/rvc/"
 IGNORED_FILES = [".placeholder"]
@@ -30,8 +31,9 @@ TEMP_FOLDER_PATH = "data/tmp/"
 
 RVC_INPUT_PATH = "data/tmp/rvc_input.wav"
 RVC_OUTPUT_PATH ="data/tmp/rvc_output.wav"
-save_file = False
 
+save_file = False
+classification_mode = False
 
 # register file format at first.
 shutil.register_archive_format('7zip', pack_7zarchive, description='7zip archive')
@@ -145,8 +147,10 @@ def rvc_process_audio():
         filterRadius: int [0,7],
         rmsMixRate: rmsMixRate,
         protect: float [0,1]
+        text: string
     """
     global save_file
+    global classification_mode
 
     try:
         file = request.files.get('AudioFile')
@@ -172,30 +176,53 @@ def rvc_process_audio():
         folder_path = RVC_MODELS_PATH+parameters["modelName"]+"/"
         model_path = None
         index_path = None
-        
-        print(DEBUG_PREFIX, "Check for pth file in ", folder_path)
-        for file_name in os.listdir(folder_path):
-            if file_name.endswith(".pth"):
-                print(" > set pth as ",file_name)
-                model_path = folder_path+file_name
-                break
+
+        # HACK: emotion mode EXPERIMENTAL
+        if classification_mode:
+            print(DEBUG_PREFIX,"EXPERIMENT MODE: emotions")
+            print("> calling text classification pipeline")
+            emotions_score = classify_text(parameters["text"])
+
+            print(" > ",emotions_score)
+            emotion = emotions_score[0]["label"]
+            print(" > Selected:", emotion)
+
+            model_path = folder_path+emotion+".pth"
+            index_path = folder_path+emotion+".index"
+
+            if not os.path.exists(model_path):
+                print("  > WARNING emotion model pth not found:",model_path," will try loading default")
+                model_path = None
+
+            if not os.path.exists(index_path):
+                print("  > WARNING emotion model index not found:",index_path)
+                index_path = None
 
         if model_path is None:
-            abort(500, DEBUG_PREFIX + " No pth file found.")
+            print(DEBUG_PREFIX, "Check for pth file in ", folder_path)
+            for file_name in os.listdir(folder_path):
+                if file_name.endswith(".pth"):
+                    print(" > set pth as ",file_name)
+                    model_path = folder_path+file_name
+                    break
 
+            if model_path is None:
+                abort(500, DEBUG_PREFIX + " No pth file found.")
+            
+            print(DEBUG_PREFIX, "Check for index file", folder_path)
+            for file_name in os.listdir(folder_path):
+                if file_name.endswith(".index"):
+                    print(" > set index as ",file_name)
+                    index_path = folder_path+file_name
+                    break
+
+            if index_path is None:
+                index_path = ""
+                print(DEBUG_PREFIX, "no index file found, proceeding without index")
+        
+        
         print(DEBUG_PREFIX, "loading", model_path)
         rvc.load_rvc(model_path)
-        
-        print(DEBUG_PREFIX, "Check for index file", folder_path)
-        for file_name in os.listdir(folder_path):
-            if file_name.endswith(".index"):
-                print(" > set index as ",file_name)
-                index_path = folder_path+file_name
-                break
-
-        if index_path is None:
-            index_path = ""
-            print(DEBUG_PREFIX, "no index file found, proceeding without index")
         
         info, (tgt_sr, wav_opt) = rvc.vc_single(
             sid=0,
@@ -316,3 +343,29 @@ def fix_model_install():
                 print("  > WARNING: no corresponding folder found, move or delete the file manually to stop warnings.")
 
     print(DEBUG_PREFIX,"RVC model folder checked.")
+
+#### Emotion HACK
+from transformers import AutoTokenizer, AutoProcessor, pipeline
+import torch
+
+# Models init
+cuda_device = "cuda:0"# if not args.cuda_device else args.cuda_device
+device_string = cuda_device if torch.cuda.is_available() else 'cpu'
+device = torch.device(device_string)
+torch_dtype = torch.float32 if device_string != cuda_device  else torch.float16
+
+def classify_text(text: str) -> list:
+    output = classification_pipe(
+        text,
+        truncation=True,
+        max_length=classification_pipe.model.config.max_position_embeddings,
+    )[0]
+    return sorted(output, key=lambda x: x["score"], reverse=True)
+
+classification_pipe = pipeline(
+        "text-classification",
+        model="nateraw/bert-base-uncased-emotion",
+        top_k=None,
+        device=device,
+        torch_dtype=torch_dtype,
+    )
