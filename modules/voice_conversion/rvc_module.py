@@ -19,13 +19,23 @@ from scipy.io import wavfile
 import os
 import io
 
+from py7zr import pack_7zarchive, unpack_7zarchive
+import shutil
+
 DEBUG_PREFIX = "<RVC module>"
 RVC_MODELS_PATH = "data/models/rvc/"
 IGNORED_FILES = [".placeholder"]
 
+TEMP_FOLDER_PATH = "data/tmp/"
+
 RVC_INPUT_PATH = "data/tmp/rvc_input.wav"
 RVC_OUTPUT_PATH ="data/tmp/rvc_output.wav"
 save_file = False
+
+
+# register file format at first.
+shutil.register_archive_format('7zip', pack_7zarchive, description='7zip archive')
+shutil.register_unpack_format('7zip', ['.7z'], unpack_7zarchive)
 
 def rvc_get_models_list():
     """
@@ -74,6 +84,55 @@ def rvc_get_models_list():
     except Exception as e:
         print(e)
         abort(500, DEBUG_PREFIX + " Exception occurs while searching for RVC models.")
+
+def rvc_upload_models():
+    """
+    Install RVC models uploaded via ST request
+    - Needs flask MAX_CONTENT_LENGTH to be adapted accordingly
+    """
+    try:
+        request_files = request.files
+        print(DEBUG_PREFIX, "received:", request_files)
+
+        for request_file_name in request_files:
+            zip_file_path = os.path.join(TEMP_FOLDER_PATH,request_file_name)
+            print("> Saving",request_file_name,"to",zip_file_path)
+
+            request_file = request_files.get(request_file_name)
+            request_file.save(zip_file_path)
+            
+            model_folder_name, _ = os.path.splitext(request_file_name)
+            model_folder_path = os.path.join(RVC_MODELS_PATH,model_folder_name)
+            
+            shutil.unpack_archive(zip_file_path, model_folder_path)
+
+            print("> Cleaning up model folder",model_folder_path)
+
+            print("> Moving file to model root folder")
+            # Move all files to model root folder
+            for root, dirs, files in os.walk(model_folder_path):
+                for file in files:
+                    file_path = os.path.join(root,file)
+                    if not os.path.isdir(file_path):
+                        # move file from nested folder into the base folder
+                        shutil.move(file_path,os.path.join(model_folder_path,file))
+
+            print("> Deleting model subfolders")
+            # Remove all subfolder
+            for root, dirs, files in os.walk(model_folder_path):
+                for dir in dirs:
+                    folder_path = os.path.join(root,dir)
+                    if os.path.isdir(folder_path):
+                        os.rmdir(folder_path)
+
+            print("> Success")
+    
+        response = json.dumps({"status":"ok"})
+        return response
+
+    except Exception as e:
+        print(e)
+        abort(500, DEBUG_PREFIX + " Exception occurs while uploading models.")
 
 def rvc_process_audio():
     """

@@ -8,3 +8,4 @@ bitarray==2.8.1
 sacrebleu==2.3.1
 numpy==1.23.0
 ffmpeg-python==0.2.0
+py7zr==0.20.6

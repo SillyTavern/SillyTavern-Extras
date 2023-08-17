@@ -91,6 +91,7 @@ parser.add_argument("--talkinghead-gpu", action="store_true", help="Run the talk
 parser.add_argument("--coqui-gpu", action="store_true", help="Run the voice models on the GPU (CPU is default)")
 parser.add_argument("--coqui-models", help="Install given Coqui-api TTS model at launch (comma separated list, last one will be loaded at start)")
 
+parser.add_argument("--max-content-length", help="Set the max")
 parser.add_argument("--rvc-save-file", action="store_true", help="Save the last rvc input/output audio file into data/tmp/ folder (for research)")
 
 parser.add_argument("--stt-vosk-model-path", help="Load a custom vosk speech-to-text model")
@@ -327,6 +328,15 @@ CORS(app)  # allow cross-domain requests
 Compress(app) # compress responses
 app.config["MAX_CONTENT_LENGTH"] = 100 * 1024 * 1024
 
+max_content_length = (
+    args.max_content_length
+    if args.max_content_length
+    else None)
+
+if max_content_length is not None:
+    print("Setting MAX_CONTENT_LENGTH to",max_content_length,"Mb")
+    app.config["MAX_CONTENT_LENGTH"] = int(max_content_length) * 1024 * 1024
+
 if "vosk-stt" in modules:
     print("Initializing Vosk speech-recognition (from ST request file)")
     vosk_model_path = (
@@ -365,6 +375,7 @@ if "streaming-stt" in modules:
 
 if "rvc" in modules:
     print("Initializing RVC voice conversion (from ST request file)")
+    print("Increasing server upload limit")
     rvc_save_file = (
     args.rvc_save_file
     if args.rvc_save_file
@@ -380,7 +391,9 @@ if "rvc" in modules:
     rvc_module.save_file = rvc_save_file
     rvc_module.fix_model_install()
     app.add_url_rule("/api/voice-conversion/rvc/get-models-list", view_func=rvc_module.rvc_get_models_list, methods=["POST"])
+    app.add_url_rule("/api/voice-conversion/rvc/upload-models", view_func=rvc_module.rvc_upload_models, methods=["POST"])
     app.add_url_rule("/api/voice-conversion/rvc/process-audio", view_func=rvc_module.rvc_process_audio, methods=["POST"])
+
 
 if "coqui-tts" in modules:
     mode = "GPU" if args.coqui_gpu else "CPU"
