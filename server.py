@@ -554,11 +554,11 @@ if args.secure:
         with open("api_key.txt", "w") as txt:
             txt.write(api_key)
 
-    print(f"Your API key is {api_key}")
+    print(f"{Fore.YELLOW}{Style.BRIGHT}Your API key is {api_key}{Style.RESET_ALL}")
 elif args.share and args.secure != True:
-    print("WARNING: This instance is publicly exposed without an API key! It is highly recommended to restart with the \"--secure\" argument!")
+    print(f"{Fore.RED}{Style.BRIGHT}WARNING: This instance is publicly exposed without an API key! It is highly recommended to restart with the \"--secure\" argument!{Style.RESET_ALL}")
 else:
-    print("No API key given because you are running locally.")
+    print(f"{Fore.YELLOW}{Style.BRIGHT}No API key given because you are running locally.{Style.RESET_ALL}")
 
 
 def is_authorize_ignored(request):
@@ -1122,7 +1122,7 @@ if args.share:
         cloudflare = _run_cloudflared(port, metrics_port)
     else:
         cloudflare = _run_cloudflared(port)
-    print("\x1b[32mRunning on", cloudflare + "\x1b[0m")
+    print(f"{Fore.GREEN}{Style.NORMAL}Running on: {cloudflare}{Style.RESET_ALL}")
 
 ignore_auth.append(tts_play_sample)
 app.run(host=host, port=port)
