@@ -579,7 +579,7 @@ def before_request():
     # The options check is required so CORS doesn't get angry
     try:
         if request.method != 'OPTIONS' and args.secure and is_authorize_ignored(request) == False and getattr(request.authorization, 'token', '') != api_key:
-            print(f"WARNING: Unauthorized API key access from {request.remote_addr}")
+            print(f"{Fore.RED}{Style.NORMAL}WARNING: Unauthorized API key access from {request.remote_addr}{Style.RESET_ALL}")
             response = jsonify({ 'error': '401: Invalid API key' })
             response.status_code = 401
             return response
