@@ -39,6 +39,7 @@ classification_mode = False
 shutil.register_archive_format('7zip', pack_7zarchive, description='7zip archive')
 shutil.register_unpack_format('7zip', ['.7z'], unpack_7zarchive)
 
+
 def rvc_get_models_list():
     """
     Return the list of RVC model in the expected folder
@@ -180,12 +181,24 @@ def rvc_process_audio():
         # HACK: emotion mode EXPERIMENTAL
         if classification_mode:
             print(DEBUG_PREFIX,"EXPERIMENT MODE: emotions")
-            print("> calling text classification pipeline")
-            emotions_score = classify_text(parameters["text"])
 
-            print(" > ",emotions_score)
-            emotion = emotions_score[0]["label"]
-            print(" > Selected:", emotion)
+            print("> Searching overide code ($emotion$)")
+            emotion = None
+            for code in ["anger","fear", "joy","love","sadness","surprise"]:
+                if "$"+code+"$" in parameters["text"]:
+                    print(" > Overide detected:",code)
+                    emotion = code
+                    parameters["text"] = parameters["text"].replace("$"+code+"$","")
+                    print(parameters["text"])
+                    break
+            
+            if emotion is None: 
+                print("> calling text classification pipeline")
+                emotions_score = classify_text(parameters["text"])
+
+                print(" > ",emotions_score)
+                emotion = emotions_score[0]["label"]
+                print(" > Selected:", emotion)
 
             model_path = folder_path+emotion+".pth"
             index_path = folder_path+emotion+".index"

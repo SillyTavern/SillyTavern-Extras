@@ -22,6 +22,7 @@ from flask import abort, request, send_file, jsonify
 from TTS.api import TTS
 from TTS.utils.manage import ModelManager
 
+from modules.utils import silence_log
 
 DEBUG_PREFIX = "<Coqui-TTS module>"
 COQUI_MODELS_PATH = "data/models/coqui/"
