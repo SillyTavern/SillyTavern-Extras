@@ -554,11 +554,11 @@ if args.secure:
         with open("api_key.txt", "w") as txt:
             txt.write(api_key)
 
-    print(f"Your API key is {api_key}")
+    print(f"{Fore.YELLOW}{Style.BRIGHT}Your API key is {api_key}{Style.RESET_ALL}")
 elif args.share and args.secure != True:
-    print("WARNING: This instance is publicly exposed without an API key! It is highly recommended to restart with the \"--secure\" argument!")
+    print(f"{Fore.RED}{Style.BRIGHT}WARNING: This instance is publicly exposed without an API key! It is highly recommended to restart with the \"--secure\" argument!{Style.RESET_ALL}")
 else:
-    print("No API key given because you are running locally.")
+    print(f"{Fore.YELLOW}{Style.BRIGHT}No API key given because you are running locally.{Style.RESET_ALL}")
 
 
 def is_authorize_ignored(request):
@@ -579,7 +579,7 @@ def before_request():
     # The options check is required so CORS doesn't get angry
     try:
         if request.method != 'OPTIONS' and args.secure and is_authorize_ignored(request) == False and getattr(request.authorization, 'token', '') != api_key:
-            print(f"WARNING: Unauthorized API key access from {request.remote_addr}")
+            print(f"{Fore.RED}{Style.NORMAL}WARNING: Unauthorized API key access from {request.remote_addr}{Style.RESET_ALL}")
             response = jsonify({ 'error': '401: Invalid API key' })
             response.status_code = 401
             return response
@@ -1122,7 +1122,7 @@ if args.share:
         cloudflare = _run_cloudflared(port, metrics_port)
     else:
         cloudflare = _run_cloudflared(port)
-    print("\x1b[32mRunning on", cloudflare + "\x1b[0m")
+    print(f"{Fore.GREEN}{Style.NORMAL}Running on: {cloudflare}{Style.RESET_ALL}")
 
 ignore_auth.append(tts_play_sample)
 app.run(host=host, port=port)
