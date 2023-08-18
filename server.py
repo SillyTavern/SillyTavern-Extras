@@ -1122,7 +1122,7 @@ if args.share:
         cloudflare = _run_cloudflared(port, metrics_port)
     else:
         cloudflare = _run_cloudflared(port)
-    print("Running on", cloudflare)
+    print("\x1b[32mRunning on", cloudflare + "\x1b[0m")
 
 ignore_auth.append(tts_play_sample)
 app.run(host=host, port=port)
