@@ -72,29 +72,33 @@ def coqui_check_model_state():
         print(DEBUG_PREFIX,"Search for model", model_id)
 
         coqui_models_folder = ModelManager().output_prefix  # models location
-        installed_models = os.listdir(coqui_models_folder)
 
-        model_folder_exists = False
-        model_folder = None
+        # Check if tts folder exist
+        if os.path.isdir(coqui_models_folder):
 
-        for i in installed_models:
-            if model_id == i.replace("--","/",3): # Error with model wrong name
-                model_folder_exists = True
-                model_folder = i
-                print(DEBUG_PREFIX,"Folder found:",model_folder)
+            installed_models = os.listdir(coqui_models_folder)
 
-        # Check failed download
-        if model_folder_exists:
-            content = os.listdir(os.path.join(coqui_models_folder,model_folder))
-            print(DEBUG_PREFIX,"Checking content:",content)
-            for i in content:
-                if i == model_folder+".zip":
-                    print("Corrupt installed found, model download must have failed previously")
-                    model_state = "corrupted"
-                    break
+            model_folder_exists = False
+            model_folder = None
 
-            if model_state != "corrupted":
-                model_state = "installed"
+            for i in installed_models:
+                if model_id == i.replace("--","/",3): # Error with model wrong name
+                    model_folder_exists = True
+                    model_folder = i
+                    print(DEBUG_PREFIX,"Folder found:",model_folder)
+
+            # Check failed download
+            if model_folder_exists:
+                content = os.listdir(os.path.join(coqui_models_folder,model_folder))
+                print(DEBUG_PREFIX,"Checking content:",content)
+                for i in content:
+                    if i == model_folder+".zip":
+                        print("Corrupt installed found, model download must have failed previously")
+                        model_state = "corrupted"
+                        break
+
+                if model_state != "corrupted":
+                    model_state = "installed"
 
         response = json.dumps({"model_state":model_state})
         return response
@@ -123,40 +127,43 @@ def coqui_install_model():
             return json.dumps({"status":"downloading"})
         
         coqui_models_folder = ModelManager().output_prefix  # models location
-        installed_models = os.listdir(coqui_models_folder)
-        model_path = None
 
-        print(DEBUG_PREFIX,"Found",len(installed_models),"models in",coqui_models_folder)
+        # Check if tts folder exist
+        if os.path.isdir(coqui_models_folder):
+            installed_models = os.listdir(coqui_models_folder)
+            model_path = None
 
-        for i in installed_models:
-            if model_id == i.replace("--","/"):
-                model_installed = True
-                model_path = os.path.join(coqui_models_folder,i)
+            print(DEBUG_PREFIX,"Found",len(installed_models),"models in",coqui_models_folder)
 
-        if model_installed:
-            print(DEBUG_PREFIX,"model found:", model_id)
-        else:
-            print(DEBUG_PREFIX,"model not found")
+            for i in installed_models:
+                if model_id == i.replace("--","/"):
+                    model_installed = True
+                    model_path = os.path.join(coqui_models_folder,i)
 
-        if action == "download":
             if model_installed:
-                abort(500, DEBUG_PREFIX + "Bad request, model already installed.")
+                print(DEBUG_PREFIX,"model found:", model_id)
+            else:
+                print(DEBUG_PREFIX,"model not found")
 
-            is_downloading = True
-            TTS(model_name=model_id, progress_bar=True, gpu=gpu_mode)
-            is_downloading = False
+            if action == "download":
+                if model_installed:
+                    abort(500, DEBUG_PREFIX + "Bad request, model already installed.")
 
-        if action == "repare":
-            if not model_installed:
-                abort(500, DEBUG_PREFIX + " bad request: requesting repare of model not installed")
+                is_downloading = True
+                TTS(model_name=model_id, progress_bar=True, gpu=gpu_mode)
+                is_downloading = False
+
+            if action == "repare":
+                if not model_installed:
+                    abort(500, DEBUG_PREFIX + " bad request: requesting repare of model not installed")
 
 
-            print(DEBUG_PREFIX,"Deleting corrupted model folder:",model_path)
-            shutil.rmtree(model_path, ignore_errors=True)
+                print(DEBUG_PREFIX,"Deleting corrupted model folder:",model_path)
+                shutil.rmtree(model_path, ignore_errors=True)
 
-            is_downloading = True
-            TTS(model_name=model_id, progress_bar=True, gpu=gpu_mode)
-            is_downloading = False
+        is_downloading = True
+        TTS(model_name=model_id, progress_bar=True, gpu=gpu_mode)
+        is_downloading = False
 
         response = json.dumps({"status":"done"})
         return response
