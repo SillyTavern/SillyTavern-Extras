@@ -78,7 +78,7 @@ def coqui_check_model_state():
         model_folder = None
 
         for i in installed_models:
-            if model_id == i.replace("--","/"):
+            if model_id == i.replace("--","/",3): # Error with model wrong name
                 model_folder_exists = True
                 model_folder = i
                 print(DEBUG_PREFIX,"Folder found:",model_folder)
