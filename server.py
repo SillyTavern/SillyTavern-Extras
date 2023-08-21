@@ -221,16 +221,6 @@ if "summarize" in modules:
         summarization_model, torch_dtype=torch_dtype
     ).to(device)
 
-if "classify" in modules:
-    print("Initializing a sentiment classification pipeline...")
-    classification_pipe = pipeline(
-        "text-classification",
-        model=classification_model,
-        top_k=None,
-        device=device,
-        torch_dtype=torch_dtype,
-    )
-
 if "sd" in modules and not sd_use_remote:
     from diffusers import StableDiffusionPipeline
     from diffusers import EulerAncestralDiscreteScheduler
@@ -336,6 +326,20 @@ max_content_length = (
 if max_content_length is not None:
     print("Setting MAX_CONTENT_LENGTH to",max_content_length,"Mb")
     app.config["MAX_CONTENT_LENGTH"] = int(max_content_length) * 1024 * 1024
+
+# TODO: Keij, unify main classify and module one
+if "classify" in modules:
+    print("Initializing a sentiment classification pipeline...")
+    classification_pipe = pipeline(
+        "text-classification",
+        model=classification_model,
+        top_k=None,
+        device=device,
+        torch_dtype=torch_dtype,
+    )
+
+    import modules.classify.classify_module as classify_module
+    classify_module.init_text_emotion_classifier(classification_model)
 
 if "vosk-stt" in modules:
     print("Initializing Vosk speech-recognition (from ST request file)")

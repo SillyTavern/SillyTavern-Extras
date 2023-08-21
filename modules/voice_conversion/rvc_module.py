@@ -14,14 +14,14 @@ References:
 """
 from flask import abort, request, send_file, jsonify
 import json
-import modules.voice_conversion.rvc.rvc as rvc
 from scipy.io import wavfile
 import os
 import io
-
-from py7zr import pack_7zarchive, unpack_7zarchive
 import shutil
+from py7zr import pack_7zarchive, unpack_7zarchive
 
+import modules.voice_conversion.rvc.rvc as rvc
+import modules.classify.classify_module as classify_module
 
 DEBUG_PREFIX = "<RVC module>"
 RVC_MODELS_PATH = "data/models/rvc/"
@@ -194,7 +194,7 @@ def rvc_process_audio():
             
             if emotion is None: 
                 print("> calling text classification pipeline")
-                emotions_score = classify_text(parameters["text"])
+                emotions_score = classify_module.classify_text_emotion(parameters["text"])
 
                 print(" > ",emotions_score)
                 emotion = emotions_score[0]["label"]
@@ -356,29 +356,3 @@ def fix_model_install():
                 print("  > WARNING: no corresponding folder found, move or delete the file manually to stop warnings.")
 
     print(DEBUG_PREFIX,"RVC model folder checked.")
-
-#### Emotion HACK
-from transformers import AutoTokenizer, AutoProcessor, pipeline
-import torch
-
-# Models init
-cuda_device = "cuda:0"# if not args.cuda_device else args.cuda_device
-device_string = cuda_device if torch.cuda.is_available() else 'cpu'
-device = torch.device(device_string)
-torch_dtype = torch.float32 if device_string != cuda_device  else torch.float16
-
-def classify_text(text: str) -> list:
-    output = classification_pipe(
-        text,
-        truncation=True,
-        max_length=classification_pipe.model.config.max_position_embeddings,
-    )[0]
-    return sorted(output, key=lambda x: x["score"], reverse=True)
-
-classification_pipe = pipeline(
-        "text-classification",
-        model="nateraw/bert-base-uncased-emotion",
-        top_k=None,
-        device=device,
-        torch_dtype=torch_dtype,
-    )
