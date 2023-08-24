@@ -221,16 +221,6 @@ if "summarize" in modules:
         summarization_model, torch_dtype=torch_dtype
     ).to(device)
 
-if "classify" in modules:
-    print("Initializing a sentiment classification pipeline...")
-    classification_pipe = pipeline(
-        "text-classification",
-        model=classification_model,
-        top_k=None,
-        device=device,
-        torch_dtype=torch_dtype,
-    )
-
 if "sd" in modules and not sd_use_remote:
     from diffusers import StableDiffusionPipeline
     from diffusers import EulerAncestralDiscreteScheduler
@@ -337,6 +327,20 @@ if max_content_length is not None:
     print("Setting MAX_CONTENT_LENGTH to",max_content_length,"Mb")
     app.config["MAX_CONTENT_LENGTH"] = int(max_content_length) * 1024 * 1024
 
+# TODO: Keij, unify main classify and module one
+if "classify" in modules:
+    print("Initializing a sentiment classification pipeline...")
+    classification_pipe = pipeline(
+        "text-classification",
+        model=classification_model,
+        top_k=None,
+        device=device,
+        torch_dtype=torch_dtype,
+    )
+
+    import modules.classify.classify_module as classify_module
+    classify_module.init_text_emotion_classifier(classification_model)
+
 if "vosk-stt" in modules:
     print("Initializing Vosk speech-recognition (from ST request file)")
     vosk_model_path = (
@@ -389,6 +393,10 @@ if "rvc" in modules:
 
     import modules.voice_conversion.rvc_module as rvc_module
     rvc_module.save_file = rvc_save_file
+
+    if "classify" in modules:
+        rvc_module.classification_mode = True
+
     rvc_module.fix_model_install()
     app.add_url_rule("/api/voice-conversion/rvc/get-models-list", view_func=rvc_module.rvc_get_models_list, methods=["POST"])
     app.add_url_rule("/api/voice-conversion/rvc/upload-models", view_func=rvc_module.rvc_upload_models, methods=["POST"])
