@@ -1125,4 +1125,5 @@ if args.share:
     print(f"{Fore.GREEN}{Style.NORMAL}Running on: {cloudflare}{Style.RESET_ALL}")
 
 ignore_auth.append(tts_play_sample)
+ignore_auth.append(result_feed)
 app.run(host=host, port=port)
