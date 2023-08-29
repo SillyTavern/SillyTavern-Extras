@@ -10,10 +10,10 @@ services:
         REQUIREMENTS: requirements.txt
         MODULES: caption,summarize,classify
 #        REQUIREMENTS: requirements-complete.txt
-#        MODULES: caption,summarize,classify,keywords,prompt,sd,tts,chromadb
+#        MODULES: caption,summarize,classify,sd,silero-tts,edge-tts,chromadb
     ports:
       - "5100:5100"
     environment:
       - NVIDIA_VISIBLE_DEVICES=all
     command: python server.py --enable-modules=caption,summarize,classify
-#    command: python server.py --enable-modules=caption,summarize,classify,keywords,prompt,sd,tts,chromadb
+#    command: python server.py --enable-modules=caption,summarize,classify,sd,silero-tts,edge-tts,chromadb
