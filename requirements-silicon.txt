@@ -9,7 +9,7 @@ torch==2.0.0
 transformers==4.28.1
 webuiapi==0.9.5
 edge-tts==6.1.8
-silero-api-server==0.2.7
+silero-api-server==0.2.9
 torchvision==0.15.1
 torchaudio==2.0.1
 diffusers==0.17.1
