@@ -1,0 +1,2 @@
+Put Coqui models folders here.
+Must contains both a "model.pth" and "config.json" file.

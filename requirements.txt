@@ -1,12 +1,12 @@
-flask
-flask-cloudflared
-flask-cors
-flask-compress
-markdown
-Pillow
-colorama
+flask==2.3.2
+flask-cloudflared==0.0.13
+flask-cors==4.0.0
+flask-compress==1.13
+markdown==3.4.3
+Pillow==9.5.0
+colorama==0.4.6
 --extra-index-url https://download.pytorch.org/whl/cu117
 torch==2.0.0+cu117
 transformers==4.28.1
-webuiapi
-edge-tts
+webuiapi==0.9.5
+edge-tts==6.1.8

@@ -1,8 +1,8 @@
 # SillyTavern - Extras
 
-# Recent news
+## Recent news
 
-* We're migrating SillyTavern - Extras to Python 3.11, some of the modules new will be incompatible with old Python 3.10 installs. To migrate using conda, please remove the old environment using `conda remove --name extras --all` and reinstall using the instructions below.
+* July 25 2023 - Now extras require Python 3.11 to run, some of the modules new will be incompatible with old Python 3.10 installs. To migrate using conda, please remove old environment using `conda remove --name extras --all` and reinstall using the instructions below.
 
 ## What is this
 A set of APIs for various SillyTavern extensions.
@@ -47,7 +47,7 @@ You must specify a list of module names to be run in the `--enable-modules` comm
 * Select desired "extra" options and start the cell
 * Wait for it to finish
 * Get an API URL link from colab output under the `### SillyTavern Extensions LINK ###` title
-* Start SillyTavern with extensions support: set `enableExtensions` to `true` in [config.conf](https://github.com/Cohee1207/SillyTavern/blob/dev/config.conf)
+* Start SillyTavern with extensions support: set `enableExtensions` to `true` in config.conf
 * Navigate to SillyTavern extensions menu and put in an API URL and tap "Connect" to load the extensions
 
 ### What about mobile/Android/Termux? 🤔
@@ -136,8 +136,9 @@ cd SillyTavern-extras
 | `sd`        | Stable Diffusion image generation | :x: No (✔️ remote)      |
 | `silero-tts`       | [Silero TTS server](https://github.com/ouoertheo/silero-api-server) | :x: No |
 | `edge-tts` | [Microsoft Edge TTS client](https://github.com/rany2/edge-tts) | ✔️ Yes |
+| `coqui-tts` | [Coqui TTS server](https://github.com/coqui-ai/TTS) | :x: No |
 | `chromadb`  | Infinity context server           | :x: No |
-
+| `talkinghead`  | Talking Head Sprites           | :x: No |
 
 ## Additional options
 | Flag                     | Description                                                            |
@@ -151,6 +152,9 @@ cd SillyTavern-extras
 | `--mps` or `--m1`        | Run the models on Apple Silicon. Only for M1 and M2 processors. |
 | `--cuda`                 | Uses CUDA (GPU+VRAM) to run modules if it is available. Otherwise, falls back to using CPU. |
 | `--cuda-device`          | Specifies a CUDA device to use. Defaults to `cuda:0` (first available GPU). |
+| `--talkinghead-gpu`           | Uses GPU for talkinghead (10x FPS increase in animation). |
+| `--coqui-gpu`            | Uses GPU for coqui TTS (if available). |
+| `--coqui-model`          | If provided, downloads and preloads a coqui TTS model. Default: none.<br>Example: `tts_models/multilingual/multi-dataset/bark` |
 | `--summarization-model`  | Load a custom summarization model.<br>Expects a HuggingFace model ID.<br>Default: [Qiliang/bart-large-cnn-samsum-ChatGPT_v3](https://huggingface.co/Qiliang/bart-large-cnn-samsum-ChatGPT_v3) |
 | `--classification-model` | Load a custom sentiment classification model.<br>Expects a HuggingFace model ID.<br>Default (6 emotions): [nateraw/bert-base-uncased-emotion](https://huggingface.co/nateraw/bert-base-uncased-emotion)<br>Other solid option is (28 emotions): [joeddav/distilbert-base-uncased-go-emotions-student](https://huggingface.co/joeddav/distilbert-base-uncased-go-emotions-student)<br>For Chinese language: [touch20032003/xuyuan-trial-sentiment-bert-chinese](https://huggingface.co/touch20032003/xuyuan-trial-sentiment-bert-chinese) |
 | `--captioning-model`     | Load a custom captioning model.<br>Expects a HuggingFace model ID.<br>Default: [Salesforce/blip-image-captioning-large](https://huggingface.co/Salesforce/blip-image-captioning-large) |
@@ -164,6 +168,28 @@ cd SillyTavern-extras
 | `--sd-remote-port`       | Specify the port of the remote SD backend<br>Default: **7860** |
 | `--sd-remote-ssl`        | Use SSL for the remote SD backend<br>Default: **False** |
 | `--sd-remote-auth`       | Specify the `username:password` for the remote SD backend (if required) |
+
+## Coqui TTS
+
+### Running on Mac M1
+
+#### ImportError: symbol not found
+
+If you're getting the following error when running coqui-tts module on M1 Mac:
+
+```
+ImportError: dlopen(/Users/user/.../lib/python3.11/site-packages/MeCab/_MeCab.cpython-311-darwin.so, 0x0002): symbol not found in flat namespace '__ZN5MeCab11createModelEPKc'
+```
+
+Do the following:
+
+1. Install homebrew: https://brew.sh/
+2. Build and install the `mecab` package
+
+```
+brew install --build-from-source mecab
+ARCHFLAGS='-arch arm64' pip install --no-binary :all: --compile --use-pep517 --no-cache-dir --force mecab-python3
+```
 
 ## ChromaDB
 ChromaDB is a blazing fast and open source database that is used for long-term memory when chatting with characters. It can be run in-memory or on a local server on your LAN.
@@ -435,3 +461,82 @@ WAV audio file.
 ```
 #### **Output**
 MP3 audio file.
+
+### Load a Coqui TTS model
+`GET /api/coqui-tts/load`
+#### **Input**
+_model (string, required): The name of the Coqui TTS model to load.
+_gpu (string, Optional): Use the GPU to load model.
+_progress (string, Optional): Show progress bar in terminal.
+```
+{ "_model": "tts_models--en--jenny--jenny\model.pth" }
+{ "_gpu": "False" }
+{ "_progress": "True" }
+```
+#### **Output**
+"Loaded"
+
+### Get a list of Coqui TTS voices
+`GET /api/coqui-tts/list`
+#### **Output**
+```
+["tts_models--en--jenny--jenny\\model.pth", "tts_models--en--ljspeech--fast_pitch\\model_file.pth", "tts_models--en--ljspeech--glow-tts\\model_file.pth", "tts_models--en--ljspeech--neural_hmm\\model_file.pth", "tts_models--en--ljspeech--speedy-speech\\model_file.pth", "tts_models--en--ljspeech--tacotron2-DDC\\model_file.pth", "tts_models--en--ljspeech--vits\\model_file.pth", "tts_models--en--ljspeech--vits--neon\\model_file.pth.tar", "tts_models--en--multi-dataset--tortoise-v2", "tts_models--en--vctk--vits\\model_file.pth", "tts_models--et--cv--vits\\model_file.pth.tar", "tts_models--multilingual--multi-dataset--bark", "tts_models--multilingual--multi-dataset--your_tts\\model_file.pth", "tts_models--multilingual--multi-dataset--your_tts\\model_se.pth"]
+```
+
+### Get a list of the loaded Coqui model speakers
+`GET /api/coqui-tts/multspeaker`
+#### **Output**
+```
+{"0": "female-en-5", "1": "female-en-5\n", "2": "female-pt-4\n", "3": "male-en-2", "4": "male-en-2\n", "5": "male-pt-3\n"}
+```
+
+### Get a list of the loaded Coqui model lanagauges
+`GET /api/coqui-tts/multlang`
+#### **Output**
+```
+{"0": "en", "1": "fr-fr", "2": "pt-br"}
+```
+
+### Generate Coqui TTS voice
+`POST /api/edge-tts/generate`
+#### **Input**
+```
+{
+  "text": "Text to narrate",
+  "speaker_id": "0",
+  "mspker": null,
+  "language_id": null,
+  "style_wav": null
+}
+```
+#### **Output**
+MP3 audio file.
+
+### Loads a talkinghead character by specifying the character's image URL.
+`GET /api/talkinghead/load`
+#### **Parameters**
+loadchar (string, required): The URL of the character's image. The URL should point to a PNG image.
+{ "loadchar": "http://localhost:8000/characters/Aqua.png" }
+#### **Example**
+'http://localhost:5100/api/talkinghead/load?loadchar=http://localhost:8000/characters/Aqua.png'
+#### **Output**
+'OK'
+
+### Animates the talkinghead sprite to start talking.
+`GET /api/talkinghead/start_talking`
+#### **Example**
+'http://localhost:5100/api/talkinghead/start_talking'
+#### **Output**
+"started"
+
+### Animates the talkinghead sprite to stop talking.
+`GET /api/talkinghead/stop_talking`
+#### **Example**
+'http://localhost:5100/api/talkinghead/stop_talking'
+#### **Output**
+"stopped"
+
+### Outputs the animated talkinghead sprite.
+`GET /api/talkinghead/result_feed`
+#### **Output**
+Animated transparent image

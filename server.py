@@ -86,13 +86,23 @@ parser.add_argument('--chroma-persist', help="ChromaDB persistence", default=Tru
 parser.add_argument(
     "--secure", action="store_true", help="Enforces the use of an API key"
 )
+parser.add_argument("--talkinghead-gpu", action="store_true", help="Run the talkinghead animation on the GPU (CPU is default)")
+
+parser.add_argument("--coqui-gpu", action="store_true", help="Run the voice models on the GPU (CPU is default)")
+parser.add_argument("--coqui-models", help="Install given Coqui-api TTS model at launch (comma separated list, last one will be loaded at start)")
+
+parser.add_argument("--max-content-length", help="Set the max")
+parser.add_argument("--rvc-save-file", action="store_true", help="Save the last rvc input/output audio file into data/tmp/ folder (for research)")
+
+parser.add_argument("--stt-vosk-model-path", help="Load a custom vosk speech-to-text model")
+parser.add_argument("--stt-whisper-model-path", help="Load a custom vosk speech-to-text model")
 sd_group = parser.add_mutually_exclusive_group()
 
-local_sd = sd_group.add_argument_group("sd-local")
+local_sd = parser.add_argument_group("sd-local")
 local_sd.add_argument("--sd-model", help="Load a custom SD image generation model")
 local_sd.add_argument("--sd-cpu", help="Force the SD pipeline to run on the CPU", action="store_true")
 
-remote_sd = sd_group.add_argument_group("sd-remote")
+remote_sd = parser.add_argument_group("sd-remote")
 remote_sd.add_argument(
     "--sd-remote", action="store_true", help="Use a remote backend for SD"
 )
@@ -170,6 +180,28 @@ if not torch.cuda.is_available() and not args.cpu:
 
 print(f"{Fore.GREEN}{Style.BRIGHT}Using torch device: {device_string}{Style.RESET_ALL}")
 
+if "talkinghead" in modules:
+    import sys
+    import threading
+    mode = "cuda" if args.talkinghead_gpu else "cpu"
+    print("Initializing talkinghead pipeline in " + mode + " mode....")
+    talkinghead_path = os.path.abspath(os.path.join(os.getcwd(), "talkinghead"))
+    sys.path.append(talkinghead_path) # Add the path to the 'tha3' module to the sys.path list
+
+    try:
+        import talkinghead.tha3.app.app as talkinghead
+        from talkinghead import *
+        def launch_talkinghead_gui():
+            talkinghead.launch_gui(mode, "separable_float")
+        #choices=['standard_float', 'separable_float', 'standard_half', 'separable_half'],
+        #choices='The device to use for PyTorch ("cuda" for GPU, "cpu" for CPU).'
+        talkinghead_thread = threading.Thread(target=launch_talkinghead_gui)
+        talkinghead_thread.daemon = True  # Set the thread as a daemon thread
+        talkinghead_thread.start()
+
+    except ModuleNotFoundError:
+        print("Error: Could not import the 'talkinghead' module.")
+
 if "caption" in modules:
     print("Initializing an image captioning model...")
     captioning_processor = AutoProcessor.from_pretrained(captioning_model)
@@ -188,16 +220,6 @@ if "summarize" in modules:
     summarization_transformer = AutoModelForSeq2SeqLM.from_pretrained(
         summarization_model, torch_dtype=torch_dtype
     ).to(device)
-
-if "classify" in modules:
-    print("Initializing a sentiment classification pipeline...")
-    classification_pipe = pipeline(
-        "text-classification",
-        model=classification_model,
-        top_k=None,
-        device=device,
-        torch_dtype=torch_dtype,
-    )
 
 if "sd" in modules and not sd_use_remote:
     from diffusers import StableDiffusionPipeline
@@ -251,7 +273,6 @@ if "silero-tts" in modules:
         tts_service.update_sample_text(SILERO_SAMPLE_TEXT)
         tts_service.generate_samples()
 
-
 if "edge-tts" in modules:
     print("Initializing Edge TTS client")
     import tts_edge as edge
@@ -297,6 +318,120 @@ CORS(app)  # allow cross-domain requests
 Compress(app) # compress responses
 app.config["MAX_CONTENT_LENGTH"] = 100 * 1024 * 1024
 
+max_content_length = (
+    args.max_content_length
+    if args.max_content_length
+    else None)
+
+if max_content_length is not None:
+    print("Setting MAX_CONTENT_LENGTH to",max_content_length,"Mb")
+    app.config["MAX_CONTENT_LENGTH"] = int(max_content_length) * 1024 * 1024
+
+# TODO: Keij, unify main classify and module one
+if "classify" in modules:
+    print("Initializing a sentiment classification pipeline...")
+    classification_pipe = pipeline(
+        "text-classification",
+        model=classification_model,
+        top_k=None,
+        device=device,
+        torch_dtype=torch_dtype,
+    )
+
+    import modules.classify.classify_module as classify_module
+    classify_module.init_text_emotion_classifier(classification_model)
+
+if "vosk-stt" in modules:
+    print("Initializing Vosk speech-recognition (from ST request file)")
+    vosk_model_path = (
+    args.stt_vosk_model_path
+    if args.stt_vosk_model_path
+    else None)
+
+    import modules.speech_recognition.vosk_module as vosk_module
+
+    vosk_module.model = vosk_module.load_model(file_path=vosk_model_path)
+    app.add_url_rule("/api/speech-recognition/vosk/process-audio", view_func=vosk_module.process_audio, methods=["POST"])
+
+if "whisper-stt" in modules:
+    print("Initializing Whisper speech-recognition (from ST request file)")
+    whisper_model_path = (
+    args.stt_whisper_model_path
+    if args.stt_whisper_model_path
+    else None)
+
+    import modules.speech_recognition.whisper_module as whisper_module
+
+    whisper_module.model = whisper_module.load_model(file_path=whisper_model_path)
+    app.add_url_rule("/api/speech-recognition/whisper/process-audio", view_func=whisper_module.process_audio, methods=["POST"])
+
+if "streaming-stt" in modules:
+    print("Initializing vosk/whisper speech-recognition (from extras server microphone)")
+    whisper_model_path = (
+    args.stt_whisper_model_path
+    if args.stt_whisper_model_path
+    else None)
+
+    import modules.speech_recognition.streaming_module as streaming_module
+
+    streaming_module.whisper_model, streaming_module.vosk_model = streaming_module.load_model(file_path=whisper_model_path)
+    app.add_url_rule("/api/speech-recognition/streaming/record-and-transcript", view_func=streaming_module.record_and_transcript, methods=["POST"])
+
+if "rvc" in modules:
+    print("Initializing RVC voice conversion (from ST request file)")
+    print("Increasing server upload limit")
+    rvc_save_file = (
+    args.rvc_save_file
+    if args.rvc_save_file
+    else False)
+
+    if rvc_save_file:
+        print("RVC saving file option detected, input/output audio will be savec into data/tmp/ folder")
+
+    import sys
+    sys.path.insert(0,'modules/voice_conversion')
+
+    import modules.voice_conversion.rvc_module as rvc_module
+    rvc_module.save_file = rvc_save_file
+
+    if "classify" in modules:
+        rvc_module.classification_mode = True
+
+    rvc_module.fix_model_install()
+    app.add_url_rule("/api/voice-conversion/rvc/get-models-list", view_func=rvc_module.rvc_get_models_list, methods=["POST"])
+    app.add_url_rule("/api/voice-conversion/rvc/upload-models", view_func=rvc_module.rvc_upload_models, methods=["POST"])
+    app.add_url_rule("/api/voice-conversion/rvc/process-audio", view_func=rvc_module.rvc_process_audio, methods=["POST"])
+
+
+if "coqui-tts" in modules:
+    mode = "GPU" if args.coqui_gpu else "CPU"
+    print("Initializing Coqui TTS client in " + mode + " mode")
+    import modules.text_to_speech.coqui.coqui_module as coqui_module
+    
+    if mode == "GPU":
+        coqui_module.gpu_mode = True
+
+    coqui_models = (
+    args.coqui_models
+    if args.coqui_models
+    else None
+    )
+
+    if coqui_models is not None:
+        coqui_models = coqui_models.split(",")
+        for i in coqui_models:
+            if not coqui_module.install_model(i):
+                raise ValueError("Coqui model loading failed, most likely a wrong model name in --coqui-models argument, check log above to see which one")
+
+    # Coqui-api models
+    app.add_url_rule("/api/text-to-speech/coqui/coqui-api/check-model-state", view_func=coqui_module.coqui_check_model_state, methods=["POST"])
+    app.add_url_rule("/api/text-to-speech/coqui/coqui-api/install-model", view_func=coqui_module.coqui_install_model, methods=["POST"])
+
+    # Users models
+    app.add_url_rule("/api/text-to-speech/coqui/local/get-models", view_func=coqui_module.coqui_get_local_models, methods=["POST"])
+
+    # Handle both coqui-api/users models
+    app.add_url_rule("/api/text-to-speech/coqui/generate-tts", view_func=coqui_module.coqui_generate_tts, methods=["POST"])
 
 def require_module(name):
     def wrapper(fn):
@@ -427,11 +562,11 @@ if args.secure:
         with open("api_key.txt", "w") as txt:
             txt.write(api_key)
 
-    print(f"Your API key is {api_key}")
+    print(f"{Fore.YELLOW}{Style.BRIGHT}Your API key is {api_key}{Style.RESET_ALL}")
 elif args.share and args.secure != True:
-    print("WARNING: This instance is publicly exposed without an API key! It is highly recommended to restart with the \"--secure\" argument!")
+    print(f"{Fore.RED}{Style.BRIGHT}WARNING: This instance is publicly exposed without an API key! It is highly recommended to restart with the \"--secure\" argument!{Style.RESET_ALL}")
 else:
-    print("No API key given because you are running locally.")
+    print(f"{Fore.YELLOW}{Style.BRIGHT}No API key given because you are running locally.{Style.RESET_ALL}")
 
 
 def is_authorize_ignored(request):
@@ -452,7 +587,7 @@ def before_request():
     # The options check is required so CORS doesn't get angry
     try:
         if request.method != 'OPTIONS' and args.secure and is_authorize_ignored(request) == False and getattr(request.authorization, 'token', '') != api_key:
-            print(f"WARNING: Unauthorized API key access from {request.remote_addr}")
+            print(f"{Fore.RED}{Style.NORMAL}WARNING: Unauthorized API key access from {request.remote_addr}{Style.RESET_ALL}")
             response = jsonify({ 'error': '401: Invalid API key' })
             response.status_code = 401
             return response
@@ -544,6 +679,8 @@ def api_classify():
     classification = classify_text(data["text"])
     print("Classification output:", classification, sep="\n")
     gc.collect()
+    if "talkinghead" in modules: #send emotion to talkinghead
+        talkinghead.setEmotion(classification)
     return jsonify({"classification": classification})
 
 
@@ -552,8 +689,31 @@ def api_classify():
 def api_classify_labels():
     classification = classify_text("")
     labels = [x["label"] for x in classification]
+    if "talkinghead" in modules:
+        labels.append('talkinghead')  # Add 'talkinghead' to the labels list
     return jsonify({"labels": labels})
 
+@app.route("/api/talkinghead/load", methods=["POST"])
+def live_load():
+    file = request.files['file']
+    # convert stream to bytes and pass to talkinghead_load
+    return talkinghead.talkinghead_load_file(file.stream)
+
+@app.route('/api/talkinghead/unload')
+def live_unload():
+    return talkinghead.unload()
+
+@app.route('/api/talkinghead/start_talking')
+def start_talking():
+    return talkinghead.start_talking()
+
+@app.route('/api/talkinghead/stop_talking')
+def stop_talking():
+    return talkinghead.stop_talking()
+
+@app.route('/api/talkinghead/result_feed')
+def result_feed():
+    return talkinghead.result_feed()
 
 @app.route("/api/image", methods=["POST"])
 @require_module("sd")
@@ -970,7 +1130,8 @@ if args.share:
         cloudflare = _run_cloudflared(port, metrics_port)
     else:
         cloudflare = _run_cloudflared(port)
-    print("Running on", cloudflare)
+    print(f"{Fore.GREEN}{Style.NORMAL}Running on: {cloudflare}{Style.RESET_ALL}")
 
 ignore_auth.append(tts_play_sample)
+ignore_auth.append(result_feed)
 app.run(host=host, port=port)
