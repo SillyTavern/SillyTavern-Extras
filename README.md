@@ -2,7 +2,7 @@
 
 ## Recent news
 
-* July 25 2023 - Now extras require Python 3.11 to run. To migrate using conda, please remove old environment using `conda remove --name extras --all` and reinstall using the instructions below.
+* July 25 2023 - Now extras require Python 3.11 to run, some of the modules new will be incompatible with old Python 3.10 installs. To migrate using conda, please remove old environment using `conda remove --name extras --all` and reinstall using the instructions below.
 
 ## What is this
 A set of APIs for various SillyTavern extensions.
