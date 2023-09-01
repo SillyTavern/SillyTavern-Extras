@@ -316,7 +316,7 @@ if "chromadb" in modules:
 app = Flask(__name__)
 CORS(app)  # allow cross-domain requests
 Compress(app) # compress responses
-app.config["MAX_CONTENT_LENGTH"] = 100 * 1024 * 1024
+app.config["MAX_CONTENT_LENGTH"] = 500 * 1024 * 1024
 
 max_content_length = (
     args.max_content_length
