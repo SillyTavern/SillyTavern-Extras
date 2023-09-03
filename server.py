@@ -327,19 +327,9 @@ if max_content_length is not None:
     print("Setting MAX_CONTENT_LENGTH to",max_content_length,"Mb")
     app.config["MAX_CONTENT_LENGTH"] = int(max_content_length) * 1024 * 1024
 
-# TODO: Keij, unify main classify and module one
 if "classify" in modules:
-    print("Initializing a sentiment classification pipeline...")
-    classification_pipe = pipeline(
-        "text-classification",
-        model=classification_model,
-        top_k=None,
-        device=device,
-        torch_dtype=torch_dtype,
-    )
-
     import modules.classify.classify_module as classify_module
-    classify_module.init_text_emotion_classifier(classification_model)
+    classify_module.init_text_emotion_classifier(classification_model, device, torch_dtype)
 
 if "vosk-stt" in modules:
     print("Initializing Vosk speech-recognition (from ST request file)")
@@ -407,7 +397,7 @@ if "coqui-tts" in modules:
     mode = "GPU" if args.coqui_gpu else "CPU"
     print("Initializing Coqui TTS client in " + mode + " mode")
     import modules.text_to_speech.coqui.coqui_module as coqui_module
-    
+
     if mode == "GPU":
         coqui_module.gpu_mode = True
 
@@ -448,12 +438,7 @@ def require_module(name):
 
 # AI stuff
 def classify_text(text: str) -> list:
-    output = classification_pipe(
-        text,
-        truncation=True,
-        max_length=classification_pipe.model.config.max_position_embeddings,
-    )[0]
-    return sorted(output, key=lambda x: x["score"], reverse=True)
+    return classify_module.classify_text_emotion(text)
 
 
 def caption_image(raw_image: Image, max_new_tokens: int = 20) -> str:

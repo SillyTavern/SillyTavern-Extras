@@ -3,26 +3,23 @@ Classify module for SillyTavern Extras
 
 Authors:
     - Tony Ribeiro (https://github.com/Tony-sama)
+    - Cohee (https://github.com/Cohee1207)
 
 Provides classification features for text
 
 References:
+    - https://huggingface.co/tasks/text-classification
 """
 
-import torch
 from transformers import pipeline
 
 DEBUG_PREFIX = "<Classify module>"
 
 # Models init
-cuda_device = "cuda:0"# if not args.cuda_device else args.cuda_device
-device_string = cuda_device if torch.cuda.is_available() else 'cpu'
-device = torch.device(device_string)
-torch_dtype = torch.float32 if device_string != cuda_device  else torch.float16
 
 text_emotion_pipe = None
 
-def init_text_emotion_classifier(model_name: str) -> None:
+def init_text_emotion_classifier(model_name: str, device: str, torch_dtype: str) -> None:
     global text_emotion_pipe
 
     print(DEBUG_PREFIX,"Initializing text classification pipeline with model",model_name)
