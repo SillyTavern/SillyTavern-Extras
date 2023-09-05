@@ -58,6 +58,12 @@ There are some folks in the community having success running Extras on their pho
 
 We will NOT provide any support for running this on Android. Direct all your questions to the creator of this guide.
 
+#### Talkinghead module on Linux
+
+It requires the installation of an additional package because it's not installed automatically due to incompatibility with Colab. Run this after you install other requirements:
+
+`pip install wxpython==4.2.1`
+
 ### 💻 Locally
 #### Option 1 - Conda (recommended) 🐍
 
@@ -124,7 +130,7 @@ cd SillyTavern-extras
 * Run `python server.py --enable-modules=caption,summarize,classify`
 * Get the API URL. Defaults to `http://localhost:5100` if you run locally.
 * Start SillyTavern with extensions support: set `enableExtensions` to `true` in config.conf
-* Navigate to SillyTavern extensions menu and put in an API URL and tap "Connect" to load the extensions
+* Navigate to the SillyTavern extensions menu and put in an API URL and tap "Connect" to load the extensions
 
 ## Modules
 
