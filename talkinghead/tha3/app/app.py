@@ -112,7 +112,7 @@ def talkinghead_load_file(stream):
         global_reload = Image.open(BytesIO(img_data.getvalue())) # Set the global_reload to the copy of the image data
     except Image.UnidentifiedImageError:
         print(f"Could not load image from file, loading blank")
-        full_path = os.path.join(os.getcwd(), "talkinghead\\tha3\\images\\inital.png")
+        full_path = os.path.join(os.getcwd(), os.path.normpath("talkinghead\\tha3\\images\\inital.png"))
         MainFrame.load_image(None, full_path)
         global_timer_paused = True
     return 'OK'
@@ -124,7 +124,7 @@ def convert_linear_to_srgb(image: torch.Tensor) -> torch.Tensor:
 def launch_gui(device, model):
     global initAMI
     initAMI = True
-    
+
     parser = argparse.ArgumentParser(description='uWu Waifu')
 
     # Add other parser arguments here
@@ -140,7 +140,7 @@ def launch_gui(device, model):
         main_frame.SetSize((750, 600))
 
         #Lload default image (you can pass args.char if required)
-        full_path = os.path.join(os.getcwd(), "talkinghead\\tha3\\images\\inital.png")
+        full_path = os.path.join(os.getcwd(), os.path.normpath("talkinghead\\tha3\\images\\inital.png"))
         main_frame.load_image(None, full_path)
 
         #main_frame.Show(True)
@@ -243,15 +243,15 @@ class MainFrame(wx.Frame):
                     current_pose[blendshape_name] = 0
 
         return current_pose
-    
+
     def animationHeadMove(self):
         current_pose = self.ifacialmocap_pose
 
         for key in [HEAD_BONE_Y]: #can add more to this list if needed
             current_pose[key] = self.random_generate_value(-20, 20, current_pose[key])
-        
+
         return current_pose
-    
+
     def animationBlink(self):
         current_pose = self.ifacialmocap_pose
 
@@ -263,12 +263,12 @@ class MainFrame(wx.Frame):
             current_pose["eyeBlinkLeft"] = 0
 
         return current_pose
-    
+
     def addNamestoConvert(pose):
         index_to_name = {
             0: 'eyebrow_troubled_left_index', #COMBACK TO UNK
             1: 'eyebrow_troubled_right_index',#COMBACK TO UNK
-            2: 'eyebrow_angry_left_index',    
+            2: 'eyebrow_angry_left_index',
             3: 'eyebrow_angry_right_index',
             4: 'unknown1', #COMBACK TO UNK
             5: 'unknown2', #COMBACK TO UNK
@@ -302,7 +302,7 @@ class MainFrame(wx.Frame):
             33: 'unknown11', #COMBACK TO UNK
             34: 'mouth_raised_corner_left_index',
             35: 'mouth_raised_corner_right_index',
-            36: 'unknown12', 
+            36: 'unknown12',
             37: 'iris_rotation_x_index',
             38: 'iris_rotation_y_index',
             39: 'head_x_index',
@@ -320,7 +320,7 @@ class MainFrame(wx.Frame):
             output.append(f"{name}: {value}")
 
         return output
-    
+
     def get_emotion_values(self, emotion): # Place to define emotion presets
         global storepath
 
@@ -342,14 +342,14 @@ class MainFrame(wx.Frame):
         #targetpose_values = list(targetpose.values())
         #print("targetpose: ", targetpose, "for ", emotion)
         return targetpose_values
-    
+
     def animateToEmotion(self, current_pose_list, target_pose_dict):
         transitionPose = []
-        
+
         # Loop through the current_pose_list
         for item in current_pose_list:
             index, value = item.split(': ')
-            
+
             # Always take the value from target_pose_dict if the key exists
             if index in target_pose_dict and index != "breathing_index":
                 transitionPose.append(f"{index}: {target_pose_dict[index]}")
@@ -361,7 +361,7 @@ class MainFrame(wx.Frame):
 
         return transitionPose
 
-    def animationMain(self): 
+    def animationMain(self):
         self.ifacialmocap_pose =  self.animationBlink()
         self.ifacialmocap_pose =  self.animationHeadMove()
         self.ifacialmocap_pose =  self.animationTalking()
@@ -407,7 +407,7 @@ class MainFrame(wx.Frame):
 
         separator = wx.StaticLine(self.animation_left_panel, -1, size=(256, 1))
         self.animation_left_panel_sizer.Add(separator, 0, wx.EXPAND)
-        
+
         self.fps_text = wx.StaticText(self.animation_left_panel, label="")
         self.animation_left_panel_sizer.Add(self.fps_text, wx.SizerFlags().Border())
 
@@ -576,7 +576,7 @@ class MainFrame(wx.Frame):
             return len(input_data)
         else:
             raise TypeError("Input must be a list or dictionary.")
-            
+
     def convert_list_to_dict(self, list_str):
         # Evaluate the string to get the actual list
         list_data = ast.literal_eval(list_str)
@@ -599,7 +599,7 @@ class MainFrame(wx.Frame):
             return torch.tensor(d)
         else:
             raise ValueError("Unsupported data type passed to dict_to_tensor.")
-    
+
     def update_ifacualmocap_pose(self, ifacualmocap_pose, emotion_pose):
         # Update Values - The following values are in emotion_pose but not defined in ifacualmocap_pose
         # eye_happy_wink_left_index, eye_happy_wink_right_index
@@ -693,13 +693,13 @@ class MainFrame(wx.Frame):
 
         for item in tranisitiondPose:
             key, value = item.split(': ')
-            
+
             if key in MOUTHPARTS and is_talking_override:
                 new_value = self.random_generate_value(-5000, 5000, abs(1 - float(value)))
                 updated_list.append(f"{key}: {new_value}")
             else:
                 updated_list.append(item)
-        
+
         return updated_list
 
     def update_sway_pose_good(self, tranisitiondPose):
@@ -710,10 +710,10 @@ class MainFrame(wx.Frame):
 
         for item in tranisitiondPose:
             key, value = item.split(': ')
-            
+
             if key in MOVEPARTS:
                 current_value = float(value)
-                
+
                 # If progress reaches 1 or 0
                 if self.progress[key] >= 1 or self.progress[key] <= 0:
                     # Reverse direction
@@ -727,10 +727,10 @@ class MainFrame(wx.Frame):
 
                 # Use lerp to interpolate between start and target values
                 new_value = self.start_values[key] + self.progress[key] * (self.targets[key] - self.start_values[key])
-                
+
                 # Ensure the value remains within bounds (just in case)
                 new_value = min(max(new_value, -1), 1)
-                
+
                 # Update progress based on direction
                 self.progress[key] += 0.02 * self.direction[key]
 
@@ -748,16 +748,16 @@ class MainFrame(wx.Frame):
 
         for item in tranisitiondPose:
             key, value = item.split(': ')
-            
+
             if key in MOVEPARTS:
                 current_value = float(value)
 
                 # Use lerp to interpolate between start and target values
                 new_value = self.start_values[key] + self.progress[key] * (self.targets[key] - self.start_values[key])
-                
+
                 # Ensure the value remains within bounds (just in case)
                 new_value = min(max(new_value, -1), 1)
-                
+
                 # Check if we've reached the target or start value
                 is_close_to_target = abs(new_value - self.targets[key]) < 0.04
                 is_close_to_start = abs(new_value - self.start_values[key]) < 0.04
@@ -846,18 +846,18 @@ class MainFrame(wx.Frame):
             if global_reload is not None:
                 MainFrame.load_image(self, event=None, file_path=None)  # call load_image function here
                 return
-            
+
             #OLD METHOD
             #ifacialmocap_pose = self.animationMain() #GET ANIMATION CHANGES
             #current_posesaved = self.pose_converter.convert(ifacialmocap_pose)
             #combined_posesaved = current_posesaved
 
-            #NEW METHOD 
+            #NEW METHOD
             #CREATES THE DEFAULT POSE AND STORES OBJ IN STRING
             #ifacialmocap_pose = self.animationMain() #DISABLE FOR TESTING!!!!!!!!!!!!!!!!!!!!!!!!
             ifacialmocap_pose = self.ifacialmocap_pose
             #print("ifacialmocap_pose", ifacialmocap_pose)
-            
+
             #GET EMOTION SETTING
             emotion_pose = self.get_emotion_values(emotion)
             #print("emotion_pose ", emotion_pose)
@@ -867,25 +867,25 @@ class MainFrame(wx.Frame):
             #print("updated_pose ", updated_pose)
 
             #CONVERT RESULT TO FORMAT NN CAN USE
-            current_pose = self.pose_converter.convert(updated_pose) 
+            current_pose = self.pose_converter.convert(updated_pose)
             #print("current_pose ", current_pose)
 
             #SEND THROUGH CONVERT
-            current_pose = self.pose_converter.convert(ifacialmocap_pose) 
-            #print("current_pose2 ", current_pose)         
+            current_pose = self.pose_converter.convert(ifacialmocap_pose)
+            #print("current_pose2 ", current_pose)
 
             #ADD LABELS/NAMES TO THE POSE
-            names_current_pose = MainFrame.addNamestoConvert(current_pose) 
+            names_current_pose = MainFrame.addNamestoConvert(current_pose)
             #print("current pose :", names_current_pose)
 
             #GET THE EMOTION VALUES again for some reason
-            emotion_pose2 = self.get_emotion_values(emotion)  
+            emotion_pose2 = self.get_emotion_values(emotion)
             #print("target pose  :", emotion_pose2)
 
             #APPLY VALUES TO THE POSE AGAIN?? This needs to overwrite the values
-            tranisitiondPose = self.animateToEmotion(names_current_pose, emotion_pose2)  
+            tranisitiondPose = self.animateToEmotion(names_current_pose, emotion_pose2)
             #print("combine pose :", tranisitiondPose)
-        
+
             #smooth animate
             #print("LAST   VALUES: ", lasttranisitiondPose)
             #print("TARGER VALUES: ", tranisitiondPose)
@@ -980,7 +980,7 @@ class MainFrame(wx.Frame):
         except KeyboardInterrupt:
             print("Update process was interrupted by the user.")
             wx.Exit()
-    
+
     def resize_image(image, size=(512, 512)):
         image.thumbnail(size, Image.LANCZOS)  # Step 1: Resize the image to maintain the aspect ratio with the larger dimension being 512 pixels
         new_image = Image.new("RGBA", size)   # Step 2: Create a new image of size 512x512 with transparency
@@ -996,9 +996,9 @@ class MainFrame(wx.Frame):
         if global_reload is not None:
             file_path = "global_reload"
 
-        try:   
+        try:
             if file_path == "global_reload":
-                pil_image = global_reload 
+                pil_image = global_reload
             else:
                 pil_image = resize_PIL_image(
                     extract_PIL_image_from_filelike(file_path),
