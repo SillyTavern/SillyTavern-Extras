@@ -11,6 +11,10 @@ services:
         MODULES: caption,summarize,classify
 #        REQUIREMENTS: requirements-complete.txt
 #        MODULES: caption,summarize,classify,sd,silero-tts,edge-tts,chromadb
+    volumes:
+      #- "./chromadb:/chromadb"
+      - "./cache:/root/.cache"
+      - "./api-key.txt:/sillytavern-extras/api-key.txt:rw"
     ports:
       - "5100:5100"
     environment:
