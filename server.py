@@ -585,6 +585,7 @@ def before_request():
 def after_request(response):
     duration = time.time() - request.start_time
     response.headers["X-Request-Duration"] = str(duration)
+    response.headers["Access-Control-Request-Headers"] = 'access-control-allow-origin,authorization,bypass-tunnel-reminder'
     return response
 
 
