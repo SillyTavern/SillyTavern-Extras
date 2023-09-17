@@ -149,7 +149,7 @@ embedding_model = (
     args.embedding_model if args.embedding_model else DEFAULT_EMBEDDING_MODEL
 )
 
-sd_use_remote = False if args.sd_model else True
+sd_use_remote = True if args.sd_remote else False
 sd_model = args.sd_model if args.sd_model else DEFAULT_SD_MODEL
 sd_remote_host = args.sd_remote_host if args.sd_remote_host else DEFAULT_REMOTE_SD_HOST
 sd_remote_port = args.sd_remote_port if args.sd_remote_port else DEFAULT_REMOTE_SD_PORT
