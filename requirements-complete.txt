@@ -14,7 +14,7 @@ accelerate==0.20.3
 transformers==4.28.1
 diffusers==0.17.1
 silero-api-server==0.2.9
-chromadb==0.4.5
+chromadb==0.4.10
 sentence_transformers==2.2.2
 edge-tts==6.1.8
 
