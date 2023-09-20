@@ -546,3 +546,39 @@ loadchar (string, required): The URL of the character's image. The URL should po
 `GET /api/talkinghead/result_feed`
 #### **Output**
 Animated transparent image
+
+### Online Lorabook
+`POST /api/online_lorabook`
+#### **Input**
+```
+{
+    "text": "Did you hear about \"\"LK99\"\"? Checkout here \"\"https://en.wikipedia.org/wiki/Ambient_pressure\"\".",
+    "params": {
+        "wiki_search_list_limit": 1,
+        "wiki_paragraph_limit": 1
+    }
+}
+```
+#### **Output**
+```
+{
+    "lorebookVersion": 1,
+    "entries": [
+        {
+            "text": "...",
+            "contextConfig": {
+              ...
+            },
+            "displayName": "LK-99",
+            "lastUpdatedAt": 1695204135,
+            "keys": [
+                "LK-99"
+            ],
+            "searchRange": 1000,
+            "enabled": true,
+            "forceActivation": false
+        },
+        ...
+    ]
+}
+```
