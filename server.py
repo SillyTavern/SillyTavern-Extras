@@ -884,12 +884,14 @@ def api_online_lorabook():
     if "text" not in data or not isinstance(data["text"], str):
         abort(400, '"text" is required')
 
+    params = {}
+    if "params" in data and isinstance(data["params"], dict):
+        params = data["params"]
+
     print("online_lorabook input:", data["text"], sep="\n")
-    online_lorabook_json = online_lorabook_module.run(data["text"], 
-                                       data["params"]["wiki_search_list_limit"],
-                                       data["params"]["wiki_paragraph_limit"])
+    online_lorabook_json = online_lorabook_module.run(data["text"], params)
     print("online_lorabook output:", online_lorabook_json, sep="\n")
-    gc.collect()
+    
     return Response(online_lorabook_json, mimetype="application/json")
 
 @app.route("/api/chromadb", methods=["POST"])

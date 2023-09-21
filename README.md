@@ -552,10 +552,11 @@ Animated transparent image
 #### **Input**
 ```
 {
-    "text": "Did you hear about \"\"LK99\"\"? Checkout here \"\"https://en.wikipedia.org/wiki/Ambient_pressure\"\".",
+    "text": "\"\"Shadowheart\"\" is my favorite character in \"\"Baldur's Gate 3\"\", checkout here \"\"https://forgottenrealms.fandom.com/wiki/Lae%27zel\"\".",
     "params": {
-        "wiki_search_list_limit": 1,
-        "wiki_paragraph_limit": 1
+        "search_list_limit": 1,
+        "page_paragraph_limit": 1,
+        "search_site": "fandom" // or "wikipedia"
     }
 }
 ```
@@ -564,21 +565,28 @@ Animated transparent image
 {
     "lorebookVersion": 1,
     "entries": [
+        ...
         {
-            "text": "...",
+            "text": "Lae'zel was a githyanki fighter.",
             "contextConfig": {
-              ...
+                "prefix": "",
+                "suffix": "\n^Laezel(https://forgottenrealms.fandom.com/wiki/Lae%27zel)",
+                "tokenBudget": 2048,
+                "reservedTokens": 0,
+                "budgetPriority": 400,
+                "trimDirection": "trimBottom",
+                "insertionType": "newline",
+                "insertionPosition": -1
             },
-            "displayName": "LK-99",
-            "lastUpdatedAt": 1695204135,
+            "displayName": "Laezel",
+            "lastUpdatedAt": 1695200000,
             "keys": [
-                "LK-99"
+                "Laezel"
             ],
             "searchRange": 1000,
             "enabled": true,
             "forceActivation": false
-        },
-        ...
+        }
     ]
 }
 ```
