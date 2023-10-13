@@ -143,7 +143,7 @@ cd SillyTavern-extras
 | `silero-tts`       | [Silero TTS server](https://github.com/ouoertheo/silero-api-server) | :x: No |
 | `edge-tts` | [Microsoft Edge TTS client](https://github.com/rany2/edge-tts) | ✔️ Yes |
 | `coqui-tts` | [Coqui TTS server](https://github.com/coqui-ai/TTS) | :x: No |
-| `chromadb`  | Infinity context server           | :x: No |
+| `chromadb`  | Vector storage server           | :x: No |
 | `talkinghead`  | Talking Head Sprites           | :x: No |
 
 ## Additional options
