@@ -914,13 +914,13 @@ def chromadb_purge():
         abort(400, '"chat_id" is required')
 
     chat_id_md5 = hashlib.md5(data["chat_id"].encode()).hexdigest()
-    collection = chromadb_client.get_or_create_collection(
-        name=f"chat-{chat_id_md5}", embedding_function=chromadb_embed_fn
-    )
 
-    count = collection.count()
-    collection.delete()
-    print("ChromaDB embeddings deleted", count)
+    try:
+        chromadb_client.delete_collection(f"chat-{chat_id_md5}")
+        print(f"Collection chat-{chat_id_md5} deleted")
+    except ValueError:
+        print(f"Collection chat-{chat_id_md5} does not exist, skipping deletion")
+
     return 'Ok', 200
 
 
