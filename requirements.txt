@@ -5,8 +5,8 @@ flask-compress==1.13
 markdown==3.4.3
 Pillow==9.5.0
 colorama==0.4.6
---extra-index-url https://download.pytorch.org/whl/cu117
-torch==2.0.0+cu117
+--extra-index-url https://download.pytorch.org/whl/cu118
+torch==2.0.0+cu118
 transformers==4.28.1
 webuiapi==0.9.5
 edge-tts==6.1.8

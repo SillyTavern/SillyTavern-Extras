@@ -6,10 +6,10 @@ markdown==3.4.3
 Pillow==9.5.0
 colorama==0.4.6
 webuiapi==0.9.5
---extra-index-url https://download.pytorch.org/whl/cu117
-torch==2.0.0+cu117
+--extra-index-url https://download.pytorch.org/whl/cu118
+torch==2.0.0+cu118
 torchvision==0.15.1
-torchaudio==2.0.1+cu117
+torchaudio==2.0.1+cu118
 accelerate==0.20.3
 transformers==4.28.1
 diffusers==0.17.1
