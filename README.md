@@ -22,14 +22,18 @@ Documentation:
 https://docs.sillytavern.app/
 
 ## How to run
-### :exclamation: **IMPORTANT!**
- Default **requirements.txt** contains only basic packages for text processing
+### :exclamation: **IMPORTANT!** Requirement files explained
 
-If you want to use the most advanced features (like Stable Diffusion, TTS), change that to **requirements-complete.txt** in commands below. See [Modules](#modules) section for more details.
+* Default **requirements.txt** installs PyTorch CUDA by default.
+* If you run on AMD GPU, use **requirements-rocm.txt** file instead.
+* If you run on Apple Silicon (ARM series), use the **requirements-silicon.txt** file instead.
+* If you want to use Coqui TTS, install **requirements-coqui.txt** after choosing the requirements from the list above.
+* If you want to use RVC, install **requirements-rvc.txt** after choosing the requirements from the list above.
+* BE WARNED THAT:
+  - Coqui package is extremely unstable and may break other packages or not work at all in your environment.
+  - It's not really worth it.
 
-If you run on Apple Silicon (M1/M2), use the **requirements-silicon.txt** file instead.
-
-### Getting an error when installing from requirements-complete.txt?
+### Common errors when installing requirements
 
 > ERROR: Could not build wheels for hnswlib, which is required to install pyproject.toml-based projects
 
@@ -134,17 +138,18 @@ cd SillyTavern-extras
 
 ## Modules
 
-| Name        | Description                       | Included in default requirements.txt       |
-| ----------- | --------------------------------- | ------ |
-| `caption`   | Image captioning                  | ✔️ Yes        |
-| `summarize` | Text summarization                | ✔️ Yes    |
-| `classify`  | Text sentiment classification     | ✔️ Yes      |
-| `sd`        | Stable Diffusion image generation | :x: No (✔️ remote)      |
-| `silero-tts`       | [Silero TTS server](https://github.com/ouoertheo/silero-api-server) | :x: No |
-| `edge-tts` | [Microsoft Edge TTS client](https://github.com/rany2/edge-tts) | ✔️ Yes |
-| `coqui-tts` | [Coqui TTS server](https://github.com/coqui-ai/TTS) | :x: No |
-| `chromadb`  | Vector storage server           | :x: No |
-| `talkinghead`  | Talking Head Sprites           | :x: No |
+| Name          | Description                                                         |
+| ------------- | ------------------------------------------------------------------- |
+| `caption`     | Image captioning                                                    |
+| `summarize`   | Text summarization                                                  |
+| `classify`    | Text sentiment classification                                       |
+| `sd`          | Stable Diffusion image generation (remote A1111 server by default)  |
+| `silero-tts`  | [Silero TTS server](https://github.com/ouoertheo/silero-api-server) |
+| `chromadb`    | Vector storage server                                               |
+| `talkinghead` | Talking Head Sprites                                                |
+| `edge-tts`    | [Microsoft Edge TTS client](https://github.com/rany2/edge-tts)      |
+| `coqui-tts`   | [Coqui TTS server](https://github.com/coqui-ai/TTS)                 |
+| `rvc`         | Real-time voice cloning                                             |
 
 ## Additional options
 | Flag                     | Description                                                            |

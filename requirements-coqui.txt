@@ -1,0 +1,5 @@
+TTS
+mecab-python3
+unidic-lite
+py-espeak-ng
+TTS[ja]
