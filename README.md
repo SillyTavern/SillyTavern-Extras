@@ -2,6 +2,10 @@
 
 ## Recent news
 
+* November 16 2023 - Requirement files were remade from scratch to simplify the process of local installation.
+  - Removed requirements-complete.txt, please use requirements.txt instead.
+  - Unlocked versions of all requirements unless strictly necessary.
+  - Coqui TTS requirements moved to requirements-coqui.txt.
 * July 25 2023 - Now extras require Python 3.11 to run, some of the modules new will be incompatible with old Python 3.10 installs. To migrate using conda, please remove old environment using `conda remove --name extras --all` and reinstall using the instructions below.
 
 ## What is this
