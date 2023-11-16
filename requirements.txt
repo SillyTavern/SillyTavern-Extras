@@ -1,12 +1,27 @@
-flask==2.3.2
-flask-cloudflared==0.0.13
-flask-cors==4.0.0
-flask-compress==1.13
-markdown==3.4.3
+flask
+flask-cloudflared
+flask-cors
+flask-compress
+markdown
+black
 Pillow==9.5.0
-colorama==0.4.6
+colorama
+webuiapi
 --extra-index-url https://download.pytorch.org/whl/cu118
-torch==2.0.0+cu118
-transformers==4.28.1
-webuiapi==0.9.5
-edge-tts==6.1.8
+torch
+torchvision
+torchaudio
+accelerate
+transformers
+diffusers
+silero-api-server
+chromadb
+sentence_transformers
+edge-tts
+matplotlib
+vosk
+sounddevice
+openai-whisper
+
+fastapi
+wxpython; sys_platform == 'win32' or sys_platform == 'darwin'
