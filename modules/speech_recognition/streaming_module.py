@@ -45,7 +45,7 @@ def load_model(file_path=None):
         return (whisper.load_model("base.en"), vosk.Model(lang="en-us"))
     else:
         return (whisper.load_model(file_path), vosk.Model(lang="en-us"))
-    
+
 def convert_bytearray_to_wav_ndarray(input_bytearray: bytes, sampling_rate=16000):
     """
     Convert a bytearray to wav format to output in a file for quality check debuging
@@ -65,7 +65,7 @@ def record_and_transcript():
     if whisper_model is None:
         print(DEBUG_PREFIX,"Whisper model not initialized yet.")
         return ""
-    
+
     q = queue.Queue()
     stream_errors = list()
 
@@ -91,7 +91,7 @@ def record_and_transcript():
                 data = q.get()
                 if len(stream_errors) > 0:
                     raise Exception(DEBUG_PREFIX+" Stream errors: "+str(stream_errors))
-                
+
                 full_recording.extend(data)
 
                 if rec.AcceptWaveform(data):
@@ -105,9 +105,9 @@ def record_and_transcript():
                     output_file = convert_bytearray_to_wav_ndarray(input_bytearray=full_recording, sampling_rate=samplerate)
                     sf.write(file=RECORDING_FILE_PATH, data=output_file, samplerate=samplerate)
                     print(DEBUG_PREFIX, "Recorded message saved to", RECORDING_FILE_PATH)
-                    
+
                     # Whisper HACK
-                    result = whisper_model.transcribe(RECORDING_FILE_PATH)
+                    result = whisper_model.transcribe(RECORDING_FILE_PATH, condition_on_previous_text=False)
                     transcript = result["text"]
                     print(DEBUG_PREFIX, "Transcripted from audio file (whisper):", transcript)
                     # ----------------------------------
