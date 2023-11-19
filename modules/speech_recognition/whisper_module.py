@@ -43,9 +43,10 @@ def process_audio():
 
     try:
         file = request.files.get('AudioFile')
+        language = request.form.get('language', default=None)
         file.save(RECORDING_FILE_PATH)
 
-        result = model.transcribe(RECORDING_FILE_PATH, condition_on_previous_text=False)
+        result = model.transcribe(RECORDING_FILE_PATH, condition_on_previous_text=False, language=language)
         transcript = result["text"]
         print(DEBUG_PREFIX, "Transcripted from audio file (whisper):", transcript)
 

@@ -15,7 +15,7 @@ References:
         - oobabooga text-generation-webui github: https://github.com/oobabooga/text-generation-webui
         - vosk github: https://github.com/alphacep/vosk-api/blob/master/python/example/test_microphone.py
 """
-from flask import jsonify, abort
+from flask import jsonify, abort, request
 
 import queue
 import sys
@@ -77,6 +77,7 @@ def record_and_transcript():
         q.put(bytes(indata))
 
     try:
+        language = request.form.get('language', default=None)
         device_info = sd.query_devices(device, "input")
         # soundfile expects an int, sounddevice provides a float:
         samplerate = int(device_info["default_samplerate"])
@@ -107,7 +108,7 @@ def record_and_transcript():
                     print(DEBUG_PREFIX, "Recorded message saved to", RECORDING_FILE_PATH)
 
                     # Whisper HACK
-                    result = whisper_model.transcribe(RECORDING_FILE_PATH, condition_on_previous_text=False)
+                    result = whisper_model.transcribe(RECORDING_FILE_PATH, condition_on_previous_text=False, language=language)
                     transcript = result["text"]
                     print(DEBUG_PREFIX, "Transcripted from audio file (whisper):", transcript)
                     # ----------------------------------

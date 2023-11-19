@@ -44,7 +44,7 @@ def process_audio():
         print(DEBUG_PREFIX,"Vosk model not initialized yet.")
         return ""
 
-    try:    
+    try:
         file = request.files.get('AudioFile')
         file.save(RECORDING_FILE_PATH)
 
@@ -67,7 +67,7 @@ def process_audio():
                 break
             if rec.AcceptWaveform(data):
                 break
-        
+
         transcript = rec.Result()[14:-3]
         print(DEBUG_PREFIX, "Transcripted from request audio file:", transcript)
         return jsonify({"transcript": transcript})
