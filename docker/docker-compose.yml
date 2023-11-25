@@ -1,7 +1,16 @@
 version: "3"
 services:
   sillytavern-extras:
-    runtime: nvidia
+#    runtime: nvidia
+     deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+#              either specify below which, or above how many. not both.
+#              device_ids: ['1'] 
+              capabilities: [gpu]
     image: cohee1207/sillytavern-extras
     build:
       context: ../

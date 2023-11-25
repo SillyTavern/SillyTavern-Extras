@@ -2,6 +2,7 @@
 
 ## Recent news
 
+* November 20 2023 - The project is relicensed as AGPLv3 to comply with the rest of ST organization policy. If you have any concerns about that, please raise a discussion in the appropriate channel.
 * November 16 2023 - Requirement files were remade from scratch to simplify the process of local installation.
   - Removed requirements-complete.txt, please use requirements.txt instead.
   - Unlocked versions of all requirements unless strictly necessary.

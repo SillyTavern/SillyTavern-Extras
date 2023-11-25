@@ -138,3 +138,4 @@ model.pt
 /.chroma_db
 api_key.txt
 .vscode
+stt_test.wav
