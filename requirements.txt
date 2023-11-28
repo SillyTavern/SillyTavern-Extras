@@ -22,6 +22,7 @@ matplotlib
 vosk
 sounddevice
 openai-whisper
+selenium
 
 fastapi
 wxpython; sys_platform == 'win32' or sys_platform == 'darwin'

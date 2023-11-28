@@ -1100,6 +1100,20 @@ def chromadb_import():
     return jsonify({"count": len(ids)})
 
 
+@app.route("/api/websearch", methods=["POST"])
+@require_module("websearch")
+def api_websearch():
+    data = request.get_json()
+    if "query" not in data or not isinstance(data["query"], str):
+        abort(400, '"query" is required')
+
+    query = data["query"]
+    import modules.websearch.script as websearch
+    results = websearch.search_google(query)
+
+    return jsonify({"results": results})
+
+
 if args.share:
     from flask_cloudflared import _run_cloudflared
     import inspect
