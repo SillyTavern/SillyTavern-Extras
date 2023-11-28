@@ -1108,8 +1108,13 @@ def api_websearch():
         abort(400, '"query" is required')
 
     query = data["query"]
+    engine = data["engine"] if "engine" in data else "google"
     import modules.websearch.script as websearch
-    results = websearch.search_google(query)
+
+    if engine == "duckduckgo":
+        results = websearch.search_duckduckgo(query)
+    else:
+        results = websearch.search_google(query)
 
     return jsonify({"results": results})
 

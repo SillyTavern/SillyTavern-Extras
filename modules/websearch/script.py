@@ -4,6 +4,7 @@ from selenium.webdriver.chrome.options import Options as ChromeOptions
 from selenium.webdriver.firefox.options import Options as FirefoxOptions
 from selenium.webdriver.chrome.service import Service as ChromeService
 from selenium.webdriver.firefox.service import Service as FirefoxService
+import atexit
 
 
 def get_driver():
@@ -27,8 +28,8 @@ def get_driver():
 
 
 def search_google(query: str) -> str:
-    driver = get_driver()
-    print("Searching for " + query + "...")
+    global driver
+    print(f"Searching Google for {query}...")
     driver.get("https://google.com/search?hl=en&q=" + query)
     text = ''
     # Answer box
@@ -44,5 +45,23 @@ def search_google(query: str) -> str:
         if el and el.text:
             text += el.text + '\n'
     print("Found: " + text)
-    driver.quit()
     return text
+
+
+def search_duckduckgo(query: str) -> str:
+    global driver
+    print(f"Searching DuckDuckGo for {query}...")
+    driver.get("https://duckduckgo.com/?kp=-2&kl=wt-wt&q=" + query)
+    text = ''
+    for el in driver.find_elements(By.CSS_SELECTOR, '[data-result="snippet"]'):
+        if el and el.text:
+            text += el.text + '\n'
+    print("Found: " + text)
+    return text
+
+driver = get_driver()
+
+def quit_driver():
+    driver.quit()
+
+atexit.register(quit_driver)

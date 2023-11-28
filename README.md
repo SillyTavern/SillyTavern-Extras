@@ -560,9 +560,10 @@ Animated transparent image
 
 ### Perform web search
 `POST /api/websearch`
+Available engines: `google` (default), `duckduckgo`
 #### **Input**
 ```
-{ "query": "what is beauty?" }
+{ "query": "what is beauty?", "engine": "google" }
 ```
 #### **Output**
 ```
