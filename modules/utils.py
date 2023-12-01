@@ -13,3 +13,11 @@ def silence_log():
     finally:
         sys.stdout = old_stdout
         sys.stderr = old_stderr
+
+
+def is_colab():
+    try:
+        from google import colab
+        return True
+    except:
+        return False

@@ -155,6 +155,7 @@ cd SillyTavern-extras
 | `edge-tts`    | [Microsoft Edge TTS client](https://github.com/rany2/edge-tts)      |
 | `coqui-tts`   | [Coqui TTS server](https://github.com/coqui-ai/TTS)                 |
 | `rvc`         | Real-time voice cloning                                             |
+| `websearch`   | Google search using Selenium headless browser                       |
 
 ## Additional options
 | Flag                     | Description                                                            |
@@ -556,3 +557,15 @@ loadchar (string, required): The URL of the character's image. The URL should po
 `GET /api/talkinghead/result_feed`
 #### **Output**
 Animated transparent image
+
+### Perform web search
+`POST /api/websearch`
+Available engines: `google` (default), `duckduckgo`
+#### **Input**
+```
+{ "query": "what is beauty?", "engine": "google" }
+```
+#### **Output**
+```
+{ "results": "that would fall within the purview of your conundrums of philosophy" }
+```
