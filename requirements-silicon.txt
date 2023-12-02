@@ -19,3 +19,7 @@ edge-tts
 matplotlib
 fastapi
 wxpython
+vosk
+sounddevice
+openai-whisper
+selenium
