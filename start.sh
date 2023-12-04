@@ -26,15 +26,14 @@ function find-conda {
         "/usr/anaconda"
     )
 
-    local conda-path="$(which conda)"
-    if [ $? -eq 0 ]; then
-        paths+=("$(dirname "$(dirname "$conda-path")")")
-    fi
-
-
     if [ "$(uname)" == "Darwin" ]; then
         paths+=("/opt/homebrew-cask/Caskroom/miniconda")
         paths+=("/usr/local/Caskroom/miniconda/base")
+    fi
+
+    local conda-path="$(which conda)"
+    if [ $? -eq 0 ]; then
+        paths+=("$(dirname "$(dirname "$conda-path")")")
     fi
 
     for path in "${paths[@]}"; do
