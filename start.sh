@@ -57,8 +57,6 @@ conda config --set auto_activate_base false
 conda init bash
 conda activate extras
 
-exit 0
-
 # Start the Python server for SillyTavern-extras. You can modify the flags below
 python server.py --rvc-save-file --cuda-device=0 --max-content-length=1000 --enable-modules=summarize,rvc,
 
