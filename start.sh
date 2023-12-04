@@ -34,7 +34,7 @@ function find-conda {
 
     if [ "$(uname)" == "Darwin" ]; then
         paths+=("/opt/homebrew-cask/Caskroom/miniconda")
-        paths+=("/usr/local/Cashroom/miniconda")
+        paths+=("/usr/local/Caskroom/miniconda/base")
     fi
 
     for path in "${paths[@]}"; do
