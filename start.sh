@@ -2,6 +2,8 @@
 
 # Environment Variables
 
+set -e
+
 function find-conda {
     local paths=(
         "$HOME/miniconda3"
@@ -31,11 +33,6 @@ function find-conda {
         paths+=("/usr/local/Caskroom/miniconda/base")
     fi
 
-    local conda-path="$(which conda)"
-    if [ $? -eq 0 ]; then
-        paths+=("$(dirname "$(dirname "$conda-path")")")
-    fi
-
     for path in "${paths[@]}"; do
         if [ -d "$path" ]; then
             echo "$path"
@@ -52,11 +49,15 @@ if [ -z "$CONDA_PATH" ]; then
     echo "CONDA_PATH not set, trying to detect miniconda"
     CONDA_PATH=$(find-conda)
 fi
+
+echo "Using conda at $CONDA_PATH"
 # Activate the Conda environment (extras)
 source "$CONDA_PATH/etc/profile.d/conda.sh"
 conda config --set auto_activate_base false
 conda init bash
 conda activate extras
+
+exit 0
 
 # Start the Python server for SillyTavern-extras. You can modify the flags below
 python server.py --rvc-save-file --cuda-device=0 --max-content-length=1000 --enable-modules=summarize,rvc,
