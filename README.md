@@ -567,5 +567,5 @@ Available engines: `google` (default), `duckduckgo`
 ```
 #### **Output**
 ```
-{ "results": "that would fall within the purview of your conundrums of philosophy" }
+{ "results": "that would fall within the purview of your conundrums of philosophy", "links": ["http://example.com"] }
 ```

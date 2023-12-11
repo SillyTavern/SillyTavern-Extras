@@ -1116,7 +1116,7 @@ def api_websearch():
     else:
         results = websearch.search_google(query)
 
-    return jsonify({"results": results})
+    return jsonify({"results": results[0], "links": results[1]})
 
 
 if args.share:
