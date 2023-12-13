@@ -112,7 +112,7 @@ def talkinghead_load_file(stream):
         global_reload = Image.open(BytesIO(img_data.getvalue())) # Set the global_reload to the copy of the image data
     except Image.UnidentifiedImageError:
         print(f"Could not load image from file, loading blank")
-        full_path = os.path.join(os.getcwd(), os.path.normpath("talkinghead\\tha3\\images\\inital.png"))
+        full_path = os.path.join(os.getcwd(), os.path.normpath(os.path.sep.join(["talkinghead", "tha3", "images", "inital.png"])))
         MainFrame.load_image(None, full_path)
         global_timer_paused = True
     return 'OK'
@@ -140,7 +140,7 @@ def launch_gui(device, model):
         main_frame.SetSize((750, 600))
 
         #Lload default image (you can pass args.char if required)
-        full_path = os.path.join(os.getcwd(), os.path.normpath("talkinghead\\tha3\\images\\inital.png"))
+        full_path = os.path.join(os.getcwd(), os.path.normpath(os.path.sep.join(["talkinghead", "tha3", "images", "inital.png"])))
         main_frame.load_image(None, full_path)
 
         #main_frame.Show(True)
