@@ -1,5 +1,6 @@
 from enum import Enum
-from typing import Dict, Optional, List
+import os
+from typing import Dict, List, Optional
 
 import torch
 from torch import Tensor
@@ -259,29 +260,30 @@ def create_poser(
         device: torch.device,
         module_file_names: Optional[Dict[str, str]] = None,
         eyebrow_morphed_image_index: int = EyebrowMorphingCombiner00.EYEBROW_IMAGE_NO_COMBINE_ALPHA_INDEX,
-        default_output_index: int = 0) -> GeneralPoser02:
+        default_output_index: int = 0,
+        modelsdir: str = "talkinghead/tha3/models") -> GeneralPoser02:
     if module_file_names is None:
         module_file_names = {}
     if Network.eyebrow_decomposer.name not in module_file_names:
-        dir = "talkinghead/tha3/models/separable_float"
-        file_name = dir + "/eyebrow_decomposer.pt"
+        file_name = os.path.join(modelsdir, "separable_float", "eyebrow_decomposer.pt")
         module_file_names[Network.eyebrow_decomposer.name] = file_name
     if Network.eyebrow_morphing_combiner.name not in module_file_names:
-        dir = "talkinghead/tha3/models/separable_float"
-        file_name = dir + "/eyebrow_morphing_combiner.pt"
+        file_name = os.path.join(modelsdir, "separable_float", "eyebrow_morphing_combiner.pt")
         module_file_names[Network.eyebrow_morphing_combiner.name] = file_name
     if Network.face_morpher.name not in module_file_names:
-        dir = "talkinghead/tha3/models/separable_float"
-        file_name = dir + "/face_morpher.pt"
+        file_name = os.path.join(modelsdir, "separable_float", "face_morpher.pt")
         module_file_names[Network.face_morpher.name] = file_name
     if Network.two_algo_face_body_rotator.name not in module_file_names:
-        dir = "talkinghead/tha3/models/separable_float"
-        file_name = dir + "/two_algo_face_body_rotator.pt"
+        file_name = os.path.join(modelsdir, "separable_float", "two_algo_face_body_rotator.pt")
         module_file_names[Network.two_algo_face_body_rotator.name] = file_name
     if Network.editor.name not in module_file_names:
-        dir = "talkinghead/tha3/models/separable_float"
-        file_name = dir + "/editor.pt"
+        file_name = os.path.join(modelsdir, "separable_float", "editor.pt")
         module_file_names[Network.editor.name] = file_name
+
+    # fail-fast
+    for file_name in module_file_names.values():
+        if not os.path.exists(file_name):
+            raise FileNotFoundError(f"Model file {file_name} not found, please check the path.")
 
     loaders = {
         Network.eyebrow_decomposer.name:

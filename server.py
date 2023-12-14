@@ -184,6 +184,7 @@ if "talkinghead" in modules:
     import sys
     import threading
     mode = "cuda" if args.talkinghead_gpu else "cpu"
+    model = "separable_half" if args.talkinghead_gpu else "separable_float"  # GPUs support fp16, which is 2× faster and takes less VRAM.
     print("Initializing talkinghead pipeline in " + mode + " mode....")
     talkinghead_path = os.path.abspath(os.path.join(os.getcwd(), "talkinghead"))
     sys.path.append(talkinghead_path) # Add the path to the 'tha3' module to the sys.path list
@@ -192,7 +193,7 @@ if "talkinghead" in modules:
         import talkinghead.tha3.app.app as talkinghead
         from talkinghead import *
         def launch_talkinghead_gui():
-            talkinghead.launch_gui(mode, "separable_float")
+            talkinghead.launch_gui(mode, model)
         #choices=['standard_float', 'separable_float', 'standard_half', 'separable_half'],
         #choices='The device to use for PyTorch ("cuda" for GPU, "cpu" for CPU).'
         talkinghead_thread = threading.Thread(target=launch_talkinghead_gui)
