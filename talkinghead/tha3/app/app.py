@@ -1,23 +1,22 @@
-# TODO: Standalone app mode does not work yet. The SillyTavern-extras plugin mode works.
+"""THA3 live mode for SillyTavern-extras."""
 
-import argparse
-import ast
+import atexit
+import io
+import json
+import logging
 import os
 import random
 import sys
-import threading
 import time
-import torch
-import io
-import wx
 import numpy as np
-import json
-import typing
+import threading
 
 from PIL import Image
+
+import torch
+
 from flask import Flask, Response
 from flask_cors import CORS
-from io import BytesIO
 
 sys.path.append(os.getcwd())
 from tha3.mocap import ifacialmocap_constants as mocap_constants
@@ -30,7 +29,9 @@ from tha3.util import (
     torch_linear_to_srgb, resize_PIL_image, extract_PIL_image_from_filelike,
     extract_pytorch_image_from_PIL_image
 )
-from typing import Optional
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Global variables
 global_source_image = None
@@ -44,7 +45,7 @@ lasttranisitiondPose = "NotInit"
 inMotion = False
 fps = 0
 current_pose = None
-global_basedir = "talkinghead"  # for SillyTavern-extras live mode; if running standalone, we override this later
+global_basedir = "talkinghead"
 
 # Flask setup
 app = Flask(__name__)
@@ -61,22 +62,25 @@ def setEmotion(_emotion):
             highest_score = item['score']
             highest_label = item['label']
 
-    # print("Applying ", emotion)
+    logger.debug(f"applying {emotion}")
     emotion = highest_label
 
 def unload():
     global global_timer_paused
     global_timer_paused = True
+    logger.debug("unload")
     return "Animation Paused"
 
 def start_talking():
     global is_talking_override
     is_talking_override = True
+    logger.debug("start talking")
     return "started"
 
 def stop_talking():
     global is_talking_override
     is_talking_override = False
+    logger.debug("stop talking")
     return "stopped"
 
 def result_feed():
@@ -92,9 +96,9 @@ def result_feed():
                     buffer = io.BytesIO()  # Save as PNG with RGBA mode
                     pil_image.save(buffer, format='PNG')
                     image_bytes = buffer.getvalue()
-                except Exception as e:
-                    print(f"Error when trying to write image: {e}")
-                yield (b'--frame\r\n'  # Send the PNG image
+                except Exception as exc:
+                    logger.error(f"Error when trying to write image: {exc}")
+                yield (b'--frame\r\n'  # Send the PNG image (last available in case of error)
                        b'Content-Type: image/png\r\n\r\n' + image_bytes + b'\r\n')
             else:
                 time.sleep(0.1)
@@ -109,13 +113,13 @@ def talkinghead_load_file(stream):
 
     try:
         pil_image = Image.open(stream)  # Load the image using PIL.Image.open
-        img_data = BytesIO()  # Create a copy of the image data in memory using BytesIO
+        img_data = io.BytesIO()  # Create a copy of the image data in memory using BytesIO
         pil_image.save(img_data, format='PNG')
-        global_reload = Image.open(BytesIO(img_data.getvalue()))  # Set the global_reload to the copy of the image data
+        global_reload = Image.open(io.BytesIO(img_data.getvalue()))  # Set the global_reload to the copy of the image data
     except Image.UnidentifiedImageError:
-        print("Could not load image from file, loading blank")
+        logger.warning("Could not load image from stream, loading blank")
         full_path = os.path.join(os.getcwd(), os.path.normpath(os.path.join(global_basedir, "tha3", "images", "inital.png")))
-        MainFrame.load_image(None, full_path)
+        TalkingheadManager.load_image(full_path)
         global_timer_paused = True
     return 'OK'
 
@@ -123,46 +127,37 @@ def convert_linear_to_srgb(image: torch.Tensor) -> torch.Tensor:
     rgb_image = torch_linear_to_srgb(image[0:3, :, :])
     return torch.cat([rgb_image, image[3:4, :, :]], dim=0)
 
-def launch_gui(device: str, model: str, char: typing.Optional[str] = None, standalone: bool = False):
-    """
+
+def launch(device: str, model: str):
+    """Launch the talking head plugin (live mode).
+
     device: "cpu" or "cuda"
     model: one of the folder names inside "talkinghead/tha3/models/"
-    char: name of png file inside "talkinghead/tha3/images/"; if not given, defaults to "inital.png".
     """
     global global_basedir
     global initAMI
     initAMI = True
 
-    # TODO: We could use this to parse the arguments that were provided to `server.py`, but we don't currently use the parser output.
-    parser = argparse.ArgumentParser(description='uWu Waifu')
-    # Add other parser arguments here
-    args, unknown = parser.parse_known_args()
-
-    if char is None:
-        char = "inital.png"
+    # # TODO: We could use this to parse the arguments that were provided to `server.py`, but we don't currently use the parser output.
+    # parser = argparse.ArgumentParser(description='uWu Waifu')
+    # # Add other parser arguments here
+    # args, unknown = parser.parse_known_args()
 
     try:
         poser = load_poser(model, device, modelsdir=os.path.join(global_basedir, "tha3", "models"))
         pose_converter = create_ifacialmocap_pose_converter()  # creates a list of 45
 
-        app = wx.App()
-        main_frame = MainFrame(poser, pose_converter, device)
-        main_frame.SetSize((750, 600))
+        manager = TalkingheadManager(poser, pose_converter, device)
 
         # Load character image
-        full_path = os.path.join(os.getcwd(), os.path.normpath(os.path.join(global_basedir, "tha3", "images", char)))
-        main_frame.load_image(None, full_path)
+        full_path = os.path.join(os.getcwd(), os.path.normpath(os.path.join(global_basedir, "tha3", "images", "inital.png")))
+        manager.load_image(full_path)
+        manager.start()
 
-        if standalone:
-            main_frame.Show(True)
-        main_frame.capture_timer.Start(100)
-        main_frame.animation_timer.Start(100)
-        wx.DisableAsserts()  # prevent popup about debug alert closed from other threads
-        app.MainLoop()
-
-    except RuntimeError as e:
-        print(e)
+    except RuntimeError as exc:
+        logger.error(exc)
         sys.exit()
+
 
 class FpsStatistics:
     def __init__(self):
@@ -180,9 +175,11 @@ class FpsStatistics:
         else:
             return sum(self.fps) / len(self.fps)
 
-class MainFrame(wx.Frame):
+
+class TalkingheadManager:
+    """uWu Waifu"""
+
     def __init__(self, poser: Poser, pose_converter: IFacialMocapPoseConverter, device: torch.device):
-        super().__init__(None, wx.ID_ANY, "uWu Waifu")
         self.pose_converter = pose_converter
         self.poser = poser
         self.device = device
@@ -202,35 +199,22 @@ class MainFrame(wx.Frame):
 
         self.sliders = {}
         self.ifacialmocap_pose = create_default_ifacialmocap_pose()
-        self.source_image_bitmap = wx.Bitmap(self.poser.get_image_size(), self.poser.get_image_size())
-        self.result_image_bitmap = wx.Bitmap(self.poser.get_image_size(), self.poser.get_image_size())
-        self.wx_source_image = None
         self.torch_source_image = None
         self.last_update_time = None
+        self.last_report_time = None
 
-        self.create_ui()
+    def start(self):
+        self._terminated = False
+        def update_manager():
+            while not self._terminated:
+                self.update_result_image_bitmap()
+                time.sleep(0.01)
+        self.scheduler = threading.Thread(target=update_manager, daemon=True)
+        self.scheduler.start()
+        atexit.register(self.exit)
 
-        self.create_timers()
-        self.Bind(wx.EVT_CLOSE, self.on_close)
-
-        self.update_source_image_bitmap()
-        self.update_result_image_bitmap()
-
-    def create_timers(self):
-        self.capture_timer = wx.Timer(self, wx.ID_ANY)
-        self.Bind(wx.EVT_TIMER, self.update_capture_panel, id=self.capture_timer.GetId())
-        self.animation_timer = wx.Timer(self, wx.ID_ANY)
-        self.Bind(wx.EVT_TIMER, self.update_result_image_bitmap, id=self.animation_timer.GetId())
-
-    def on_close(self, event: wx.Event):
-        # Stop the timers
-        self.animation_timer.Stop()
-        self.capture_timer.Stop()
-
-        # Destroy the windows
-        self.Destroy()
-        event.Skip()
-        sys.exit(0)
+    def exit(self):
+        self._terminated = True
 
     def random_generate_value(self, min, max, origin_value):
         random_value = random.choice(list(range(min, max, 1))) / 2500.0
@@ -336,12 +320,11 @@ class MainFrame(wx.Frame):
     def get_emotion_values(self, emotion):  # Place to define emotion presets
         global global_basedir
 
-        # print(emotion)
         file_path = os.path.join(global_basedir, "emotions", emotion + ".json")
-        # print("trying: ", file_path)
+        logger.debug(f"get emotion: {emotion} from {file_path}")
 
         if not os.path.exists(file_path):
-            print("using backup for: ", file_path)
+            logger.debug(f"{file_path} not found, using fallback for {emotion}")
             file_path = os.path.join(global_basedir, "emotions", "_defaults.json")
 
         with open(file_path, 'r') as json_file:
@@ -351,7 +334,7 @@ class MainFrame(wx.Frame):
         targetpose_values = targetpose
 
         # targetpose_values = list(targetpose.values())
-        # print("targetpose: ", targetpose, "for ", emotion)
+        # logger.debug(f"targetpose for {emotion}: {targetpose}")
         return targetpose_values
 
     def animateToEmotion(self, current_pose_list, target_pose_dict):
@@ -377,228 +360,6 @@ class MainFrame(wx.Frame):
         self.ifacialmocap_pose = self.animationHeadMove()
         self.ifacialmocap_pose = self.animationTalking()
         return self.ifacialmocap_pose
-
-    def filter_by_index(self, current_pose_list, index):
-        # Create an empty list to store the filtered dictionaries
-        filtered_list = []
-
-        # Iterate through each dictionary in the current_pose_list
-        for pose_dict in current_pose_list:
-            # Check if the 'breathing_index' key exists in the dictionary
-            if index in pose_dict:
-                # If the key exists, append the dictionary to the filtered list
-                filtered_list.append(pose_dict)
-
-        return filtered_list
-
-    def on_erase_background(self, event: wx.Event):
-        pass
-
-    def create_animation_panel(self, parent):
-        self.animation_panel = wx.Panel(parent, style=wx.RAISED_BORDER)
-        self.animation_panel_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        self.animation_panel.SetSizer(self.animation_panel_sizer)
-        self.animation_panel.SetAutoLayout(1)
-
-        image_size = self.poser.get_image_size()
-
-        # Left Column (Image)
-        self.animation_left_panel = wx.Panel(self.animation_panel, style=wx.SIMPLE_BORDER)
-        self.animation_left_panel_sizer = wx.BoxSizer(wx.VERTICAL)
-        self.animation_left_panel.SetSizer(self.animation_left_panel_sizer)
-        self.animation_left_panel.SetAutoLayout(1)
-        self.animation_panel_sizer.Add(self.animation_left_panel, 1, wx.EXPAND)
-
-        self.result_image_panel = wx.Panel(self.animation_left_panel, size=(image_size, image_size),
-                                           style=wx.SIMPLE_BORDER)
-        self.result_image_panel.Bind(wx.EVT_PAINT, self.paint_result_image_panel)
-        self.result_image_panel.Bind(wx.EVT_ERASE_BACKGROUND, self.on_erase_background)
-        self.result_image_panel.Bind(wx.EVT_LEFT_DOWN, self.load_image)
-        self.animation_left_panel_sizer.Add(self.result_image_panel, 1, wx.EXPAND)
-
-        separator = wx.StaticLine(self.animation_left_panel, -1, size=(256, 1))
-        self.animation_left_panel_sizer.Add(separator, 0, wx.EXPAND)
-
-        self.fps_text = wx.StaticText(self.animation_left_panel, label="")
-        self.animation_left_panel_sizer.Add(self.fps_text, wx.SizerFlags().Border())
-
-        self.animation_left_panel_sizer.Fit(self.animation_left_panel)
-
-        # Right Column (Sliders)
-        self.animation_right_panel = wx.Panel(self.animation_panel, style=wx.SIMPLE_BORDER)
-        self.animation_right_panel_sizer = wx.BoxSizer(wx.VERTICAL)
-        self.animation_right_panel.SetSizer(self.animation_right_panel_sizer)
-        self.animation_right_panel.SetAutoLayout(1)
-        self.animation_panel_sizer.Add(self.animation_right_panel, 1, wx.EXPAND)
-
-        separator = wx.StaticLine(self.animation_right_panel, -1, size=(256, 5))
-        self.animation_right_panel_sizer.Add(separator, 0, wx.EXPAND)
-
-        background_text = wx.StaticText(self.animation_right_panel, label="--- Background ---", style=wx.ALIGN_CENTER)
-        self.animation_right_panel_sizer.Add(background_text, 0, wx.EXPAND)
-
-        self.output_background_choice = wx.Choice(
-            self.animation_right_panel,
-            choices=[
-                "TRANSPARENT",
-                "GREEN",
-                "BLUE",
-                "BLACK",
-                "WHITE",
-                "LOADED",
-                "CUSTOM"
-            ]
-        )
-        self.output_background_choice.SetSelection(0)
-        self.animation_right_panel_sizer.Add(self.output_background_choice, 0, wx.EXPAND)
-
-        # These are applied to `ifacialmocap_pose`, so we can only use names that are defined there (see `update_ifacialmocap_pose`).
-        blendshape_groups = {
-            'Eyes': ['eyeLookOutLeft', 'eyeLookOutRight', 'eyeLookDownLeft', 'eyeLookUpLeft', 'eyeWideLeft', 'eyeWideRight'],
-            'Mouth': ['mouthSmileLeft', 'mouthFrownLeft'],
-            'Cheek': ['cheekSquintLeft', 'cheekSquintRight', 'cheekPuff'],
-            'Brow': ['browDownLeft', 'browOuterUpLeft', 'browDownRight', 'browOuterUpRight', 'browInnerUp'],
-            # 'Eyelash': [],
-            'Nose': ['noseSneerLeft', 'noseSneerRight'],
-            'Misc': ['tongueOut']
-        }
-
-        for group_name, variables in blendshape_groups.items():
-            collapsible_pane = wx.CollapsiblePane(self.animation_right_panel, label=group_name, style=wx.CP_DEFAULT_STYLE | wx.CP_NO_TLW_RESIZE)
-            collapsible_pane.Bind(wx.EVT_COLLAPSIBLEPANE_CHANGED, self.on_pane_changed)
-            self.animation_right_panel_sizer.Add(collapsible_pane, 0, wx.EXPAND)
-            pane_sizer = wx.BoxSizer(wx.VERTICAL)
-            collapsible_pane.GetPane().SetSizer(pane_sizer)
-
-            for variable in variables:
-                variable_label = wx.StaticText(collapsible_pane.GetPane(), label=variable)
-
-                # Multiply min and max values by 100 for the slider
-                slider = wx.Slider(
-                    collapsible_pane.GetPane(),
-                    value=0,
-                    minValue=0,
-                    maxValue=100,
-                    size=(150, -1),  # Set the width to 150 and height to default
-                    style=wx.SL_HORIZONTAL | wx.SL_LABELS
-                )
-
-                slider.SetName(variable)
-                slider.Bind(wx.EVT_SLIDER, self.on_slider_change)
-                self.sliders[slider.GetId()] = slider
-
-                pane_sizer.Add(variable_label, 0, wx.ALIGN_CENTER | wx.ALL, 5)
-                pane_sizer.Add(slider, 0, wx.EXPAND)
-
-        self.animation_right_panel_sizer.Fit(self.animation_right_panel)
-        self.animation_panel_sizer.Fit(self.animation_panel)
-
-    def on_pane_changed(self, event):
-        # Update the layout when a collapsible pane is expanded or collapsed
-        self.animation_right_panel.Layout()
-
-    def on_slider_change(self, event):
-        slider = event.GetEventObject()
-        value = slider.GetValue() / 100.0  # Divide by 100 to get the actual float value
-        # print(value)
-        slider_name = slider.GetName()
-        self.ifacialmocap_pose[slider_name] = value
-
-    def create_ui(self):
-        # Make the UI Elements
-        self.main_sizer = wx.BoxSizer(wx.VERTICAL)
-        self.SetSizer(self.main_sizer)
-        self.SetAutoLayout(1)
-
-        self.capture_pose_lock = threading.Lock()
-
-        # Main panel with JPS
-        self.create_animation_panel(self)
-        self.main_sizer.Add(self.animation_panel, wx.SizerFlags(0).Expand().Border(wx.ALL, 5))
-
-    def update_capture_panel(self, event: wx.Event):
-        data = self.ifacialmocap_pose
-        for rotation_name in mocap_constants.ROTATION_NAMES:
-            value = data[rotation_name]  # TODO/FIXME: updating unused variable; what was this supposed to do?
-
-    @staticmethod
-    def convert_to_100(x):
-        return int(max(0.0, min(1.0, x)) * 100)
-
-    def paint_source_image_panel(self, event: wx.Event):
-        wx.BufferedPaintDC(self.source_image_panel, self.source_image_bitmap)
-
-    def update_source_image_bitmap(self):
-        dc = wx.MemoryDC()
-        dc.SelectObject(self.source_image_bitmap)
-        if self.wx_source_image is None:
-            self.draw_nothing_yet_string(dc)
-        else:
-            dc.Clear()
-            dc.DrawBitmap(self.wx_source_image, 0, 0, True)
-        del dc
-
-    def draw_nothing_yet_string(self, dc):
-        dc.Clear()
-        font = wx.Font(wx.FontInfo(14).Family(wx.FONTFAMILY_SWISS))
-        dc.SetFont(font)
-        w, h = dc.GetTextExtent("Nothing yet!")
-        dc.DrawText("Nothing yet!", (self.poser.get_image_size() - w) // 2, (self.poser.get_image_size() - h) // 2)
-
-    def paint_result_image_panel(self, event: wx.Event):
-        wx.BufferedPaintDC(self.result_image_panel, self.result_image_bitmap)
-
-    def combine_pose_with_names(combine_pose):
-        pose_names = [
-            'eyeLookInLeft', 'eyeLookOutLeft', 'eyeLookDownLeft', 'eyeLookUpLeft',
-            'eyeBlinkLeft', 'eyeSquintLeft', 'eyeWideLeft', 'eyeLookInRight',
-            'eyeLookOutRight', 'eyeLookDownRight', 'eyeLookUpRight', 'eyeBlinkRight',
-            'eyeSquintRight', 'eyeWideRight', 'browDownLeft', 'browOuterUpLeft',
-            'browDownRight', 'browOuterUpRight', 'browInnerUp', 'noseSneerLeft',
-            'noseSneerRight', 'cheekSquintLeft', 'cheekSquintRight', 'cheekPuff',
-            'mouthLeft', 'mouthDimpleLeft', 'mouthFrownLeft', 'mouthLowerDownLeft',
-            'mouthPressLeft', 'mouthSmileLeft', 'mouthStretchLeft', 'mouthUpperUpLeft',
-            'mouthRight', 'mouthDimpleRight', 'mouthFrownRight', 'mouthLowerDownRight',
-            'mouthPressRight', 'mouthSmileRight', 'mouthStretchRight', 'mouthUpperUpRight',
-            'mouthClose', 'mouthFunnel', 'mouthPucker', 'mouthRollLower', 'mouthRollUpper',
-            'mouthShrugLower', 'mouthShrugUpper', 'jawLeft', 'jawRight', 'jawForward',
-            'jawOpen', 'tongueOut', 'headBoneX', 'headBoneY', 'headBoneZ', 'headBoneQuat',
-            'leftEyeBoneX', 'leftEyeBoneY', 'leftEyeBoneZ', 'leftEyeBoneQuat',
-            'rightEyeBoneX', 'rightEyeBoneY', 'rightEyeBoneZ', 'rightEyeBoneQuat'
-        ]
-        pose_dict = dict(zip(pose_names, combine_pose))
-        return pose_dict
-
-    def determine_data_type(self, data):  # TODO: is this needed, nothing in the project seems to call it; and why not just use `isinstance` directly?
-        if isinstance(data, list):
-            print("It's a list.")
-        elif isinstance(data, dict):
-            print("It's a dictionary.")
-        elif isinstance(data, str):
-            print("It's a string.")
-        else:
-            print("Unknown data type.")
-
-    def count_elements(self, input_data):
-        if isinstance(input_data, list) or isinstance(input_data, dict):
-            return len(input_data)
-        else:
-            raise TypeError("Input must be a list or dictionary.")
-
-    def convert_list_to_dict(self, list_str):
-        # Evaluate the string to get the actual list
-        list_data = ast.literal_eval(list_str)
-
-        # Initialize an empty dictionary
-        result_dict = {}
-
-        # Convert the list to a dictionary
-        for item in list_data:
-            key, value_str = item.split(': ')
-            value = float(value_str)
-            result_dict[key] = value
-
-        return result_dict
 
     def dict_to_tensor(self, d):
         if isinstance(d, dict):
@@ -713,7 +474,7 @@ class MainFrame(wx.Frame):
         MOVEPARTS = ['head_y_index']
         updated_list = []
 
-        print(self.start_values, self.targets, self.progress, self.direction)
+        # logger.debug(f"{self.start_values}, {self.targets}, {self.progress}, {self.direction}")
 
         for item in tranisitiondPose:
             key, value = item.split(': ')
@@ -749,7 +510,7 @@ class MainFrame(wx.Frame):
         MOVEPARTS = ['head_y_index']
         updated_list = []
 
-        # print( self.start_values, self.targets, self.progress, self.direction )
+        # logger.debug(f"{self.start_values}, {self.targets}, {self.progress}, {self.direction}")
 
         for item in tranisitiondPose:
             key, value = item.split(': ')
@@ -831,7 +592,7 @@ class MainFrame(wx.Frame):
 
         return updated_last_transition_pose
 
-    def update_result_image_bitmap(self, event: Optional[wx.Event] = None):
+    def update_result_image_bitmap(self):
         global global_timer_paused
         global initAMI
         global global_result_image
@@ -848,7 +609,9 @@ class MainFrame(wx.Frame):
 
         try:
             if global_reload is not None:
-                MainFrame.load_image(self, event=None, file_path=None)  # call load_image function here
+                TalkingheadManager.load_image(self, file_path=None)  # call load_image function here
+                return
+            if self.torch_source_image is None:
                 return
 
             # # OLD METHOD
@@ -860,44 +623,44 @@ class MainFrame(wx.Frame):
             # CREATES THE DEFAULT POSE AND STORES OBJ IN STRING
             # ifacialmocap_pose = self.animationMain()  # DISABLE FOR TESTING!!!!!!!!!!!!!!!!!!!!!!!!
             ifacialmocap_pose = self.ifacialmocap_pose
-            # print("ifacialmocap_pose", ifacialmocap_pose)
+            # logger.debug(f"ifacialmocap_pose: {ifacialmocap_pose}")
 
             # GET EMOTION SETTING
             emotion_pose = self.get_emotion_values(emotion)
-            # print("emotion_pose ", emotion_pose)
+            # logger.debug(f"emotion_pose: {emotion_pose}")
 
             # MERGE EMOTION SETTING WITH CURRENT OUTPUT
             # NOTE: This is a mutating method that overwrites the original `ifacialmocap_pose`.
             updated_pose = self.update_ifacialmocap_pose(ifacialmocap_pose, emotion_pose)
-            # print("updated_pose ", updated_pose)
+            # logger.debug(f"updated_pose: {updated_pose}")
 
             # CONVERT RESULT TO FORMAT NN CAN USE
             current_pose = self.pose_converter.convert(updated_pose)
-            # print("current_pose ", current_pose)
+            # logger.debug(f"current_pose: {current_pose}")
 
             # SEND THROUGH CONVERT
             current_pose = self.pose_converter.convert(ifacialmocap_pose)
-            # print("current_pose2 ", current_pose)
+            # logger.debug(f"current_pose2: {current_pose}")
 
             # ADD LABELS/NAMES TO THE POSE
-            names_current_pose = MainFrame.addNamestoConvert(current_pose)
-            # print("current pose :", names_current_pose)
+            names_current_pose = TalkingheadManager.addNamestoConvert(current_pose)
+            # logger.debug(f"current pose: {names_current_pose}")
 
             # GET THE EMOTION VALUES again for some reason
             emotion_pose2 = self.get_emotion_values(emotion)
-            # print("target pose  :", emotion_pose2)
+            # logger.debug(f"target pose: {emotion_pose2}")
 
             # APPLY VALUES TO THE POSE AGAIN?? This needs to overwrite the values
             tranisitiondPose = self.animateToEmotion(names_current_pose, emotion_pose2)
-            # print("combine pose :", tranisitiondPose)
+            # logger.debug(f"combine pose: {tranisitiondPose}")
 
             # smooth animate
-            # print("LAST   VALUES: ", lasttranisitiondPose)
-            # print("TARGER VALUES: ", tranisitiondPose)
+            # logger.debug(f"LAST VALUES: {lasttranisitiondPose}")
+            # logger.debug(f"TARGET VALUES: {tranisitiondPose}")
 
             if lasttranisitiondPose != "NotInit":
                 tranisitiondPose = self.update_transition_pose(lasttranisitiondPose, tranisitiondPose)
-                # print("smoothed: ", tranisitiondPose)
+                # logger.debug(f"smoothed: {tranisitiondPose}")
 
             # Animate blinking
             tranisitiondPose = self.update_blinking_pose(tranisitiondPose)
@@ -916,18 +679,11 @@ class MainFrame(wx.Frame):
                 parsed_data.append((key, value))
             tranisitiondPosenew = [value for _, value in parsed_data]
 
-            # not sure what this is for TBH
+            # not sure what this is for TBH   # TODO: let's get rid of it then
             ifacialmocap_pose = tranisitiondPosenew
 
-            if self.torch_source_image is None:
-                dc = wx.MemoryDC()
-                dc.SelectObject(self.result_image_bitmap)
-                self.draw_nothing_yet_string(dc)
-                del dc
-                return
-
             # pose = torch.tensor(tranisitiondPosenew, device=self.device, dtype=self.poser.get_dtype())
-            pose = self.dict_to_tensor(tranisitiondPosenew).to(device=self.device, dtype=self.poser.get_dtype())
+            pose = self.dict_to_tensor(tranisitiondPosenew).to(device=self.device, dtype=self.poser.get_dtype())  # TODO: a WHAT to a WHAT? Optimize this!
 
             with torch.no_grad():
                 output_image = self.poser.pose(self.torch_source_image, pose)[0].float()
@@ -937,23 +693,8 @@ class MainFrame(wx.Frame):
                 output_image = (255.0 * torch.transpose(output_image.reshape(c, h * w), 0, 1)).reshape(h, w, c).byte()
 
             numpy_image = output_image.detach().cpu().numpy()
-            wx_image = wx.ImageFromBuffer(numpy_image.shape[0],
-                                          numpy_image.shape[1],
-                                          numpy_image[:, :, 0:3].tobytes(),
-                                          numpy_image[:, :, 3].tobytes())
-            wx_bitmap = wx_image.ConvertToBitmap()
-
-            dc = wx.MemoryDC()
-            dc.SelectObject(self.result_image_bitmap)
-            dc.Clear()
-            dc.DrawBitmap(wx_bitmap,
-                          (self.poser.get_image_size() - numpy_image.shape[0]) // 2,
-                          (self.poser.get_image_size() - numpy_image.shape[1]) // 2, True)
-
             numpy_image_bgra = numpy_image[:, :, [2, 1, 0, 3]]  # Convert color channels from RGB to BGR and keep alpha channel
             global_result_image = numpy_image_bgra
-
-            del dc
 
             time_now = time.time_ns()
             if self.last_update_time is not None:
@@ -962,26 +703,22 @@ class MainFrame(wx.Frame):
 
                 if self.torch_source_image is not None:
                     self.fps_statistics.add_fps(fps)
-                self.fps_text.SetLabelText("FPS = %0.2f" % self.fps_statistics.get_average_fps())
-
             self.last_update_time = time_now
 
             if initAMI:  # If the models are just now initalized stop animation to save
                 global_timer_paused = True
                 initAMI = False
 
-            if random.random() <= 0.01:
-                trimmed_fps = round(fps, 1)
-                print("talkinghead FPS: {:.1f}".format(trimmed_fps))
+            if self.last_report_time is None or time_now - self.last_report_time > 5e9:
+                trimmed_fps = round(self.fps_statistics.get_average_fps(), 1)
+                logger.info("FPS: {:.1f}".format(trimmed_fps))
+                self.last_report_time = time_now
 
             # Store current pose to use as last pose on next loop
             lasttranisitiondPose = tranisitiondPose
 
-            self.Refresh()
-
         except KeyboardInterrupt:
-            print("Update process was interrupted by the user.")
-            wx.Exit()
+            pass
 
     def resize_image(image, size=(512, 512)):
         image.thumbnail(size, Image.LANCZOS)  # Step 1: Resize the image to maintain the aspect ratio with the larger dimension being 512 pixels
@@ -990,9 +727,8 @@ class MainFrame(wx.Frame):
                                 (size[1] - image.size[1]) // 2))   # Step 3: Paste the resized image into the new image, centered
         return new_image
 
-    def load_image(self, event: wx.Event, file_path=None):
-
-        global global_source_image  # Declare global_source_image as a global variable
+    def load_image(self, file_path=None):
+        global global_source_image
         global global_reload
 
         if global_reload is not None:
@@ -1009,53 +745,21 @@ class MainFrame(wx.Frame):
             w, h = pil_image.size
 
             if pil_image.size != (512, 512):
-                print("Resizing Char Card to work")
-                pil_image = MainFrame.resize_image(pil_image)
+                logger.info("Resizing Char Card to work")
+                pil_image = TalkingheadManager.resize_image(pil_image)
 
             w, h = pil_image.size
 
             if pil_image.mode != 'RGBA':
                 self.source_image_string = "Image must have alpha channel!"
-                self.wx_source_image = None
                 self.torch_source_image = None
             else:
-                self.wx_source_image = wx.Bitmap.FromBufferRGBA(w, h, pil_image.convert("RGBA").tobytes())
                 self.torch_source_image = extract_pytorch_image_from_PIL_image(pil_image) \
                     .to(self.device).to(self.poser.get_dtype())
 
             global_source_image = self.torch_source_image  # Set global_source_image as a global variable
 
-            self.update_source_image_bitmap()
+        except Exception as exc:
+            logger.error(f"Error: {exc}")
 
-        except Exception as error:
-            print("Error: ", error)
-
-        global_reload = None  # Reset the globe load
-        self.Refresh()
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='uWu Waifu')
-    parser.add_argument(
-        '--model',
-        type=str,
-        required=False,
-        default='separable_float',
-        choices=['standard_float', 'separable_float', 'standard_half', 'separable_half'],
-        help='The model to use.'
-    )
-    parser.add_argument('--char',
-                        type=str,
-                        required=False,
-                        help='The filename of the character image under "tha3/images/".')
-    parser.add_argument(
-        '--device',
-        type=str,
-        required=False,
-        default='cuda',
-        choices=['cpu', 'cuda'],
-        help='The device to use for PyTorch ("cuda" for GPU, "cpu" for CPU).'
-    )
-
-    args = parser.parse_args()
-    global_basedir = ""  # in standalone mode, cwd is the "talkinghead" directory
-    launch_gui(device=args.device, model=args.model, char=args.char, standalone=True)
+        global_reload = None
