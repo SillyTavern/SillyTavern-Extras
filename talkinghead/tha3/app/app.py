@@ -147,11 +147,6 @@ def launch(device: str, model: str):
     global initAMI  # TODO: see if we still need this (the idea seems to be to stop animation until the first image is loaded)
     initAMI = True
 
-    # # TODO: We could use this to parse the arguments that were provided to `server.py`, but we don't currently use the parser output.
-    # parser = argparse.ArgumentParser(description='uWu Waifu')
-    # # Add other parser arguments here
-    # args, unknown = parser.parse_known_args()
-
     try:
         poser = load_poser(model, device, modelsdir=os.path.join(global_basedir, "tha3", "models"))
         pose_converter = create_ifacialmocap_pose_converter()  # creates a list of 45
