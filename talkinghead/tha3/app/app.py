@@ -225,39 +225,39 @@ class TalkingheadManager:
             randomized = 0
         return randomized
 
-    def animationTalking(self):
-        global is_talking
-        current_pose = self.ifacialmocap_pose
-
-        # NOTE: randomize mouth
-        for blendshape_name in mocap_constants.BLENDSHAPE_NAMES:
-            if "jawOpen" in blendshape_name:
-                if is_talking or is_talking_override:
-                    current_pose[blendshape_name] = self.random_generate_value(-5000, 5000, abs(1 - current_pose[blendshape_name]))
-                else:
-                    current_pose[blendshape_name] = 0
-
-        return current_pose
-
-    def animationHeadMove(self):
-        current_pose = self.ifacialmocap_pose
-
-        for key in [mocap_constants.HEAD_BONE_Y]:  # can add more to this list if needed
-            current_pose[key] = self.random_generate_value(-20, 20, current_pose[key])
-
-        return current_pose
-
-    def animationBlink(self):
-        current_pose = self.ifacialmocap_pose
-
-        if random.random() <= 0.03:
-            current_pose["eyeBlinkRight"] = 1
-            current_pose["eyeBlinkLeft"] = 1
-        else:
-            current_pose["eyeBlinkRight"] = 0
-            current_pose["eyeBlinkLeft"] = 0
-
-        return current_pose
+    # def animationTalking(self):
+    #     global is_talking
+    #     current_pose = self.ifacialmocap_pose
+    #
+    #     # NOTE: randomize mouth
+    #     for blendshape_name in mocap_constants.BLENDSHAPE_NAMES:
+    #         if "jawOpen" in blendshape_name:
+    #             if is_talking or is_talking_override:
+    #                 current_pose[blendshape_name] = self.random_generate_value(-5000, 5000, abs(1 - current_pose[blendshape_name]))
+    #             else:
+    #                 current_pose[blendshape_name] = 0
+    #
+    #     return current_pose
+    #
+    # def animationHeadMove(self):
+    #     current_pose = self.ifacialmocap_pose
+    #
+    #     for key in [mocap_constants.HEAD_BONE_Y]:  # can add more to this list if needed
+    #         current_pose[key] = self.random_generate_value(-20, 20, current_pose[key])
+    #
+    #     return current_pose
+    #
+    # def animationBlink(self):
+    #     current_pose = self.ifacialmocap_pose
+    #
+    #     if random.random() <= 0.03:
+    #         current_pose["eyeBlinkRight"] = 1
+    #         current_pose["eyeBlinkLeft"] = 1
+    #     else:
+    #         current_pose["eyeBlinkRight"] = 0
+    #         current_pose["eyeBlinkLeft"] = 0
+    #
+    #     return current_pose
 
     def addNamestoConvert(pose):
         # TODO: What are the unknown keys?
@@ -355,11 +355,11 @@ class TalkingheadManager:
 
         return transitionPose
 
-    def animationMain(self):
-        self.ifacialmocap_pose = self.animationBlink()
-        self.ifacialmocap_pose = self.animationHeadMove()
-        self.ifacialmocap_pose = self.animationTalking()
-        return self.ifacialmocap_pose
+    # def animationMain(self):
+    #     self.ifacialmocap_pose = self.animationBlink()
+    #     self.ifacialmocap_pose = self.animationHeadMove()
+    #     self.ifacialmocap_pose = self.animationTalking()
+    #     return self.ifacialmocap_pose
 
     def dict_to_tensor(self, d):
         if isinstance(d, dict):
