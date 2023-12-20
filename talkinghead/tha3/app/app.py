@@ -51,7 +51,7 @@ is_talking_override = False
 is_talking = False
 global_timer_paused = False
 emotion = "neutral"
-lasttranisitiondPose = "NotInit"
+lasttransitionedPose = "NotInit"
 inMotion = False
 fps = 0
 current_pose = None
@@ -120,6 +120,7 @@ def talkinghead_load_file(stream):
     global global_reload
     global global_timer_paused
     global_timer_paused = False
+    logger.debug("talkinghead_load_file: loading new input image from stream")
 
     try:
         pil_image = Image.open(stream)  # Load the image using PIL.Image.open
@@ -445,13 +446,13 @@ class TalkingheadManager:
 
         return ifacialmocap_pose
 
-    def update_blinking_pose(self, tranisitiondPose):
+    def update_blinking_pose(self, transitionedPose):
         PARTS = ['wink_left_index', 'wink_right_index']
         updated_list = []
 
         should_blink = random.random() <= 0.03  # Determine if there should be a blink
 
-        for item in tranisitiondPose:
+        for item in transitionedPose:
             key, value = item.split(': ')
             if key in PARTS:
                 # If there should be a blink, set value to 1; otherwise, use the provided value
@@ -462,14 +463,14 @@ class TalkingheadManager:
 
         return updated_list
 
-    def update_talking_pose(self, tranisitiondPose):
+    def update_talking_pose(self, transitionedPose):
         global is_talking, is_talking_override
 
         MOUTHPARTS = ['mouth_aaa_index']
 
         updated_list = []
 
-        for item in tranisitiondPose:
+        for item in transitionedPose:
             key, value = item.split(': ')
 
             if key in MOUTHPARTS and is_talking_override:
@@ -480,13 +481,13 @@ class TalkingheadManager:
 
         return updated_list
 
-    def update_sway_pose_good(self, tranisitiondPose):  # TODO: good? why is there a bad one, too? keep only one!
+    def update_sway_pose_good(self, transitionedPose):  # TODO: good? why is there a bad one, too? keep only one!
         MOVEPARTS = ['head_y_index']
         updated_list = []
 
         # logger.debug(f"{self.start_values}, {self.targets}, {self.progress}, {self.direction}")
 
-        for item in tranisitiondPose:
+        for item in transitionedPose:
             key, value = item.split(': ')
 
             if key in MOVEPARTS:
@@ -516,13 +517,13 @@ class TalkingheadManager:
 
         return updated_list
 
-    def update_sway_pose(self, tranisitiondPose):
+    def update_sway_pose(self, transitionedPose):
         MOVEPARTS = ['head_y_index']
         updated_list = []
 
         # logger.debug(f"{self.start_values}, {self.targets}, {self.progress}, {self.direction}")
 
-        for item in tranisitiondPose:
+        for item in transitionedPose:
             key, value = item.split(': ')
 
             if key in MOVEPARTS:
@@ -612,7 +613,7 @@ class TalkingheadManager:
         global current_pose
         global is_talking
         global is_talking_override
-        global lasttranisitiondPose
+        global lasttransitionedPose
 
         if global_timer_paused:
             return
@@ -661,29 +662,29 @@ class TalkingheadManager:
             # logger.debug(f"target pose: {emotion_pose2}")
 
             # APPLY VALUES TO THE POSE AGAIN?? This needs to overwrite the values
-            tranisitiondPose = self.animateToEmotion(names_current_pose, emotion_pose2)
-            # logger.debug(f"combine pose: {tranisitiondPose}")
+            transitionedPose = self.animateToEmotion(names_current_pose, emotion_pose2)
+            # logger.debug(f"combine pose: {transitionedPose}")
 
             # smooth animate
-            # logger.debug(f"LAST VALUES: {lasttranisitiondPose}")
-            # logger.debug(f"TARGET VALUES: {tranisitiondPose}")
+            # logger.debug(f"LAST VALUES: {lasttransitionedPose}")
+            # logger.debug(f"TARGET VALUES: {transitionedPose}")
 
-            if lasttranisitiondPose != "NotInit":
-                tranisitiondPose = self.update_transition_pose(lasttranisitiondPose, tranisitiondPose)
-                # logger.debug(f"smoothed: {tranisitiondPose}")
+            if lasttransitionedPose != "NotInit":
+                transitionedPose = self.update_transition_pose(lasttransitionedPose, transitionedPose)
+                # logger.debug(f"smoothed: {transitionedPose}")
 
             # Animate blinking
-            tranisitiondPose = self.update_blinking_pose(tranisitiondPose)
+            transitionedPose = self.update_blinking_pose(transitionedPose)
 
             # Animate Head Sway
-            tranisitiondPose = self.update_sway_pose(tranisitiondPose)
+            transitionedPose = self.update_sway_pose(transitionedPose)
 
             # Animate Talking
-            tranisitiondPose = self.update_talking_pose(tranisitiondPose)
+            transitionedPose = self.update_talking_pose(transitionedPose)
 
             # reformat the data correctly
             parsed_data = []
-            for item in tranisitiondPose:
+            for item in transitionedPose:
                 key, value_str = item.split(': ')
                 value = float(value_str)
                 parsed_data.append((key, value))
@@ -725,7 +726,7 @@ class TalkingheadManager:
                 self.last_report_time = time_now
 
             # Store current pose to use as last pose on next loop
-            lasttranisitiondPose = tranisitiondPose
+            lasttransitionedPose = transitionedPose
 
         except KeyboardInterrupt:
             pass
