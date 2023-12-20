@@ -298,6 +298,7 @@ class TalkingheadLive:
 
     def interpolate_pose(self, pose: List[float], target_pose: List[float], step=0.1) -> List[float]:
         # TODO: ignore sway?
+        # TODO: ignore breathing?
         new_pose = list(pose)  # copy
         for idx, key in enumerate(posedict_keys):
             # # We animate blinking *after* interpolating the pose, so when blinking, the eyes close instantly.
