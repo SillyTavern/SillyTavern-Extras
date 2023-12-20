@@ -1,6 +1,7 @@
 """THA3 live mode for SillyTavern-extras.
 
-This implements the live animation backend and serves the API. For usage, see `server.py`.
+This is the animation engine, running on top of the THA3 posing engine.
+This module implements the live animation backend and serves the API. For usage, see `server.py`.
 
 If you want to play around with THA3 expressions in a standalone app, see `manual_poser.py`.
 """
