@@ -38,10 +38,8 @@ from tha3.mocap.ifacialmocap_pose_converter import IFacialMocapPoseConverter
 from tha3.mocap.ifacialmocap_poser_converter_25 import create_ifacialmocap_pose_converter
 from tha3.poser.modes.load_poser import load_poser
 from tha3.poser.poser import Poser
-from tha3.util import (
-    torch_linear_to_srgb, resize_PIL_image, extract_PIL_image_from_filelike,
-    extract_pytorch_image_from_PIL_image
-)
+from tha3.util import (torch_linear_to_srgb, resize_PIL_image,
+                       extract_PIL_image_from_filelike, extract_pytorch_image_from_PIL_image)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
