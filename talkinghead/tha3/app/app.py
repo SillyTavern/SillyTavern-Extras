@@ -218,7 +218,10 @@ class TalkingheadLive:
         atexit.register(self.exit)
 
     def exit(self) -> None:
-        """Terminate the talkinghead update thread."""
+        """Terminate the animation thread.
+
+        Called automatically when the process exits.
+        """
         self._terminated = True
 
     def apply_emotion_to_pose(self, emotion_posedict: Dict[str, float], pose: List[float]) -> List[float]:
