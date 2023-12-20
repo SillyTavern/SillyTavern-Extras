@@ -69,13 +69,13 @@ def setEmotion(_emotion: Dict[str, float]) -> None:
     """
     global current_emotion
 
-    highest_score = float('-inf')
+    highest_score = float("-inf")
     highest_label = None
 
     for item in _emotion:
-        if item['score'] > highest_score:
-            highest_score = item['score']
-            highest_label = item['label']
+        if item["score"] > highest_score:
+            highest_score = item["score"]
+            highest_label = item["label"]
 
     logger.debug(f"setEmotion: applying emotion {highest_label}")
     current_emotion = highest_label
@@ -113,15 +113,15 @@ def result_feed() -> Response:
                         alpha_channel = global_result_image[:, :, 3]  # Extract alpha channel
                         pil_image.putalpha(PIL.Image.fromarray(np.uint8(alpha_channel)))  # Set alpha channel in the PIL Image
                     buffer = io.BytesIO()  # Save as PNG with RGBA mode
-                    pil_image.save(buffer, format='PNG')
+                    pil_image.save(buffer, format="PNG")
                     image_bytes = buffer.getvalue()
                 except Exception as exc:
                     logger.error(f"Error when trying to write image: {exc}")
-                yield (b'--frame\r\n'  # Send the PNG image (last available in case of error)
-                       b'Content-Type: image/png\r\n\r\n' + image_bytes + b'\r\n')
+                yield (b"--frame\r\n"  # Send the PNG image (last available in case of error)
+                       b"Content-Type: image/png\r\n\r\n" + image_bytes + b"\r\n")
             else:
                 time.sleep(0.1)
-    return Response(generate(), mimetype='multipart/x-mixed-replace; boundary=frame')
+    return Response(generate(), mimetype="multipart/x-mixed-replace; boundary=frame")
 
 # TODO: the input is a flask.request.file.stream; what's the type of that?
 def talkinghead_load_file(stream) -> str:
@@ -134,7 +134,7 @@ def talkinghead_load_file(stream) -> str:
         animation_running = False  # pause animation while loading a new image
         pil_image = PIL.Image.open(stream)  # Load the image using PIL.Image.open
         img_data = io.BytesIO()  # Create a copy of the image data in memory using BytesIO
-        pil_image.save(img_data, format='PNG')
+        pil_image.save(img_data, format="PNG")
         global_reload_image = PIL.Image.open(io.BytesIO(img_data.getvalue()))  # Set the global_reload_image to a copy of the image data
     except PIL.Image.UnidentifiedImageError:
         logger.warning("Could not load input image from stream, loading blank")
@@ -142,7 +142,7 @@ def talkinghead_load_file(stream) -> str:
         global_instance.load_image(full_path)
     finally:
         animation_running = True
-    return 'OK'
+    return "OK"
 
 def launch(device: str, model: str) -> Union[None, NoReturn]:
     """Launch the talking head plugin (live mode).
@@ -268,7 +268,7 @@ class TalkingheadLive:
         # TODO: add sway for other axes and body
 
         new_pose = list(pose)  # copy
-        MOVEPARTS = ['head_y_index']
+        MOVEPARTS = ["head_y_index"]
         for key in MOVEPARTS:
             idx = posedict_key_to_index(key)
             current_value = pose[idx]
@@ -403,7 +403,7 @@ class TalkingheadLive:
 
             w, h = pil_image.size
 
-            if pil_image.mode != 'RGBA':
+            if pil_image.mode != "RGBA":
                 logger.error("load_image: image must have alpha channel")
                 self.torch_source_image = None
             else:
