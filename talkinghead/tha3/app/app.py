@@ -117,8 +117,6 @@ def result_feed():
     return Response(generate(), mimetype='multipart/x-mixed-replace; boundary=frame')
 
 def talkinghead_load_file(stream):
-    global global_basedir
-    global global_source_image
     global global_reload
     global global_timer_paused
     logger.debug("talkinghead_load_file: loading new input image from stream")
@@ -143,8 +141,7 @@ def launch(device: str, model: str):
     device: "cpu" or "cuda"
     model: one of the folder names inside "talkinghead/tha3/models/"
     """
-    global global_basedir
-    global initAMI  # TODO: see if we still need this (the idea seems to be to stop animation until the first image is loaded)
+    global initAMI  # TODO: initAREYOU? See if we still need this - the idea seems to be to stop animation until the first image is loaded.
     initAMI = True
 
     try:
@@ -432,8 +429,6 @@ class TalkingheadManager:
         return updated_list
 
     def update_talking_pose(self, transitionedPose):
-        global is_talking, is_talking_override
-
         MOUTHPARTS = ['mouth_aaa_index']
 
         updated_list = []
@@ -576,12 +571,8 @@ class TalkingheadManager:
         global global_timer_paused
         global initAMI
         global global_result_image
-        global global_reload
-        global emotion
         global fps
         global current_pose
-        global is_talking
-        global is_talking_override
         global lasttransitionedPose
 
         if global_timer_paused:
