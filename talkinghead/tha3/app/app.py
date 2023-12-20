@@ -301,8 +301,9 @@ class TalkingheadLive:
         # TODO: ignore sway?
         new_pose = list(pose)  # copy
         for idx, key in enumerate(posedict_keys):
-            # # We shouldn't need this fix anymore, because we animate blinking *after* interpolating the pose.
-            # if key in ['eye_wink_left_index', 'eye_wink_right_index']:  # BLINK FIX
+            # # We animate blinking *after* interpolating the pose, so when blinking, the eyes close instantly.
+            # # This part makes the blink also end instantly.
+            # if key in ["eye_wink_left_index", "eye_wink_right_index"]:
             #     new_pose[idx] = new_pose[idx]
 
             # Note this leads to an exponentially saturating behavior (1 - exp(-x)), because the delta is from the current pose to the final pose.
