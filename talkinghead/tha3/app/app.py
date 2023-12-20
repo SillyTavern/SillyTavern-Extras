@@ -6,7 +6,6 @@ If you want to play around with THA3 expressions in a standalone app, see `manua
 """
 
 # TODO: talkinghead live mode:
-#  - delete the IFacialMocap stuff from the repo (we now run on pure THA3!)
 #  - talking animation is broken, seems the client isn't sending us a request to start/stop talking?
 #  - improve idle animations
 #    - cosine schedule?
