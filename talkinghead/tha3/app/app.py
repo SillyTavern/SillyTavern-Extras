@@ -121,14 +121,15 @@ def talkinghead_load_file(stream):
     global global_source_image
     global global_reload
     global global_timer_paused
-    global_timer_paused = False
     logger.debug("talkinghead_load_file: loading new input image from stream")
 
     try:
+        global_timer_paused = True
         pil_image = Image.open(stream)  # Load the image using PIL.Image.open
         img_data = io.BytesIO()  # Create a copy of the image data in memory using BytesIO
         pil_image.save(img_data, format='PNG')
         global_reload = Image.open(io.BytesIO(img_data.getvalue()))  # Set the global_reload to a copy of the image data
+        global_timer_paused = False
     except Image.UnidentifiedImageError:
         logger.warning("Could not load input image from stream, loading blank")
         full_path = os.path.join(os.getcwd(), os.path.normpath(os.path.join(global_basedir, "tha3", "images", "inital.png")))
