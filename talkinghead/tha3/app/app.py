@@ -1,4 +1,9 @@
-"""THA3 live mode for SillyTavern-extras."""
+"""THA3 live mode for SillyTavern-extras.
+
+This implements the live animation backend and serves the API. For usage, see `server.py`.
+
+If you want to play around with THA3 expressions in a standalone app, see `manual_poser.py`.
+"""
 
 # TODO: talkinghead live mode:
 #  - remove rest of the IFacialMocap stuff (we can run on pure THA3)
