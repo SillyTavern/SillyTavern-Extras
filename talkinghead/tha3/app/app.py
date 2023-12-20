@@ -742,4 +742,5 @@ class TalkingheadManager:
         except Exception as exc:
             logger.error(f"load_image: {exc}")
 
-        global_reload = None
+        finally:
+            global_reload = None
