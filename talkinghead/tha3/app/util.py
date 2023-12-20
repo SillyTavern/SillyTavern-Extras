@@ -1,6 +1,6 @@
 """App-level utilities."""
 
-__all__ = ["posedict_keys",
+__all__ = ["posedict_keys", "posedict_key_to_index",
            "load_emotion_presets",
            "posedict_to_pose", "pose_to_posedict",
            "torch_image_to_numpy", "to_talkinghead_image",
@@ -56,6 +56,10 @@ posedict_keys = ["eyebrow_troubled_left_index", "eyebrow_troubled_right_index",
                  "body_y_index", "body_z_index",
                  "breathing_index"]
 assert len(posedict_keys) == 45
+
+# posedict_keys gives us index->key; make an inverse mapping.
+# Note this doesn't work for "eye_unimpressed", because it's not unique. (All the more reason to fix that.)
+posedict_key_to_index = {key: idx for idx, key in enumerate(posedict_keys)}
 
 
 def load_emotion_presets(directory: str) -> Tuple[Dict[str, Dict[str, float]], List[str]]:

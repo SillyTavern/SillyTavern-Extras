@@ -35,7 +35,7 @@ from tha3.poser.modes.load_poser import load_poser
 from tha3.poser.poser import Poser
 from tha3.util import (torch_linear_to_srgb, resize_PIL_image,
                        extract_PIL_image_from_filelike, extract_pytorch_image_from_PIL_image)
-from tha3.app.util import posedict_keys, load_emotion_presets, posedict_to_pose, to_talkinghead_image, FpsStatistics
+from tha3.app.util import posedict_keys, posedict_key_to_index, load_emotion_presets, posedict_to_pose, to_talkinghead_image, FpsStatistics
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -248,7 +248,7 @@ class TalkingheadLive:
 
         new_pose = list(pose)  # copy
         for morph_name in ["eye_wink_left_index", "eye_wink_right_index"]:
-            idx = posedict_keys.index(morph_name)
+            idx = posedict_key_to_index(morph_name)
             new_pose[idx] = 1.0
         return new_pose
 
@@ -257,7 +257,7 @@ class TalkingheadLive:
             return pose
 
         new_pose = list(pose)  # copy
-        idx = posedict_keys.index("mouth_aaa_index")
+        idx = posedict_key_to_index("mouth_aaa_index")
         x = pose[idx]
         x = abs(1.0 - x) + random.uniform(-2.0, 2.0)
         x = max(0.0, min(x, 1.0))  # clamp (not the manga studio)
@@ -270,7 +270,7 @@ class TalkingheadLive:
         new_pose = list(pose)  # copy
         MOVEPARTS = ['head_y_index']
         for key in MOVEPARTS:
-            idx = posedict_keys.index(key)
+            idx = posedict_key_to_index(key)
             current_value = pose[idx]
 
             # Linearly interpolate between start and target values
