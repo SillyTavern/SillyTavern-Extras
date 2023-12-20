@@ -247,7 +247,7 @@ class TalkingheadLive:
 
         new_pose = list(pose)  # copy
         for morph_name in ["eye_wink_left_index", "eye_wink_right_index"]:
-            idx = posedict_key_to_index(morph_name)
+            idx = posedict_key_to_index[morph_name]
             new_pose[idx] = 1.0
         return new_pose
 
@@ -256,7 +256,7 @@ class TalkingheadLive:
             return pose
 
         new_pose = list(pose)  # copy
-        idx = posedict_key_to_index("mouth_aaa_index")
+        idx = posedict_key_to_index["mouth_aaa_index"]
         x = pose[idx]
         x = abs(1.0 - x) + random.uniform(-2.0, 2.0)
         x = max(0.0, min(x, 1.0))  # clamp (not the manga studio)
@@ -269,7 +269,7 @@ class TalkingheadLive:
         new_pose = list(pose)  # copy
         MOVEPARTS = ["head_y_index"]
         for key in MOVEPARTS:
-            idx = posedict_key_to_index(key)
+            idx = posedict_key_to_index[key]
             current_value = pose[idx]
 
             # Linearly interpolate between start and target values
