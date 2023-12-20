@@ -15,7 +15,6 @@
 
 import atexit
 import io
-import json
 import logging
 import os
 import random
@@ -39,6 +38,7 @@ from tha3.poser.modes.load_poser import load_poser
 from tha3.poser.poser import Poser
 from tha3.util import (torch_linear_to_srgb, resize_PIL_image,
                        extract_PIL_image_from_filelike, extract_pytorch_image_from_PIL_image)
+from tha3.app.util import load_emotion_presets, FpsStatistics
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -171,26 +171,9 @@ def launch(device: str, model: str):
 # Internal stuff
 
 def convert_linear_to_srgb(image: torch.Tensor) -> torch.Tensor:
+    """RGBA (linear) -> RGBA (SRGB), preserving the alpha channel."""
     rgb_image = torch_linear_to_srgb(image[0:3, :, :])
     return torch.cat([rgb_image, image[3:4, :, :]], dim=0)
-
-
-class FpsStatistics:
-    def __init__(self):
-        self.count = 100
-        self.fps = []
-
-    def add_fps(self, fps):
-        self.fps.append(fps)
-        while len(self.fps) > self.count:
-            del self.fps[0]
-
-    def get_average_fps(self):
-        if len(self.fps) == 0:
-            return 0.0
-        else:
-            return sum(self.fps) / len(self.fps)
-
 
 class TalkingheadManager:
     """uWu Waifu"""
@@ -218,6 +201,8 @@ class TalkingheadManager:
         self.torch_source_image = None
         self.last_update_time = None
         self.last_report_time = None
+
+        self.emotions, self.emotion_names = load_emotion_presets(os.path.join("talkinghead", "emotions"))
 
     def start(self):
         self._terminated = False
@@ -334,24 +319,7 @@ class TalkingheadManager:
         return output
 
     def get_emotion_values(self, emotion):  # Place to define emotion presets
-        global global_basedir
-
-        file_path = os.path.join(global_basedir, "emotions", emotion + ".json")
-        logger.debug(f"get emotion: {emotion} from {file_path}")
-
-        if not os.path.exists(file_path):
-            logger.debug(f"{file_path} not found, using fallback for {emotion}")
-            file_path = os.path.join(global_basedir, "emotions", "_defaults.json")
-
-        with open(file_path, 'r') as json_file:
-            emotions = json.load(json_file)
-
-        targetpose = emotions.get(emotion, {})
-        targetpose_values = targetpose
-
-        # targetpose_values = list(targetpose.values())
-        # logger.debug(f"targetpose for {emotion}: {targetpose}")
-        return targetpose_values
+        return self.emotions[emotion]
 
     def animateToEmotion(self, current_pose_list, target_pose_dict):
         transitionPose = []
