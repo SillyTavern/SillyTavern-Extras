@@ -220,11 +220,6 @@ class TalkingheadLive:
         """Terminate the talkinghead update thread."""
         self._terminated = True
 
-    def random_generate_value(self, min: int, max: int, origin_value: float) -> float:
-        x = origin_value + random.choice(list(range(min, max, 1))) / 2500.0  # TODO: WTF, "list"? Should just generate a random number directly.
-        x = max(0.0, min(x, 1.0))  # clamp (not the manga studio)
-        return x
-
     def apply_emotion_to_pose(self, emotion_posedict: Dict[str, float], pose: List[float]) -> List[float]:
         """Copy all morphs except breathing from `emotion_posedict` to `pose`.
 
