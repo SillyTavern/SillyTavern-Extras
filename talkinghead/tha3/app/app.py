@@ -1,5 +1,18 @@
 """THA3 live mode for SillyTavern-extras."""
 
+# TODO: talkinghead live mode:
+#  - remove rest of the IFacialMocap stuff (we can run on pure THA3)
+#  - refactor stuff shared between the manual poser and live mode into a common app-level utility module (e.g. the emotion preset loading code)
+#  - cache emotions into memory (no point loading the active emotion from disk every frame)
+#  - fix animation logic, currently a mess
+#  - talking animation is broken, fix mouth randomizer
+#  - see which version of the sway animation is better
+#    - should have body sway, too
+#  - improve idle animations
+#    - cosine schedule?
+#  - add option to server.py to load with float32 or float16, as desired
+#  - PNG sending efficiency?
+
 import atexit
 import io
 import json
