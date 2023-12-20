@@ -42,6 +42,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Global variables
+# TODO: we could move many of these into TalkingheadManager, and just keep a reference to that as global.
 global_source_image = None
 global_result_image = None
 global_reload = None
