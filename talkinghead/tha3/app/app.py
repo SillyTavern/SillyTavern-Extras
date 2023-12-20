@@ -6,11 +6,8 @@ If you want to play around with THA3 expressions in a standalone app, see `manua
 """
 
 # TODO: talkinghead live mode:
-#  - remove rest of the IFacialMocap stuff (we can run on pure THA3)
-#  - fix animation logic, currently a mess
-#  - talking animation is broken, fix mouth randomizer
-#  - see which version of the sway animation is better
-#    - should have body sway, too
+#  - delete the IFacialMocap stuff from the repo (we now run on pure THA3!)
+#  - talking animation is broken, seems the client isn't sending us a request to start/stop talking?
 #  - improve idle animations
 #    - cosine schedule?
 #  - add option to server.py to load with float32 or float16, as desired
@@ -34,32 +31,27 @@ import torch
 from flask import Flask, Response
 from flask_cors import CORS
 
-from tha3.mocap.ifacialmocap_pose import create_default_ifacialmocap_pose
-from tha3.mocap.ifacialmocap_pose_converter import IFacialMocapPoseConverter
-from tha3.mocap.ifacialmocap_poser_converter_25 import create_ifacialmocap_pose_converter
 from tha3.poser.modes.load_poser import load_poser
 from tha3.poser.poser import Poser
 from tha3.util import (torch_linear_to_srgb, resize_PIL_image,
                        extract_PIL_image_from_filelike, extract_pytorch_image_from_PIL_image)
-from tha3.app.util import load_emotion_presets, to_talkinghead_image, FpsStatistics
+from tha3.app.util import posedict_keys, load_emotion_presets, posedict_to_pose, to_talkinghead_image, FpsStatistics
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Global variables
-# TODO: we could move many of these into TalkingheadManager, and just keep a reference to that as global.
+# TODO: we could move many of these into TalkingheadLive, and just keep a reference to that as global.
+global_instance = None
+global_basedir = "talkinghead"
 global_source_image = None
 global_result_image = None
-global_reload = None
-is_talking_override = False
+global_reload_image = None
+animation_running = False
 is_talking = False
-global_timer_paused = False
-emotion = "neutral"
-lasttransitionedPose = "NotInit"
-inMotion = False
-fps = 0
+current_emotion = "neutral"
 current_pose = None
-global_basedir = "talkinghead"
+fps = 0
 
 # Flask setup
 app = Flask(__name__)
@@ -75,7 +67,7 @@ def setEmotion(_emotion: Dict[str, float]) -> None:
 
     _emotion: result of sentiment analysis: {emotion0: confidence0, ...}
     """
-    global emotion
+    global current_emotion
 
     highest_score = float('-inf')
     highest_label = None
@@ -85,28 +77,32 @@ def setEmotion(_emotion: Dict[str, float]) -> None:
             highest_score = item['score']
             highest_label = item['label']
 
-    logger.debug(f"applying {emotion}")
-    emotion = highest_label
+    logger.debug(f"setEmotion: applying emotion {highest_label}")
+    current_emotion = highest_label
 
 def unload() -> str:
-    global global_timer_paused
-    global_timer_paused = True
+    """Stop animation."""
+    global animation_running
+    animation_running = False
     logger.debug("unload: animation paused")
     return "Animation Paused"
 
 def start_talking() -> str:
-    global is_talking_override
-    is_talking_override = True
-    logger.debug("start talking")
+    """Start talking animation."""
+    global is_talking
+    is_talking = True
+    logger.debug("start_talking called")
     return "started"
 
 def stop_talking() -> str:
-    global is_talking_override
-    is_talking_override = False
-    logger.debug("stop talking")
+    """Stop talking animation."""
+    global is_talking
+    is_talking = False
+    logger.debug("stop_talking called")
     return "stopped"
 
 def result_feed() -> Response:
+    """Return a Flask `Response` that repeatedly yields the current image as 'image/png'."""
     def generate():
         while True:
             if global_result_image is not None:
@@ -129,22 +125,23 @@ def result_feed() -> Response:
 
 # TODO: the input is a flask.request.file.stream; what's the type of that?
 def talkinghead_load_file(stream) -> str:
-    global global_reload
-    global global_timer_paused
+    """Load image from stream and start animation."""
+    global global_reload_image
+    global animation_running
     logger.debug("talkinghead_load_file: loading new input image from stream")
 
     try:
-        global_timer_paused = True
+        animation_running = False  # pause animation while loading a new image
         pil_image = PIL.Image.open(stream)  # Load the image using PIL.Image.open
         img_data = io.BytesIO()  # Create a copy of the image data in memory using BytesIO
         pil_image.save(img_data, format='PNG')
-        global_reload = PIL.Image.open(io.BytesIO(img_data.getvalue()))  # Set the global_reload to a copy of the image data
-        global_timer_paused = False
+        global_reload_image = PIL.Image.open(io.BytesIO(img_data.getvalue()))  # Set the global_reload_image to a copy of the image data
     except PIL.Image.UnidentifiedImageError:
         logger.warning("Could not load input image from stream, loading blank")
         full_path = os.path.join(os.getcwd(), os.path.normpath(os.path.join(global_basedir, "tha3", "images", "inital.png")))
-        TalkingheadManager.load_image(full_path)
-        global_timer_paused = True
+        global_instance.load_image(full_path)
+    finally:
+        animation_running = True
     return 'OK'
 
 def launch(device: str, model: str) -> Union[None, NoReturn]:
@@ -155,19 +152,19 @@ def launch(device: str, model: str) -> Union[None, NoReturn]:
     device: "cpu" or "cuda"
     model: one of the folder names inside "talkinghead/tha3/models/"
     """
+    global global_instance
     global initAMI  # TODO: initAREYOU? See if we still need this - the idea seems to be to stop animation until the first image is loaded.
     initAMI = True
 
     try:
         poser = load_poser(model, device, modelsdir=os.path.join(global_basedir, "tha3", "models"))
-        pose_converter = create_ifacialmocap_pose_converter()  # creates a list of 45
+        global_instance = TalkingheadLive(poser, device)
 
-        manager = TalkingheadManager(poser, pose_converter, device)
-
-        # Load character image
+        # Load initial blank character image
         full_path = os.path.join(os.getcwd(), os.path.normpath(os.path.join(global_basedir, "tha3", "images", "inital.png")))
-        manager.load_image(full_path)
-        manager.start()
+        global_instance.load_image(full_path)
+
+        global_instance.start()
 
     except RuntimeError as exc:
         logger.error(exc)
@@ -181,11 +178,10 @@ def convert_linear_to_srgb(image: torch.Tensor) -> torch.Tensor:
     rgb_image = torch_linear_to_srgb(image[0:3, :, :])
     return torch.cat([rgb_image, image[3:4, :, :]], dim=0)
 
-class TalkingheadManager:
+class TalkingheadLive:
     """uWu Waifu"""
 
-    def __init__(self, poser: Poser, pose_converter: IFacialMocapPoseConverter, device: torch.device):
-        self.pose_converter = pose_converter
+    def __init__(self, poser: Poser, device: torch.device):
         self.poser = poser
         self.device = device
 
@@ -194,13 +190,12 @@ class TalkingheadManager:
         self.targets = {"head_y_index": 0}
         self.progress = {"head_y_index": 0}
         self.direction = {"head_y_index": 1}
-        self.originals = {"head_y_index": 0}  # TODO: what was this for?
+        self.originals = {"head_y_index": 0}  # TODO: what was this for; probably for recording the values from the current emotion, before sway animation?
         self.forward = {"head_y_index": True}  # Direction of interpolation
         self.start_values = {"head_y_index": 0}
 
         self.fps_statistics = FpsStatistics()
 
-        self.ifacialmocap_pose = create_default_ifacialmocap_pose()
         self.torch_source_image = None
         self.last_update_time = None
         self.last_report_time = None
@@ -208,17 +203,17 @@ class TalkingheadManager:
         self.emotions, self.emotion_names = load_emotion_presets(os.path.join("talkinghead", "emotions"))
 
     def start(self) -> None:
-        """Start the talkinghead update thread."""
+        """Start the animation thread."""
         self._terminated = False
-        def update_manager():
+        def manage_animation_update():
             while not self._terminated:
                 # TODO: add a configurable FPS limiter (take a parameter in `__init__`; populate it from cli args in `server.py`)
                 #   - should sleep for `max(eps, frame_target_ms - render_average_ms)`, where `eps = 0.01`, so that the next frame is ready in time
                 #     (get render_average_ms from FPS counter; sanity check for nonsense value)
                 self.update_result_image_bitmap()
                 time.sleep(0.01)
-        self.scheduler = threading.Thread(target=update_manager, daemon=True)
-        self.scheduler.start()
+        self.animation_thread = threading.Thread(target=manage_animation_update, daemon=True)
+        self.animation_thread.start()
         atexit.register(self.exit)
 
     def exit(self) -> None:
@@ -230,442 +225,122 @@ class TalkingheadManager:
         x = max(0.0, min(x, 1.0))  # clamp (not the manga studio)
         return x
 
-    # def animationTalking(self):
-    #     global is_talking
-    #     current_pose = self.ifacialmocap_pose
-    #
-    #     # NOTE: randomize mouth
-    #     for blendshape_name in mocap_constants.BLENDSHAPE_NAMES:
-    #         if "jawOpen" in blendshape_name:
-    #             if is_talking or is_talking_override:
-    #                 current_pose[blendshape_name] = self.random_generate_value(-5000, 5000, abs(1 - current_pose[blendshape_name]))
-    #             else:
-    #                 current_pose[blendshape_name] = 0
-    #
-    #     return current_pose
-    #
-    # def animationHeadMove(self):
-    #     current_pose = self.ifacialmocap_pose
-    #
-    #     for key in [mocap_constants.HEAD_BONE_Y]:  # can add more to this list if needed
-    #         current_pose[key] = self.random_generate_value(-20, 20, current_pose[key])
-    #
-    #     return current_pose
-    #
-    # def animationBlink(self):
-    #     current_pose = self.ifacialmocap_pose
-    #
-    #     if random.random() <= 0.03:
-    #         current_pose["eyeBlinkRight"] = 1
-    #         current_pose["eyeBlinkLeft"] = 1
-    #     else:
-    #         current_pose["eyeBlinkRight"] = 0
-    #         current_pose["eyeBlinkLeft"] = 0
-    #
-    #     return current_pose
+    def apply_emotion_to_pose(self, emotion_posedict: Dict[str, float], pose: List[float]) -> List[float]:
+        """Copy all morphs except breathing from `emotion_posedict` to `pose`.
 
-    def addNamestoConvert(pose):
-        # TODO: What are the unknown keys?
-        index_to_name = {
-            0: 'eyebrow_troubled_left_index',
-            1: 'eyebrow_troubled_right_index',
-            2: 'eyebrow_angry_left_index',
-            3: 'eyebrow_angry_right_index',
-            4: 'unknown1',  # COMBACK TO UNK
-            5: 'unknown2',  # COMBACK TO UNK
-            6: 'eyebrow_raised_left_index',
-            7: 'eyebrow_raised_right_index',
-            8: 'eyebrow_happy_left_index',
-            9: 'eyebrow_happy_right_index',
-            10: 'unknown3',  # COMBACK TO UNK
-            11: 'unknown4',  # COMBACK TO UNK
-            12: 'wink_left_index',
-            13: 'wink_right_index',
-            14: 'eye_happy_wink_left_index',
-            15: 'eye_happy_wink_right_index',
-            16: 'eye_surprised_left_index',
-            17: 'eye_surprised_right_index',
-            18: 'unknown5',  # COMBACK TO UNK
-            19: 'unknown6',  # COMBACK TO UNK
-            20: 'unknown7',  # COMBACK TO UNK
-            21: 'unknown8',  # COMBACK TO UNK
-            22: 'eye_raised_lower_eyelid_left_index',
-            23: 'eye_raised_lower_eyelid_right_index',
-            24: 'iris_small_left_index',
-            25: 'iris_small_right_index',
-            26: 'mouth_aaa_index',
-            27: 'mouth_iii_index',
-            28: 'mouth_ooo_index',
-            29: 'unknown9a',  # COMBACK TO UNK
-            30: 'mouth_ooo_index2',
-            31: 'unknown9',  # COMBACK TO UNK
-            32: 'unknown10',  # COMBACK TO UNK
-            33: 'unknown11',  # COMBACK TO UNK
-            34: 'mouth_raised_corner_left_index',
-            35: 'mouth_raised_corner_right_index',
-            36: 'unknown12',  # COMBACK TO UNK
-            37: 'iris_rotation_x_index',
-            38: 'iris_rotation_y_index',
-            39: 'head_x_index',
-            40: 'head_y_index',
-            41: 'neck_z_index',
-            42: 'body_y_index',
-            43: 'body_z_index',
-            44: 'breathing_index'
-        }
+        If a morph does not exist in `emotion_posedict`, its value is copied from `pose`.
 
-        output = []
+        Return the modified pose.
+        """
+        new_pose = list(pose)  # copy
+        for idx, key in enumerate(posedict_keys):
+            if key in emotion_posedict and key != "breathing_index":
+                new_pose[idx] = emotion_posedict[key]
+        return new_pose
 
-        for index, value in enumerate(pose):
-            name = index_to_name.get(index, "Unknown")
-            output.append(f"{name}: {value}")
+    def animate_blinking(self, pose: List[float]) -> List[float]:
+        # TODO: add smoothly animated blink?
 
-        return output
+        # If there should be a blink, set the wink morphs to 1; otherwise, use the provided value.
+        should_blink = (random.random() <= 0.03)
+        if not should_blink:
+            return pose
 
-    def animateToEmotion(self, current_pose_list: List[str], target_pose_dict: Dict[str, float]) -> List[str]:
-        transitionPose = []
+        new_pose = list(pose)  # copy
+        for morph_name in ["eye_wink_left_index", "eye_wink_right_index"]:
+            idx = posedict_keys.index(morph_name)
+            new_pose[idx] = 1.0
+        return new_pose
 
-        # Loop through the current_pose_list
-        for item in current_pose_list:
-            index, value = item.split(': ')
+    def animate_talking(self, pose: List[float]) -> List[float]:
+        if not is_talking:
+            return pose
 
-            # Always take the value from target_pose_dict if the key exists
-            if index in target_pose_dict and index != "breathing_index":
-                transitionPose.append(f"{index}: {target_pose_dict[index]}")
-            else:
-                transitionPose.append(item)
+        new_pose = list(pose)  # copy
+        idx = posedict_keys.index("mouth_aaa_index")
+        x = pose[idx]
+        x = abs(1.0 - x) + random.uniform(-2.0, 2.0)
+        x = max(0.0, min(x, 1.0))  # clamp (not the manga studio)
+        new_pose[idx] = x
+        return new_pose
 
-        # Ensure that the number of elements in transitionPose matches with current_pose_list
-        assert len(transitionPose) == len(current_pose_list)
+    def animate_sway(self, pose: List[float]) -> List[float]:
+        # TODO: add sway for other axes and body
 
-        return transitionPose
-
-    # def animationMain(self):
-    #     self.ifacialmocap_pose = self.animationBlink()
-    #     self.ifacialmocap_pose = self.animationHeadMove()
-    #     self.ifacialmocap_pose = self.animationTalking()
-    #     return self.ifacialmocap_pose
-
-    def dict_to_tensor(self, d):
-        if isinstance(d, dict):
-            return torch.tensor(list(d.values()))
-        elif isinstance(d, list):
-            return torch.tensor(d)
-        else:
-            raise ValueError("Unsupported data type passed to dict_to_tensor.")
-
-    def update_ifacialmocap_pose(self, ifacialmocap_pose, emotion_pose):
-        # Update Values - The following values are in emotion_pose but not defined in ifacialmocap_pose
-        # eye_happy_wink_left_index, eye_happy_wink_right_index
-        # eye_surprised_left_index, eye_surprised_right_index
-        # eye_relaxed_left_index, eye_relaxed_right_index
-        # eye_unimpressed
-        # eye_raised_lower_eyelid_left_index, eye_raised_lower_eyelid_right_index
-        # mouth_uuu_index
-        # mouth_eee_index
-        # mouth_ooo_index
-        # mouth_delta
-        # mouth_smirk
-        # body_y_index
-        # body_z_index
-        # breathing_index
-
-        ifacialmocap_pose['browDownLeft'] = emotion_pose['eyebrow_troubled_left_index']
-        ifacialmocap_pose['browDownRight'] = emotion_pose['eyebrow_troubled_right_index']
-        ifacialmocap_pose['browOuterUpLeft'] = emotion_pose['eyebrow_angry_left_index']
-        ifacialmocap_pose['browOuterUpRight'] = emotion_pose['eyebrow_angry_right_index']
-        ifacialmocap_pose['browInnerUp'] = emotion_pose['eyebrow_happy_left_index']
-        ifacialmocap_pose['browInnerUp'] += emotion_pose['eyebrow_happy_right_index']
-        ifacialmocap_pose['browDownLeft'] = emotion_pose['eyebrow_raised_left_index']
-        ifacialmocap_pose['browDownRight'] = emotion_pose['eyebrow_raised_right_index']
-        ifacialmocap_pose['browDownLeft'] += emotion_pose['eyebrow_lowered_left_index']
-        ifacialmocap_pose['browDownRight'] += emotion_pose['eyebrow_lowered_right_index']
-        ifacialmocap_pose['browDownLeft'] += emotion_pose['eyebrow_serious_left_index']
-        ifacialmocap_pose['browDownRight'] += emotion_pose['eyebrow_serious_right_index']
-
-        # Update eye values
-        ifacialmocap_pose['eyeWideLeft'] = emotion_pose['eye_surprised_left_index']
-        ifacialmocap_pose['eyeWideRight'] = emotion_pose['eye_surprised_right_index']
-
-        # Update eye blink (though we will overwrite it later)
-        ifacialmocap_pose['eyeBlinkLeft'] = emotion_pose['eye_wink_left_index']
-        ifacialmocap_pose['eyeBlinkRight'] = emotion_pose['eye_wink_right_index']
-
-        # Update iris rotation values
-        ifacialmocap_pose['eyeLookInLeft'] = -emotion_pose['iris_rotation_y_index']
-        ifacialmocap_pose['eyeLookOutLeft'] = emotion_pose['iris_rotation_y_index']
-        ifacialmocap_pose['eyeLookInRight'] = emotion_pose['iris_rotation_y_index']
-        ifacialmocap_pose['eyeLookOutRight'] = -emotion_pose['iris_rotation_y_index']
-        ifacialmocap_pose['eyeLookUpLeft'] = emotion_pose['iris_rotation_x_index']
-        ifacialmocap_pose['eyeLookDownLeft'] = -emotion_pose['iris_rotation_x_index']
-        ifacialmocap_pose['eyeLookUpRight'] = emotion_pose['iris_rotation_x_index']
-        ifacialmocap_pose['eyeLookDownRight'] = -emotion_pose['iris_rotation_x_index']
-
-        # Update iris size values
-        ifacialmocap_pose['irisWideLeft'] = emotion_pose['iris_small_left_index']
-        ifacialmocap_pose['irisWideRight'] = emotion_pose['iris_small_right_index']
-
-        # Update head rotation values
-        ifacialmocap_pose['headBoneX'] = -emotion_pose['head_x_index'] * 15.0
-        ifacialmocap_pose['headBoneY'] = -emotion_pose['head_y_index'] * 10.0
-        ifacialmocap_pose['headBoneZ'] = emotion_pose['neck_z_index'] * 15.0
-
-        # Update mouth values
-        ifacialmocap_pose['mouthSmileLeft'] = emotion_pose['mouth_aaa_index']
-        ifacialmocap_pose['mouthSmileRight'] = emotion_pose['mouth_aaa_index']
-        ifacialmocap_pose['mouthFrownLeft'] = emotion_pose['mouth_lowered_corner_left_index']
-        ifacialmocap_pose['mouthFrownRight'] = emotion_pose['mouth_lowered_corner_right_index']
-        ifacialmocap_pose['mouthPressLeft'] = emotion_pose['mouth_raised_corner_left_index']
-        ifacialmocap_pose['mouthPressRight'] = emotion_pose['mouth_raised_corner_right_index']
-
-        return ifacialmocap_pose
-
-    def update_blinking_pose(self, transitionedPose):
-        PARTS = ['wink_left_index', 'wink_right_index']
-        updated_list = []
-
-        should_blink = random.random() <= 0.03  # Determine if there should be a blink
-
-        for item in transitionedPose:
-            key, value = item.split(': ')
-            if key in PARTS:
-                # If there should be a blink, set value to 1; otherwise, use the provided value
-                new_value = 1 if should_blink else float(value)
-                updated_list.append(f"{key}: {new_value}")
-            else:
-                updated_list.append(item)
-
-        return updated_list
-
-    def update_talking_pose(self, transitionedPose):
-        MOUTHPARTS = ['mouth_aaa_index']
-
-        updated_list = []
-
-        for item in transitionedPose:
-            key, value = item.split(': ')
-
-            if key in MOUTHPARTS and is_talking_override:
-                new_value = self.random_generate_value(-5000, 5000, abs(1 - float(value)))
-                updated_list.append(f"{key}: {new_value}")
-            else:
-                updated_list.append(item)
-
-        return updated_list
-
-    def update_sway_pose_good(self, transitionedPose):  # TODO: good? why is there a bad one, too? keep only one!
+        new_pose = list(pose)  # copy
         MOVEPARTS = ['head_y_index']
-        updated_list = []
+        for key in MOVEPARTS:
+            idx = posedict_keys.index(key)
+            current_value = pose[idx]
 
-        # logger.debug(f"{self.start_values}, {self.targets}, {self.progress}, {self.direction}")
+            # Linearly interpolate between start and target values
+            new_value = self.start_values[key] + self.progress[key] * (self.targets[key] - self.start_values[key])
+            new_value = min(max(new_value, -1), 1)  # clip to bounds (just in case)
 
-        for item in transitionedPose:
-            key, value = item.split(': ')
+            # Check if we've reached the target or start value
+            is_close_to_target = abs(new_value - self.targets[key]) < 0.04
+            is_close_to_start = abs(new_value - self.start_values[key]) < 0.04
 
-            if key in MOVEPARTS:
-                current_value = float(value)
+            if (self.direction[key] == 1 and is_close_to_target) or (self.direction[key] == -1 and is_close_to_start):
+                # Reverse direction
+                self.direction[key] *= -1
 
-                # If progress reaches 1 or 0
-                if self.progress[key] >= 1 or self.progress[key] <= 0:
-                    # Reverse direction
-                    self.direction[key] *= -1
+                # If direction is now forward, set a new target and store starting value
+                if self.direction[key] == 1:
+                    self.start_values[key] = new_value
+                    self.targets[key] = current_value + random.uniform(-0.6, 0.6)
+                    self.progress[key] = 0  # Reset progress when setting a new target
 
-                    # If direction is now forward, set a new target and store starting value
-                    if self.direction[key] == 1:
-                        self.start_values[key] = current_value
-                        self.targets[key] = current_value + random.uniform(-1, 1)
-                        self.progress[key] = 0  # Reset progress when setting a new target
+            # Update progress based on direction
+            self.progress[key] += 0.04 * self.direction[key]
 
-                # Linearly interpolate between start and target values
-                new_value = self.start_values[key] + self.progress[key] * (self.targets[key] - self.start_values[key])
-                new_value = min(max(new_value, -1), 1)  # clip to bounds (just in case)
+            new_pose[idx] = new_value
+        return new_pose
 
-                # Update progress based on direction
-                self.progress[key] += 0.02 * self.direction[key]
+    def interpolate_pose(self, pose: List[float], target_pose: List[float], step=0.1) -> List[float]:
+        # TODO: ignore sway?
+        new_pose = list(pose)  # copy
+        for idx, key in enumerate(posedict_keys):
+            # # We shouldn't need this fix anymore, because we animate blinking *after* interpolating the pose.
+            # if key in ['eye_wink_left_index', 'eye_wink_right_index']:  # BLINK FIX
+            #     new_pose[idx] = new_pose[idx]
 
-                updated_list.append(f"{key}: {new_value}")
-            else:
-                updated_list.append(item)
-
-        return updated_list
-
-    def update_sway_pose(self, transitionedPose):
-        MOVEPARTS = ['head_y_index']
-        updated_list = []
-
-        # logger.debug(f"{self.start_values}, {self.targets}, {self.progress}, {self.direction}")
-
-        for item in transitionedPose:
-            key, value = item.split(': ')
-
-            if key in MOVEPARTS:
-                current_value = float(value)
-
-                # Linearly interpolate between start and target values
-                new_value = self.start_values[key] + self.progress[key] * (self.targets[key] - self.start_values[key])
-                new_value = min(max(new_value, -1), 1)  # clip to bounds (just in case)
-
-                # Check if we've reached the target or start value
-                is_close_to_target = abs(new_value - self.targets[key]) < 0.04
-                is_close_to_start = abs(new_value - self.start_values[key]) < 0.04
-
-                if (self.direction[key] == 1 and is_close_to_target) or (self.direction[key] == -1 and is_close_to_start):
-                    # Reverse direction
-                    self.direction[key] *= -1
-
-                    # If direction is now forward, set a new target and store starting value
-                    if self.direction[key] == 1:
-                        self.start_values[key] = new_value
-                        self.targets[key] = current_value + random.uniform(-0.6, 0.6)
-                        self.progress[key] = 0  # Reset progress when setting a new target
-
-                # Update progress based on direction
-                self.progress[key] += 0.04 * self.direction[key]
-
-                updated_list.append(f"{key}: {new_value}")
-            else:
-                updated_list.append(item)
-
-        return updated_list
-
-    def update_transition_pose(self, last_transition_pose_s, transition_pose_s):
-        global inMotion
-        inMotion = True
-
-        # Create dictionaries from the lists for easier comparison
-        last_transition_dict = {}
-        for item in last_transition_pose_s:
-            key = item.split(': ')[0]
-            value = float(item.split(': ')[1])
-            if key == 'unknown':
-                key += f"_{list(last_transition_dict.values()).count(value)}"
-            last_transition_dict[key] = value
-
-        transition_dict = {}
-        for item in transition_pose_s:
-            key = item.split(': ')[0]
-            value = float(item.split(': ')[1])
-            if key == 'unknown':
-                key += f"_{list(transition_dict.values()).count(value)}"
-            transition_dict[key] = value
-
-        updated_last_transition_pose = []
-
-        for key, last_value in last_transition_dict.items():
-            # If the key exists in transition_dict, increment its value by 0.4 and clip it to the target
-            if key in transition_dict:
-
-                # If the key is 'wink_left_index' or 'wink_right_index', set the value directly dont animate blinks
-                if key in ['wink_left_index', 'wink_right_index']:  # BLINK FIX
-                    last_value = transition_dict[key]
-
-                # For all other keys, increment its value by 0.1 of the delta and clip it to the target
-                else:
-                    delta = transition_dict[key] - last_value
-                    last_value += delta * 0.1
-
-            # Reconstruct the string and append it to the updated list
-            updated_last_transition_pose.append(f"{key}: {last_value}")
-
-        # If any value is less than the target, set inMotion to True
-        # TODO/FIXME: inMotion is not actually used by anything else
-        if any(last_transition_dict[k] < transition_dict[k] for k in last_transition_dict if k in transition_dict):
-            inMotion = True
-        else:
-            inMotion = False
-
-        return updated_last_transition_pose
+            # Note this leads to an exponentially saturating behavior (1 - exp(-x)), because the delta is from the current pose to the final pose.
+            delta = target_pose[idx] - pose[idx]
+            new_pose[idx] = pose[idx] + step * delta
+        return new_pose
 
     def update_result_image_bitmap(self) -> None:
         """Render an animation frame."""
 
-        global global_timer_paused
+        global animation_running
         global initAMI
         global global_result_image
         global fps
         global current_pose
-        global lasttransitionedPose
 
-        if global_timer_paused:
+        if not animation_running:
             return
 
         try:
-            if global_reload is not None:
-                TalkingheadManager.load_image(self, file_path=None)  # call load_image function here
-                return
+            if global_reload_image is not None:
+                self.load_image()
+                return  # TODO: do we really need to return here, we could just proceed?
             if self.torch_source_image is None:
                 return
+            if current_pose is None:  # initialize character pose at plugin startup
+                current_pose = posedict_to_pose(self.emotions[current_emotion])
 
-            # # OLD METHOD
-            # ifacialmocap_pose = self.animationMain()  # GET ANIMATION CHANGES
-            # current_posesaved = self.pose_converter.convert(ifacialmocap_pose)
-            # combined_posesaved = current_posesaved
+            emotion_posedict = self.emotions[current_emotion]
+            target_pose = self.apply_emotion_to_pose(emotion_posedict, current_pose)
 
-            # NEW METHOD
-            # CREATES THE DEFAULT POSE AND STORES OBJ IN STRING
-            # ifacialmocap_pose = self.animationMain()  # DISABLE FOR TESTING!!!!!!!!!!!!!!!!!!!!!!!!
-            ifacialmocap_pose = self.ifacialmocap_pose
-            # logger.debug(f"ifacialmocap_pose: {ifacialmocap_pose}")
+            current_pose = self.interpolate_pose(current_pose, target_pose)
+            current_pose = self.animate_blinking(current_pose)
+            current_pose = self.animate_sway(current_pose)
+            current_pose = self.animate_talking(current_pose)
+            # TODO: animate breathing
 
-            # GET EMOTION SETTING
-            emotion_pose = self.emotions[emotion]
-            # logger.debug(f"emotion_pose: {emotion_pose}")
-
-            # MERGE EMOTION SETTING WITH CURRENT OUTPUT
-            # NOTE: This is a mutating method that overwrites the original `ifacialmocap_pose`.
-            updated_pose = self.update_ifacialmocap_pose(ifacialmocap_pose, emotion_pose)
-            # logger.debug(f"updated_pose: {updated_pose}")
-
-            # CONVERT RESULT TO FORMAT NN CAN USE
-            current_pose = self.pose_converter.convert(updated_pose)
-            # logger.debug(f"current_pose: {current_pose}")
-
-            # SEND THROUGH CONVERT
-            current_pose = self.pose_converter.convert(ifacialmocap_pose)
-            # logger.debug(f"current_pose2: {current_pose}")
-
-            # ADD LABELS/NAMES TO THE POSE
-            names_current_pose = TalkingheadManager.addNamestoConvert(current_pose)
-            # logger.debug(f"current pose: {names_current_pose}")
-
-            # GET THE EMOTION VALUES again for some reason
-            emotion_pose2 = self.emotions[emotion]
-            # logger.debug(f"target pose: {emotion_pose2}")
-
-            # APPLY VALUES TO THE POSE AGAIN?? This needs to overwrite the values
-            transitionedPose = self.animateToEmotion(names_current_pose, emotion_pose2)
-            # logger.debug(f"combine pose: {transitionedPose}")
-
-            # smooth animate
-            # logger.debug(f"LAST VALUES: {lasttransitionedPose}")
-            # logger.debug(f"TARGET VALUES: {transitionedPose}")
-
-            if lasttransitionedPose != "NotInit":
-                transitionedPose = self.update_transition_pose(lasttransitionedPose, transitionedPose)
-                # logger.debug(f"smoothed: {transitionedPose}")
-
-            # Animate blinking
-            transitionedPose = self.update_blinking_pose(transitionedPose)
-
-            # Animate Head Sway
-            transitionedPose = self.update_sway_pose(transitionedPose)
-
-            # Animate Talking
-            transitionedPose = self.update_talking_pose(transitionedPose)
-
-            # reformat the data correctly
-            parsed_data = []
-            for item in transitionedPose:
-                key, value_str = item.split(': ')
-                value = float(value_str)
-                parsed_data.append((key, value))
-            tranisitiondPosenew = [value for _, value in parsed_data]
-
-            # not sure what this is for TBH   # TODO: let's get rid of it then
-            ifacialmocap_pose = tranisitiondPosenew
-
-            # pose = torch.tensor(tranisitiondPosenew, device=self.device, dtype=self.poser.get_dtype())
-            pose = self.dict_to_tensor(tranisitiondPosenew).to(device=self.device, dtype=self.poser.get_dtype())  # TODO: a WHAT to a WHAT? Optimize this!
+            pose = torch.tensor(current_pose, device=self.device, dtype=self.poser.get_dtype())
 
             with torch.no_grad():
                 output_image = self.poser.pose(self.torch_source_image, pose)[0].float()
@@ -678,6 +353,7 @@ class TalkingheadManager:
             numpy_image_bgra = numpy_image[:, :, [2, 1, 0, 3]]  # Convert color channels from RGB to BGR and keep alpha channel
             global_result_image = numpy_image_bgra
 
+            # Update FPS counter
             time_now = time.time_ns()
             if self.last_update_time is not None:
                 elapsed_time = time_now - self.last_update_time
@@ -688,7 +364,7 @@ class TalkingheadManager:
             self.last_update_time = time_now
 
             if initAMI:  # If the models are just now initalized stop animation to save
-                global_timer_paused = True
+                animation_running = False
                 initAMI = False
 
             if self.last_report_time is None or time_now - self.last_report_time > 5e9:
@@ -696,26 +372,23 @@ class TalkingheadManager:
                 logger.info("update_result_image_bitmap: FPS: {:.1f}".format(trimmed_fps))
                 self.last_report_time = time_now
 
-            # Store current pose to use as last pose on next loop
-            lasttransitionedPose = transitionedPose
-
         except KeyboardInterrupt:
             pass
 
     def load_image(self, file_path=None) -> None:
         """Load the image file at `file_path`.
 
-        Except, if `global_reload is not None`, use the global reload image data instead.
+        Except, if `global_reload_image is not None`, use the global reload image data instead.
         """
         global global_source_image
-        global global_reload
+        global global_reload_image
 
-        if global_reload is not None:
-            file_path = "global_reload"
+        if global_reload_image is not None:
+            file_path = "global_reload_image"
 
         try:
-            if file_path == "global_reload":
-                pil_image = global_reload
+            if file_path == "global_reload_image":
+                pil_image = global_reload_image
             else:
                 pil_image = resize_PIL_image(
                     extract_PIL_image_from_filelike(file_path),
@@ -742,4 +415,4 @@ class TalkingheadManager:
             logger.error(f"load_image: {exc}")
 
         finally:
-            global_reload = None
+            global_reload_image = None
