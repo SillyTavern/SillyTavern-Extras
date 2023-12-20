@@ -186,7 +186,7 @@ class TalkingheadLive:
         self.device = device
 
         self.last_blink_timestamp = 0  # TODO: Great idea! We should actually use this.
-        self.is_blinked = False  # TODO: what was this for?
+        self.is_blinked = False  # TODO: Maybe we might need this, too, now that the FPS is acceptable enough that we may need to blink over several frames.
         self.targets = {"head_y_index": 0}
         self.progress = {"head_y_index": 0}
         self.direction = {"head_y_index": 1}
