@@ -20,8 +20,9 @@ import sys
 import time
 import numpy as np
 import threading
+from typing import Dict, List, NoReturn, Union
 
-from PIL import Image
+import PIL
 
 import torch
 
@@ -36,7 +37,7 @@ from tha3.poser.modes.load_poser import load_poser
 from tha3.poser.poser import Poser
 from tha3.util import (torch_linear_to_srgb, resize_PIL_image,
                        extract_PIL_image_from_filelike, extract_pytorch_image_from_PIL_image)
-from tha3.app.util import load_emotion_presets, FpsStatistics
+from tha3.app.util import load_emotion_presets, to_talkinghead_image, FpsStatistics
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -63,7 +64,13 @@ CORS(app)
 # --------------------------------------------------------------------------------
 # API
 
-def setEmotion(_emotion):
+def setEmotion(_emotion: Dict[str, float]) -> None:
+    """Set the current emotion of the character based on sentiment analysis results.
+
+    Currently, we pick the emotion with the highest confidence score.
+
+    _emotion: result of sentiment analysis: {emotion0: confidence0, ...}
+    """
     global emotion
 
     highest_score = float('-inf')
@@ -77,34 +84,34 @@ def setEmotion(_emotion):
     logger.debug(f"applying {emotion}")
     emotion = highest_label
 
-def unload():
+def unload() -> str:
     global global_timer_paused
     global_timer_paused = True
     logger.debug("unload: animation paused")
     return "Animation Paused"
 
-def start_talking():
+def start_talking() -> str:
     global is_talking_override
     is_talking_override = True
     logger.debug("start talking")
     return "started"
 
-def stop_talking():
+def stop_talking() -> str:
     global is_talking_override
     is_talking_override = False
     logger.debug("stop talking")
     return "stopped"
 
-def result_feed():
+def result_feed() -> Response:
     def generate():
         while True:
             if global_result_image is not None:
                 try:
                     rgb_image = global_result_image[:, :, [2, 1, 0]]  # Swap B and R channels
-                    pil_image = Image.fromarray(np.uint8(rgb_image))  # Convert to PIL Image
+                    pil_image = PIL.Image.fromarray(np.uint8(rgb_image))  # Convert to PIL Image
                     if global_result_image.shape[2] == 4:  # Check if there is an alpha channel present
                         alpha_channel = global_result_image[:, :, 3]  # Extract alpha channel
-                        pil_image.putalpha(Image.fromarray(np.uint8(alpha_channel)))  # Set alpha channel in the PIL Image
+                        pil_image.putalpha(PIL.Image.fromarray(np.uint8(alpha_channel)))  # Set alpha channel in the PIL Image
                     buffer = io.BytesIO()  # Save as PNG with RGBA mode
                     pil_image.save(buffer, format='PNG')
                     image_bytes = buffer.getvalue()
@@ -116,27 +123,30 @@ def result_feed():
                 time.sleep(0.1)
     return Response(generate(), mimetype='multipart/x-mixed-replace; boundary=frame')
 
-def talkinghead_load_file(stream):
+# TODO: the input is a flask.request.file.stream; what's the type of that?
+def talkinghead_load_file(stream) -> str:
     global global_reload
     global global_timer_paused
     logger.debug("talkinghead_load_file: loading new input image from stream")
 
     try:
         global_timer_paused = True
-        pil_image = Image.open(stream)  # Load the image using PIL.Image.open
+        pil_image = PIL.Image.open(stream)  # Load the image using PIL.Image.open
         img_data = io.BytesIO()  # Create a copy of the image data in memory using BytesIO
         pil_image.save(img_data, format='PNG')
-        global_reload = Image.open(io.BytesIO(img_data.getvalue()))  # Set the global_reload to a copy of the image data
+        global_reload = PIL.Image.open(io.BytesIO(img_data.getvalue()))  # Set the global_reload to a copy of the image data
         global_timer_paused = False
-    except Image.UnidentifiedImageError:
+    except PIL.Image.UnidentifiedImageError:
         logger.warning("Could not load input image from stream, loading blank")
         full_path = os.path.join(os.getcwd(), os.path.normpath(os.path.join(global_basedir, "tha3", "images", "inital.png")))
         TalkingheadManager.load_image(full_path)
         global_timer_paused = True
     return 'OK'
 
-def launch(device: str, model: str):
+def launch(device: str, model: str) -> Union[None, NoReturn]:
     """Launch the talking head plugin (live mode).
+
+    If the plugin fails to load, the process exits.
 
     device: "cpu" or "cuda"
     model: one of the folder names inside "talkinghead/tha3/models/"
@@ -175,20 +185,17 @@ class TalkingheadManager:
         self.poser = poser
         self.device = device
 
-        self.last_blink_timestamp = 0
-        self.is_blinked = False
+        self.last_blink_timestamp = 0  # TODO: Great idea! We should actually use this.
+        self.is_blinked = False  # TODO: what was this for?
         self.targets = {"head_y_index": 0}
         self.progress = {"head_y_index": 0}
         self.direction = {"head_y_index": 1}
-        self.originals = {"head_y_index": 0}
+        self.originals = {"head_y_index": 0}  # TODO: what was this for?
         self.forward = {"head_y_index": True}  # Direction of interpolation
         self.start_values = {"head_y_index": 0}
 
         self.fps_statistics = FpsStatistics()
-        self.image_load_counter = 0
-        self.custom_background_image = None  # Add this line
 
-        self.sliders = {}
         self.ifacialmocap_pose = create_default_ifacialmocap_pose()
         self.torch_source_image = None
         self.last_update_time = None
@@ -196,27 +203,28 @@ class TalkingheadManager:
 
         self.emotions, self.emotion_names = load_emotion_presets(os.path.join("talkinghead", "emotions"))
 
-    def start(self):
+    def start(self) -> None:
+        """Start the talkinghead update thread."""
         self._terminated = False
         def update_manager():
             while not self._terminated:
+                # TODO: add a configurable FPS limiter (take a parameter in `__init__`; populate it from cli args in `server.py`)
+                #   - should sleep for `max(eps, frame_target_ms - render_average_ms)`, where `eps = 0.01`, so that the next frame is ready in time
+                #     (get render_average_ms from FPS counter; sanity check for nonsense value)
                 self.update_result_image_bitmap()
                 time.sleep(0.01)
         self.scheduler = threading.Thread(target=update_manager, daemon=True)
         self.scheduler.start()
         atexit.register(self.exit)
 
-    def exit(self):
+    def exit(self) -> None:
+        """Terminate the talkinghead update thread."""
         self._terminated = True
 
-    def random_generate_value(self, min, max, origin_value):
-        random_value = random.choice(list(range(min, max, 1))) / 2500.0
-        randomized = origin_value + random_value
-        if randomized > 1.0:
-            randomized = 1.0
-        if randomized < 0:
-            randomized = 0
-        return randomized
+    def random_generate_value(self, min: int, max: int, origin_value: float) -> float:
+        x = origin_value + random.choice(list(range(min, max, 1))) / 2500.0  # TODO: WTF, "list"? Should just generate a random number directly.
+        x = max(0.0, min(x, 1.0))  # clamp (not the manga studio)
+        return x
 
     # def animationTalking(self):
     #     global is_talking
@@ -310,10 +318,7 @@ class TalkingheadManager:
 
         return output
 
-    def get_emotion_values(self, emotion):  # Place to define emotion presets
-        return self.emotions[emotion]
-
-    def animateToEmotion(self, current_pose_list, target_pose_dict):
+    def animateToEmotion(self, current_pose_list: List[str], target_pose_dict: Dict[str, float]) -> List[str]:
         transitionPose = []
 
         # Loop through the current_pose_list
@@ -567,7 +572,9 @@ class TalkingheadManager:
 
         return updated_last_transition_pose
 
-    def update_result_image_bitmap(self):
+    def update_result_image_bitmap(self) -> None:
+        """Render an animation frame."""
+
         global global_timer_paused
         global initAMI
         global global_result_image
@@ -597,7 +604,7 @@ class TalkingheadManager:
             # logger.debug(f"ifacialmocap_pose: {ifacialmocap_pose}")
 
             # GET EMOTION SETTING
-            emotion_pose = self.get_emotion_values(emotion)
+            emotion_pose = self.emotions[emotion]
             # logger.debug(f"emotion_pose: {emotion_pose}")
 
             # MERGE EMOTION SETTING WITH CURRENT OUTPUT
@@ -618,7 +625,7 @@ class TalkingheadManager:
             # logger.debug(f"current pose: {names_current_pose}")
 
             # GET THE EMOTION VALUES again for some reason
-            emotion_pose2 = self.get_emotion_values(emotion)
+            emotion_pose2 = self.emotions[emotion]
             # logger.debug(f"target pose: {emotion_pose2}")
 
             # APPLY VALUES TO THE POSE AGAIN?? This needs to overwrite the values
@@ -691,14 +698,11 @@ class TalkingheadManager:
         except KeyboardInterrupt:
             pass
 
-    def resize_image(image, size=(512, 512)):
-        image.thumbnail(size, Image.LANCZOS)  # Step 1: Resize the image to maintain the aspect ratio with the larger dimension being 512 pixels
-        new_image = Image.new("RGBA", size)   # Step 2: Create a new image of size 512x512 with transparency
-        new_image.paste(image, ((size[0] - image.size[0]) // 2,
-                                (size[1] - image.size[1]) // 2))   # Step 3: Paste the resized image into the new image, centered
-        return new_image
+    def load_image(self, file_path=None) -> None:
+        """Load the image file at `file_path`.
 
-    def load_image(self, file_path=None):
+        Except, if `global_reload is not None`, use the global reload image data instead.
+        """
         global global_source_image
         global global_reload
 
@@ -717,18 +721,18 @@ class TalkingheadManager:
 
             if pil_image.size != (512, 512):
                 logger.info("Resizing Char Card to work")
-                pil_image = TalkingheadManager.resize_image(pil_image)
+                pil_image = to_talkinghead_image(pil_image)
 
             w, h = pil_image.size
 
             if pil_image.mode != 'RGBA':
-                self.source_image_string = "Image must have alpha channel!"
+                logger.error("load_image: image must have alpha channel")
                 self.torch_source_image = None
             else:
                 self.torch_source_image = extract_pytorch_image_from_PIL_image(pil_image) \
                     .to(self.device).to(self.poser.get_dtype())
 
-            global_source_image = self.torch_source_image  # Set global_source_image as a global variable
+            global_source_image = self.torch_source_image
 
         except Exception as exc:
             logger.error(f"load_image: {exc}")

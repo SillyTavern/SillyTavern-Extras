@@ -3,13 +3,15 @@
 __all__ = ["posedict_keys",
            "load_emotion_presets",
            "posedict_to_pose", "pose_to_posedict",
-           "torch_image_to_numpy",
+           "torch_image_to_numpy", "to_talkinghead_image"
            "FpsStatistics"]
 
 import logging
 import json
 import os
 from typing import Dict, List, Tuple
+
+import PIL
 
 import numpy
 
@@ -130,8 +132,9 @@ def pose_to_posedict(pose: List[float]) -> Dict[str, float]:
     return dict(zip(posedict_keys, pose))
 
 # --------------------------------------------------------------------------------
+# TODO: move the image utils to the lower-level `tha3.util`?
 
-def torch_image_to_numpy(image):  # TODO: move this to the lower-level `tha3.util`?
+def torch_image_to_numpy(image: torch.tensor) -> numpy.array:
     if image.shape[2] == 2:
         h, w, c = image.shape
         numpy_image = torch.transpose(image.reshape(h * w, c), 0, 1).reshape(c, h, w)
@@ -151,6 +154,21 @@ def torch_image_to_numpy(image):  # TODO: move this to the lower-level `tha3.uti
         raise RuntimeError(msg)
     numpy_image = numpy.uint8(numpy.rint(numpy_image * 255.0))
     return numpy_image
+
+def to_talkinghead_image(image: PIL.Image, new_size: Tuple[int] = (512, 512)) -> PIL.Image:
+    """Resize image to `new_size`, add alpha channel, and center.
+
+    With default `new_size`:
+
+      - Step 1: Resize (Lanczos) the image to maintain the aspect ratio with the larger dimension being 512 pixels.
+      - Step 2: Create a new image of size 512x512 with transparency.
+      - Step 3: Paste the resized image into the new image, centered.
+    """
+    image.thumbnail(new_size, PIL.Image.LANCZOS)
+    new_image = PIL.Image.new("RGBA", new_size)
+    new_image.paste(image, ((new_size[0] - image.size[0]) // 2,
+                            (new_size[1] - image.size[1]) // 2))
+    return new_image
 
 # --------------------------------------------------------------------------------
 
