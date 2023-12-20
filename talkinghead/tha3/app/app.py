@@ -78,7 +78,7 @@ def setEmotion(_emotion):
 def unload():
     global global_timer_paused
     global_timer_paused = True
-    logger.debug("unload")
+    logger.debug("unload: animation paused")
     return "Animation Paused"
 
 def start_talking():
@@ -127,7 +127,7 @@ def talkinghead_load_file(stream):
         pil_image.save(img_data, format='PNG')
         global_reload = Image.open(io.BytesIO(img_data.getvalue()))  # Set the global_reload to the copy of the image data
     except Image.UnidentifiedImageError:
-        logger.warning("Could not load image from stream, loading blank")
+        logger.warning("Could not load input image from stream, loading blank")
         full_path = os.path.join(os.getcwd(), os.path.normpath(os.path.join(global_basedir, "tha3", "images", "inital.png")))
         TalkingheadManager.load_image(full_path)
         global_timer_paused = True
