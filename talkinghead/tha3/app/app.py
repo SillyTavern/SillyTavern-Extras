@@ -144,7 +144,7 @@ def launch(device: str, model: str):
     model: one of the folder names inside "talkinghead/tha3/models/"
     """
     global global_basedir
-    global initAMI
+    global initAMI  # TODO: see if we still need this (the idea seems to be to stop animation until the first image is loaded)
     initAMI = True
 
     # # TODO: We could use this to parse the arguments that were provided to `server.py`, but we don't currently use the parser output.
