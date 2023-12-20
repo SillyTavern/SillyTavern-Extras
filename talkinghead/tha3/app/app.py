@@ -61,6 +61,9 @@ global_basedir = "talkinghead"
 app = Flask(__name__)
 CORS(app)
 
+# --------------------------------------------------------------------------------
+# API
+
 def setEmotion(_emotion):
     global emotion
 
@@ -134,11 +137,6 @@ def talkinghead_load_file(stream):
         global_timer_paused = True
     return 'OK'
 
-def convert_linear_to_srgb(image: torch.Tensor) -> torch.Tensor:
-    rgb_image = torch_linear_to_srgb(image[0:3, :, :])
-    return torch.cat([rgb_image, image[3:4, :, :]], dim=0)
-
-
 def launch(device: str, model: str):
     """Launch the talking head plugin (live mode).
 
@@ -168,6 +166,13 @@ def launch(device: str, model: str):
     except RuntimeError as exc:
         logger.error(exc)
         sys.exit()
+
+# --------------------------------------------------------------------------------
+# Internal stuff
+
+def convert_linear_to_srgb(image: torch.Tensor) -> torch.Tensor:
+    rgb_image = torch_linear_to_srgb(image[0:3, :, :])
+    return torch.cat([rgb_image, image[3:4, :, :]], dim=0)
 
 
 class FpsStatistics:
