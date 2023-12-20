@@ -3,7 +3,7 @@
 __all__ = ["posedict_keys",
            "load_emotion_presets",
            "posedict_to_pose", "pose_to_posedict",
-           "torch_image_to_numpy", "to_talkinghead_image"
+           "torch_image_to_numpy", "to_talkinghead_image",
            "FpsStatistics"]
 
 import logging
