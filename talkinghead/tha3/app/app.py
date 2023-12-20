@@ -562,6 +562,7 @@ class TalkingheadManager:
         return updated_list
 
     def update_transition_pose(self, last_transition_pose_s, transition_pose_s):
+        global inMotion
         inMotion = True
 
         # Create dictionaries from the lists for easier comparison
@@ -600,7 +601,7 @@ class TalkingheadManager:
             updated_last_transition_pose.append(f"{key}: {last_value}")
 
         # If any value is less than the target, set inMotion to True
-        # TODO/FIXME: inMotion is not actually used; what was this supposed to do?
+        # TODO/FIXME: inMotion is not actually used by anything else
         if any(last_transition_dict[k] < transition_dict[k] for k in last_transition_dict if k in transition_dict):
             inMotion = True
         else:
