@@ -691,7 +691,7 @@ class TalkingheadManager:
 
             if self.last_report_time is None or time_now - self.last_report_time > 5e9:
                 trimmed_fps = round(self.fps_statistics.get_average_fps(), 1)
-                logger.info("FPS: {:.1f}".format(trimmed_fps))
+                logger.info("update_result_image_bitmap: FPS: {:.1f}".format(trimmed_fps))
                 self.last_report_time = time_now
 
             # Store current pose to use as last pose on next loop
@@ -740,6 +740,6 @@ class TalkingheadManager:
             global_source_image = self.torch_source_image  # Set global_source_image as a global variable
 
         except Exception as exc:
-            logger.error(f"Error: {exc}")
+            logger.error(f"load_image: {exc}")
 
         global_reload = None
