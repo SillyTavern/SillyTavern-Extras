@@ -195,7 +195,7 @@ if "talkinghead" in modules:
             talkinghead.launch(mode, model)
         #choices=['standard_float', 'separable_float', 'standard_half', 'separable_half'],
         #choices='The device to use for PyTorch ("cuda" for GPU, "cpu" for CPU).'
-        talkinghead_thread = threading.Thread(target=launch_talkinghead_gui)
+        talkinghead_thread = threading.Thread(target=launch_talkinghead)
         talkinghead_thread.daemon = True  # Set the thread as a daemon thread
         talkinghead_thread.start()
 
