@@ -32,7 +32,6 @@ from flask import Flask, Response
 from flask_cors import CORS
 
 sys.path.append(os.getcwd())
-from tha3.mocap import ifacialmocap_constants as mocap_constants
 from tha3.mocap.ifacialmocap_pose import create_default_ifacialmocap_pose
 from tha3.mocap.ifacialmocap_pose_converter import IFacialMocapPoseConverter
 from tha3.mocap.ifacialmocap_poser_converter_25 import create_ifacialmocap_pose_converter
