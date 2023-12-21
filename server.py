@@ -91,6 +91,10 @@ parser.add_argument(
     required=False, default="auto",
     choices=["auto", "standard_float", "separable_float", "standard_half", "separable_half"],
 )
+parser.add_argument(
+    "--talkinghead-models", type=str, help="If THA3 models are not yet installed, use the given HuggingFace repository to install them.",
+    default="OktayAlpk/talking-head-anime-3"
+)
 
 parser.add_argument("--coqui-gpu", action="store_true", help="Run the voice models on the GPU (CPU is default)")
 parser.add_argument("--coqui-models", help="Install given Coqui-api TTS model at launch (comma separated list, last one will be loaded at start)")
@@ -185,6 +189,23 @@ if not torch.cuda.is_available() and not args.cpu:
 print(f"{Fore.GREEN}{Style.BRIGHT}Using torch device: {device_string}{Style.RESET_ALL}")
 
 if "talkinghead" in modules:
+    # Install the THA3 models if needed
+    talkinghead_models_dir = os.path.join(os.getcwd(), "talkinghead", "tha3", "models")
+    if not os.path.exists(talkinghead_models_dir):
+        # API:
+        #   https://huggingface.co/docs/huggingface_hub/en/guides/download
+        try:
+            from huggingface_hub import snapshot_download
+        except ImportError:
+            raise ImportError(
+                "You need to install huggingface_hub to install talkinghead models automatically. "
+                "See https://pypi.org/project/huggingface-hub/ for installation."
+            )
+        os.makedirs(talkinghead_models_dir, exist_ok=True)
+        print(f"THA3 models not yet installed. Installing from {args.talkinghead_models} into talkinghead/tha3/models.")
+        # TODO: I'd prefer to install with symlinks, but how about Windows users?
+        snapshot_download(repo_id=args.talkinghead_models, local_dir=talkinghead_models_dir, local_dir_use_symlinks=False)
+
     import sys
     import threading
     mode = "cuda" if args.talkinghead_gpu else "cpu"
