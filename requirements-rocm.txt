@@ -24,3 +24,4 @@ vosk
 sounddevice
 openai-whisper
 selenium
+huggingface-hub
