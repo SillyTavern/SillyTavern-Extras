@@ -86,6 +86,11 @@ parser.add_argument(
     "--secure", action="store_true", help="Enforces the use of an API key"
 )
 parser.add_argument("--talkinghead-gpu", action="store_true", help="Run the talkinghead animation on the GPU (CPU is default)")
+parser.add_argument(
+    "--talkinghead-model", type=str, help="The THA3 model to use. 'float' models are fp32, 'half' are fp16. 'auto' (default) picks fp16 for GPU and fp32 for CPU.",
+    required=False, default="auto",
+    choices=["auto", "standard_float", "separable_float", "standard_half", "separable_half"],
+)
 
 parser.add_argument("--coqui-gpu", action="store_true", help="Run the voice models on the GPU (CPU is default)")
 parser.add_argument("--coqui-models", help="Install given Coqui-api TTS model at launch (comma separated list, last one will be loaded at start)")
@@ -183,18 +188,20 @@ if "talkinghead" in modules:
     import sys
     import threading
     mode = "cuda" if args.talkinghead_gpu else "cpu"
-    model = "separable_half" if args.talkinghead_gpu else "separable_float"  # GPUs support fp16, which is 2× faster and takes less VRAM.
-    print("Initializing talkinghead pipeline in " + mode + " mode....")
+    model = args.talkinghead_model
+    if model == "auto":  # default
+        # FP16 boosts the rendering performance by ~1.5x, but is only supported on GPU.
+        model = "separable_half" if args.talkinghead_gpu else "separable_float"
+    print(f"Initializing talkinghead pipeline in {mode} mode with model {model}....")
     talkinghead_path = os.path.abspath(os.path.join(os.getcwd(), "talkinghead"))
     sys.path.append(talkinghead_path) # Add the path to the 'tha3' module to the sys.path list
 
     try:
         import talkinghead.tha3.app.app as talkinghead
-        from talkinghead import *  # TODO: ouch, can we avoid a star-import?
         def launch_talkinghead():
+            # mode: choices='The device to use for PyTorch ("cuda" for GPU, "cpu" for CPU).'
+            # model: choices=['standard_float', 'separable_float', 'standard_half', 'separable_half'],
             talkinghead.launch(mode, model)
-        #choices=['standard_float', 'separable_float', 'standard_half', 'separable_half'],
-        #choices='The device to use for PyTorch ("cuda" for GPU, "cpu" for CPU).'
         talkinghead_thread = threading.Thread(target=launch_talkinghead)
         talkinghead_thread.daemon = True  # Set the thread as a daemon thread
         talkinghead_thread.start()
