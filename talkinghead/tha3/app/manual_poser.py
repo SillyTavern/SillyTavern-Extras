@@ -13,7 +13,7 @@ There are two motivations:
 
   - Much faster than inpainting all 28 expressions manually in Stable Diffusion. Enables agile experimentation
     on the look of your character, since you only need to produce one new image to change the look.
-  - No CPU or GPU load while running SillyTavern, unlike the live plugin mode, which is cool, but slow.
+  - No CPU or GPU load while running SillyTavern, unlike the live plugin mode.
 
 For best results for generating the static input image in Stable Diffusion, consider the various vtuber checkpoints
 available on the internet. These should reduce the amount of work it takes to get SD to render your character in
