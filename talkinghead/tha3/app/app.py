@@ -7,23 +7,33 @@ If you want to play around with THA3 expressions in a standalone app, see `manua
 """
 
 # TODO: talkinghead live mode:
-#  - talking animation is broken, seems the client isn't sending us a request to start/stop talking?
-#  - improve idle animations
-#    - cosine schedule?
-#    - or perhaps the current ODE approach is better (define instant rate only, based on target state; then integrate)
-#  - add option to server.py to load with float32 or float16, as desired
-#  - PNG sending efficiency?
+#  - Make the various hyperparameters user-configurable (ideally per character, but let's make a global version first):
+#    - Blink timing: `blink_interval` min/max
+#    - Blink probability per frame
+#    - "confusion" emotion initial segment duration (where blinking quickly in succession is allowed)
+#    - Sway timing: `sway_interval` min/max
+#    - Sway strength (`max_random`, `max_noise`)
+#    - Breathing cycle duration
+#  - Client-side bugs / missing features:
+#    - Talking animation is broken, seems the client isn't sending us a request to start/stop talking.
+#    - If `classify` is enabled, emotion state could be updated from the latest AI-generated text
+#      when switching chat files, to resume in the same state where the chat left off.
+#    - When a new talkinghead sprite is uploaded:
+#      - The preview thumbnail doesn't update
+#      - Talkinghead must be switched off and back on to actually send the new image to the backend
+#  - PNG sending efficiency? Look into encoding the stream into YUVA420 using `ffmpeg`.
 
 import atexit
 import io
 import logging
+import math
 import os
 import random
 import sys
 import time
 import numpy as np
 import threading
-from typing import Dict, List, NoReturn, Union
+from typing import Dict, List, NoReturn, Optional, Union
 
 import PIL
 
@@ -41,25 +51,29 @@ from tha3.app.util import posedict_keys, posedict_key_to_index, load_emotion_pre
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# --------------------------------------------------------------------------------
 # Global variables
-# TODO: we could move many of these into TalkingheadLive, and just keep a reference to that as global.
-global_instance = None
-global_basedir = "talkinghead"
-global_source_image = None
-global_result_image = None
-global_reload_image = None
-animation_running = False
-is_talking = False
+
+talkinghead_basedir = "talkinghead"
+
+global_animator_instance = None
+_animator_output_lock = threading.Lock()  # protect from concurrent access to `result_image` and the `frame_ready` flag.
+
+# These need to be written to by the API functions.
+#
+# Since the plugin might not have been started yet at that time (so the animator instance might not exist),
+# it's better to keep this state in module-level globals rather than in attributes of the animator.
+animation_running = False  # used in initial bootup state, and while loading a new image
 current_emotion = "neutral"
-current_pose = None
-fps = 0
+is_talking = False
+global_reload_image = None
+
+# --------------------------------------------------------------------------------
+# API
 
 # Flask setup
 app = Flask(__name__)
 CORS(app)
-
-# --------------------------------------------------------------------------------
-# API
 
 def setEmotion(_emotion: Dict[str, float]) -> None:
     """Set the current emotion of the character based on sentiment analysis results.
@@ -105,23 +119,78 @@ def stop_talking() -> str:
 def result_feed() -> Response:
     """Return a Flask `Response` that repeatedly yields the current image as 'image/png'."""
     def generate():
+        last_update_time = None
+        last_report_time = None
+        fps_statistics = FpsStatistics()
+        image_bytes = None
+
         while True:
-            if global_result_image is not None:
+            # Retrieve a new frame from the animator if available.
+            have_new_frame = False
+            with _animator_output_lock:
+                if global_animator_instance.frame_ready:
+                    image_rgba = global_animator_instance.result_image
+                    try:
+                        pil_image = PIL.Image.fromarray(np.uint8(image_rgba[:, :, :3]))
+                        if image_rgba.shape[2] == 4:
+                            alpha_channel = image_rgba[:, :, 3]
+                            pil_image.putalpha(PIL.Image.fromarray(np.uint8(alpha_channel)))
+                        global_animator_instance.frame_ready = False  # Animation frame consumed; tell the animator it can begin rendering the next one.
+                        have_new_frame = True
+                    except Exception as exc:
+                        logger.error(exc)
+
+            # Pack the new animation frame for sending.
+            if have_new_frame:
                 try:
-                    rgb_image = global_result_image[:, :, [2, 1, 0]]  # Swap B and R channels
-                    pil_image = PIL.Image.fromarray(np.uint8(rgb_image))  # Convert to PIL Image
-                    if global_result_image.shape[2] == 4:  # Check if there is an alpha channel present
-                        alpha_channel = global_result_image[:, :, 3]  # Extract alpha channel
-                        pil_image.putalpha(PIL.Image.fromarray(np.uint8(alpha_channel)))  # Set alpha channel in the PIL Image
                     buffer = io.BytesIO()  # Save as PNG with RGBA mode
                     pil_image.save(buffer, format="PNG")
                     image_bytes = buffer.getvalue()
                 except Exception as exc:
-                    logger.error(f"Error when trying to write image: {exc}")
-                yield (b"--frame\r\n"  # Send the PNG image (last available in case of error)
-                       b"Content-Type: image/png\r\n\r\n" + image_bytes + b"\r\n")
-            else:
+                    logger.error(f"Cannot write image to buffer: {exc}")
+                    raise
+
+            # Send the animation frame.
+            if image_bytes is not None:
+                # How often should we send?
+                #  - Excessive spamming can DoS the SillyTavern GUI, so there needs to be a rate limit.
+                #  - OTOH, we must constantly send something, or the GUI will lock up waiting.
+                #
+                # Thus, if we have a new frame, or enough time has elapsed already (slow GPU or running on CPU), send it now. Otherwise wait for a bit.
+                # Target an acceptable anime frame rate of 25 FPS.
+                TARGET_TIME_SEC = 0.04  # 1/25
+                if last_update_time is not None:
+                    time_now = time.time_ns()
+                    elapsed_time = time_now - last_update_time
+                    past_frame_deadline = (elapsed_time / 10**9) > TARGET_TIME_SEC
+                else:
+                    past_frame_deadline = True  # nothing rendered yet
+
+                if have_new_frame or past_frame_deadline:
+                    yield (b"--frame\r\n"
+                           b"Content-Type: image/png\r\n\r\n" + image_bytes + b"\r\n")
+
+                    # Update the FPS counter, measuring the time between network sends.
+                    time_now = time.time_ns()
+                    if last_update_time is not None:
+                        elapsed_time = time_now - last_update_time
+                        fps = 1.0 / (elapsed_time / 10**9)
+                        fps_statistics.add_fps(fps)
+                    last_update_time = time_now
+                else:
+                    # We don't measure pack/send time, so this is not exact. In practice the resulting framerate is slightly under the target (24 vs. 25 FPS).
+                    # Note the animator runs in a different thread, so it can render while we are waiting.
+                    time.sleep(TARGET_TIME_SEC)
+
+                # Log the FPS counter in 5-second intervals.
+                if last_report_time is None or time_now - last_report_time > 5e9:
+                    trimmed_fps = round(fps_statistics.get_average_fps(), 1)
+                    logger.info("rate-limited network FPS: {:.1f}".format(trimmed_fps))
+                    last_report_time = time_now
+
+            else:  # first frame not yet available, animator still booting
                 time.sleep(0.1)
+
     return Response(generate(), mimetype="multipart/x-mixed-replace; boundary=frame")
 
 # TODO: the input is a flask.request.file.stream; what's the type of that?
@@ -139,8 +208,8 @@ def talkinghead_load_file(stream) -> str:
         global_reload_image = PIL.Image.open(io.BytesIO(img_data.getvalue()))  # Set the global_reload_image to a copy of the image data
     except PIL.Image.UnidentifiedImageError:
         logger.warning("Could not load input image from stream, loading blank")
-        full_path = os.path.join(os.getcwd(), os.path.normpath(os.path.join(global_basedir, "tha3", "images", "inital.png")))
-        global_instance.load_image(full_path)
+        full_path = os.path.join(os.getcwd(), os.path.normpath(os.path.join(talkinghead_basedir, "tha3", "images", "inital.png")))
+        global_reload_image = PIL.Image.open(full_path)
     finally:
         animation_running = True
     return "OK"
@@ -153,19 +222,23 @@ def launch(device: str, model: str) -> Union[None, NoReturn]:
     device: "cpu" or "cuda"
     model: one of the folder names inside "talkinghead/tha3/models/"
     """
-    global global_instance
-    global initAMI  # TODO: initAREYOU? See if we still need this - the idea seems to be to stop animation until the first image is loaded.
-    initAMI = True
+    global global_animator_instance
 
     try:
-        poser = load_poser(model, device, modelsdir=os.path.join(global_basedir, "tha3", "models"))
-        global_instance = TalkingheadLive(poser, device)
+        # If the animator already exists, clean it up first
+        if global_animator_instance is not None:
+            logger.info(f"launch: relaunching on device {device} with model {model}")
+            global_animator_instance.exit()
+            global_animator_instance = None
+
+        poser = load_poser(model, device, modelsdir=os.path.join(talkinghead_basedir, "tha3", "models"))
+        global_animator_instance = TalkingheadAnimator(poser, device)
 
         # Load initial blank character image
-        full_path = os.path.join(os.getcwd(), os.path.normpath(os.path.join(global_basedir, "tha3", "images", "inital.png")))
-        global_instance.load_image(full_path)
+        full_path = os.path.join(os.getcwd(), os.path.normpath(os.path.join(talkinghead_basedir, "tha3", "images", "inital.png")))
+        global_animator_instance.load_image(full_path)
 
-        global_instance.start()
+        global_animator_instance.start()
 
     except RuntimeError as exc:
         logger.error(exc)
@@ -179,216 +252,55 @@ def convert_linear_to_srgb(image: torch.Tensor) -> torch.Tensor:
     rgb_image = torch_linear_to_srgb(image[0:3, :, :])
     return torch.cat([rgb_image, image[3:4, :, :]], dim=0)
 
-class TalkingheadLive:
+class TalkingheadAnimator:
     """uWu Waifu"""
 
     def __init__(self, poser: Poser, device: torch.device):
         self.poser = poser
         self.device = device
 
-        self.last_blink_timestamp = 0  # TODO: Great idea! We should actually use this.
-        self.is_blinked = False  # TODO: Maybe we might need this, too, now that the FPS is acceptable enough that we may need to blink over several frames.
-        self.targets = {"head_y_index": 0}
-        self.progress = {"head_y_index": 0}
-        self.direction = {"head_y_index": 1}
-        self.originals = {"head_y_index": 0}  # TODO: what was this for; probably for recording the values from the current emotion, before sway animation?
-        self.forward = {"head_y_index": True}  # Direction of interpolation
-        self.start_values = {"head_y_index": 0}
+        self.reset_animation_state()
 
         self.fps_statistics = FpsStatistics()
 
-        self.torch_source_image = None
-        self.last_update_time = None
+        self.source_image: Optional[torch.tensor] = None
+        self.result_image: Optional[np.array] = None
+        self.frame_ready = False
         self.last_report_time = None
 
         self.emotions, self.emotion_names = load_emotion_presets(os.path.join("talkinghead", "emotions"))
 
-    def start(self) -> None:
-        """Start the animation thread."""
-        self._terminated = False
-        def manage_animation_update():
-            while not self._terminated:
-                # TODO: add a configurable FPS limiter (take a parameter in `__init__`; populate it from cli args in `server.py`)
-                #   - should sleep for `max(eps, frame_target_ms - render_average_ms)`, where `eps = 0.01`, so that the next frame is ready in time
-                #     (get render_average_ms from FPS counter; sanity check for nonsense value)
-                self.update_result_image_bitmap()
-                time.sleep(0.01)
-        self.animation_thread = threading.Thread(target=manage_animation_update, daemon=True)
-        self.animation_thread.start()
-        atexit.register(self.exit)
+    # --------------------------------------------------------------------------------
+    # Management
 
-    def exit(self) -> None:
-        """Terminate the animation thread.
+    def reset_animation_state(self):
+        """Reset character state trackers for all animation drivers."""
+        self.current_pose = None
 
-        Called automatically when the process exits.
+        self.last_emotion = None
+        self.last_emotion_change_timestamp = None
+
+        self.last_blink_timestamp = None
+        self.blink_interval = None
+
+        self.last_sway_target_timestamp = None
+        self.last_sway_target_pose = None
+        self.sway_interval = None
+
+        self.breathing_epoch = time.time_ns()
+
+    def load_image(self, file_path=None) -> None:
+        """Load the image file at `file_path`, and replace the current character with it.
+
+        Except, if `global_reload_image is not None`, use the global reload image data instead.
+        In that case `file_path` is not used.
+
+        When done, this always sets `global_reload_image` to `None`.
         """
-        self._terminated = True
-
-    def apply_emotion_to_pose(self, emotion_posedict: Dict[str, float], pose: List[float]) -> List[float]:
-        """Copy all morphs except breathing from `emotion_posedict` to `pose`.
-
-        If a morph does not exist in `emotion_posedict`, its value is copied from `pose`.
-
-        Return the modified pose.
-        """
-        new_pose = list(pose)  # copy
-        for idx, key in enumerate(posedict_keys):
-            if key in emotion_posedict and key != "breathing_index":
-                new_pose[idx] = emotion_posedict[key]
-        return new_pose
-
-    def animate_blinking(self, pose: List[float]) -> List[float]:
-        # TODO: add smoothly animated blink?
-
-        # If there should be a blink, set the wink morphs to 1; otherwise, use the provided value.
-        should_blink = (random.random() <= 0.03)
-        if not should_blink:
-            return pose
-
-        new_pose = list(pose)  # copy
-        for morph_name in ["eye_wink_left_index", "eye_wink_right_index"]:
-            idx = posedict_key_to_index[morph_name]
-            new_pose[idx] = 1.0
-        return new_pose
-
-    def animate_talking(self, pose: List[float]) -> List[float]:
-        if not is_talking:
-            return pose
-
-        new_pose = list(pose)  # copy
-        idx = posedict_key_to_index["mouth_aaa_index"]
-        x = pose[idx]
-        x = abs(1.0 - x) + random.uniform(-2.0, 2.0)
-        x = max(0.0, min(x, 1.0))  # clamp (not the manga studio)
-        new_pose[idx] = x
-        return new_pose
-
-    def animate_sway(self, pose: List[float]) -> List[float]:
-        # TODO: add sway for other axes and body
-
-        new_pose = list(pose)  # copy
-        MOVEPARTS = ["head_y_index"]
-        for key in MOVEPARTS:
-            idx = posedict_key_to_index[key]
-            current_value = pose[idx]
-
-            # Linearly interpolate between start and target values
-            new_value = self.start_values[key] + self.progress[key] * (self.targets[key] - self.start_values[key])
-            new_value = min(max(new_value, -1), 1)  # clip to bounds (just in case)
-
-            # Check if we've reached the target or start value
-            is_close_to_target = abs(new_value - self.targets[key]) < 0.04
-            is_close_to_start = abs(new_value - self.start_values[key]) < 0.04
-
-            if (self.direction[key] == 1 and is_close_to_target) or (self.direction[key] == -1 and is_close_to_start):
-                # Reverse direction
-                self.direction[key] *= -1
-
-                # If direction is now forward, set a new target and store starting value
-                if self.direction[key] == 1:
-                    self.start_values[key] = new_value
-                    self.targets[key] = current_value + random.uniform(-0.6, 0.6)
-                    self.progress[key] = 0  # Reset progress when setting a new target
-
-            # Update progress based on direction
-            self.progress[key] += 0.04 * self.direction[key]
-
-            new_pose[idx] = new_value
-        return new_pose
-
-    def interpolate_pose(self, pose: List[float], target_pose: List[float], step=0.1) -> List[float]:
-        # TODO: ignore sway?
-        # TODO: ignore breathing?
-        new_pose = list(pose)  # copy
-        for idx, key in enumerate(posedict_keys):
-            # # We animate blinking *after* interpolating the pose, so when blinking, the eyes close instantly.
-            # # This part makes the blink also end instantly.
-            # if key in ["eye_wink_left_index", "eye_wink_right_index"]:
-            #     new_pose[idx] = new_pose[idx]
-
-            # Note this leads to an exponentially saturating behavior (1 - exp(-x)), because the delta is from the current pose to the final pose.
-            delta = target_pose[idx] - pose[idx]
-            new_pose[idx] = pose[idx] + step * delta
-        return new_pose
-
-    def update_result_image_bitmap(self) -> None:
-        """Render an animation frame."""
-
-        global animation_running
-        global initAMI
-        global global_result_image
-        global fps
-        global current_pose
-
-        if not animation_running:
-            return
+        global global_reload_image
 
         try:
             if global_reload_image is not None:
-                self.load_image()
-                return  # TODO: do we really need to return here, we could just proceed?
-            if self.torch_source_image is None:
-                return
-            if current_pose is None:  # initialize character pose at plugin startup
-                current_pose = posedict_to_pose(self.emotions[current_emotion])
-
-            emotion_posedict = self.emotions[current_emotion]
-            target_pose = self.apply_emotion_to_pose(emotion_posedict, current_pose)
-
-            current_pose = self.interpolate_pose(current_pose, target_pose)
-            current_pose = self.animate_blinking(current_pose)
-            current_pose = self.animate_sway(current_pose)
-            current_pose = self.animate_talking(current_pose)
-            # TODO: animate breathing
-
-            pose = torch.tensor(current_pose, device=self.device, dtype=self.poser.get_dtype())
-
-            with torch.no_grad():
-                output_image = self.poser.pose(self.torch_source_image, pose)[0].float()
-                output_image = convert_linear_to_srgb((output_image + 1.0) / 2.0)
-
-                c, h, w = output_image.shape
-                output_image = (255.0 * torch.transpose(output_image.reshape(c, h * w), 0, 1)).reshape(h, w, c).byte()
-
-            numpy_image = output_image.detach().cpu().numpy()
-            numpy_image_bgra = numpy_image[:, :, [2, 1, 0, 3]]  # Convert color channels from RGB to BGR and keep alpha channel
-            global_result_image = numpy_image_bgra
-
-            # Update FPS counter
-            time_now = time.time_ns()
-            if self.last_update_time is not None:
-                elapsed_time = time_now - self.last_update_time
-                fps = 1.0 / (elapsed_time / 10**9)
-
-                if self.torch_source_image is not None:
-                    self.fps_statistics.add_fps(fps)
-            self.last_update_time = time_now
-
-            if initAMI:  # If the models are just now initalized stop animation to save
-                animation_running = False
-                initAMI = False
-
-            if self.last_report_time is None or time_now - self.last_report_time > 5e9:
-                trimmed_fps = round(self.fps_statistics.get_average_fps(), 1)
-                logger.info("update_result_image_bitmap: FPS: {:.1f}".format(trimmed_fps))
-                self.last_report_time = time_now
-
-        except KeyboardInterrupt:
-            pass
-
-    def load_image(self, file_path=None) -> None:
-        """Load the image file at `file_path`.
-
-        Except, if `global_reload_image is not None`, use the global reload image data instead.
-        """
-        global global_source_image
-        global global_reload_image
-
-        if global_reload_image is not None:
-            file_path = "global_reload_image"
-
-        try:
-            if file_path == "global_reload_image":
                 pil_image = global_reload_image
             else:
                 pil_image = resize_PIL_image(
@@ -405,15 +317,288 @@ class TalkingheadLive:
 
             if pil_image.mode != "RGBA":
                 logger.error("load_image: image must have alpha channel")
-                self.torch_source_image = None
+                self.source_image = None
             else:
-                self.torch_source_image = extract_pytorch_image_from_PIL_image(pil_image) \
+                self.source_image = extract_pytorch_image_from_PIL_image(pil_image) \
                     .to(self.device).to(self.poser.get_dtype())
-
-            global_source_image = self.torch_source_image
 
         except Exception as exc:
             logger.error(f"load_image: {exc}")
 
         finally:
             global_reload_image = None
+
+    def start(self) -> None:
+        """Start the animation thread."""
+        self._terminated = False
+        def animation_update():
+            while not self._terminated:
+                self.render_animation_frame()
+                time.sleep(0.01)  # rate-limit the renderer to 100 FPS maximum (this could be adjusted later)
+        self.animation_thread = threading.Thread(target=animation_update, daemon=True)
+        self.animation_thread.start()
+        atexit.register(self.exit)
+
+    def exit(self) -> None:
+        """Terminate the animation thread.
+
+        Called automatically when the process exits.
+        """
+        self._terminated = True
+        self.animation_thread.join()
+
+    # --------------------------------------------------------------------------------
+    # Animation drivers
+
+    def apply_emotion_to_pose(self, emotion_posedict: Dict[str, float], pose: List[float]) -> List[float]:
+        """Copy all morphs except breathing from `emotion_posedict` to `pose`.
+
+        If a morph does not exist in `emotion_posedict`, its value is copied from the original `pose`.
+
+        Return the modified pose.
+        """
+        new_pose = list(pose)  # copy
+        for idx, key in enumerate(posedict_keys):
+            if key in emotion_posedict and key != "breathing_index":
+                new_pose[idx] = emotion_posedict[key]
+        return new_pose
+
+    def animate_blinking(self, pose: List[float]) -> List[float]:
+        """Eye blinking animation driver.
+
+        Return the modified pose.
+        """
+        should_blink = (random.random() <= 0.03)
+
+        # Prevent blinking too fast in succession.
+        time_now = time.time_ns()
+        if self.blink_interval is not None:
+            # ...except when the "confusion" emotion has been entered recently.
+            seconds_since_last_emotion_change = (time_now - self.last_emotion_change_timestamp) / 10**9
+            if current_emotion == "confusion" and seconds_since_last_emotion_change < 10.0:
+                pass
+            else:
+                seconds_since_last_blink = (time_now - self.last_blink_timestamp) / 10**9
+                if seconds_since_last_blink < self.blink_interval:
+                    should_blink = False
+
+        if not should_blink:
+            return pose
+
+        # If there should be a blink, set the wink morphs to 1.
+        new_pose = list(pose)  # copy
+        for morph_name in ["eye_wink_left_index", "eye_wink_right_index"]:
+            idx = posedict_key_to_index[morph_name]
+            new_pose[idx] = 1.0
+
+        # Typical for humans is 12...20 times per minute, i.e. 5...3 seconds interval.
+        self.last_blink_timestamp = time_now
+        self.blink_interval = random.uniform(2.0, 5.0)  # seconds; duration of this blink before the next one can begin
+
+        return new_pose
+
+    def animate_talking(self, pose: List[float]) -> List[float]:
+        """Talking animation driver.
+
+        Works by randomizing the mouth-open state.
+
+        Return the modified pose.
+        """
+        if not is_talking:
+            return pose
+
+        # TODO: improve talking animation once we get the client to actually use it
+        new_pose = list(pose)  # copy
+        idx = posedict_key_to_index["mouth_aaa_index"]
+        x = pose[idx]
+        x = abs(1.0 - x) + random.uniform(-2.0, 2.0)
+        x = max(0.0, min(x, 1.0))  # clamp (not the manga studio)
+        new_pose[idx] = x
+        return new_pose
+
+    def compute_sway_target_pose(self, original_target_pose: List[float]) -> List[float]:
+        """History-free sway animation driver.
+
+        original_target_pose: emotion pose to modify with a randomized sway target
+
+        The target is randomized again when necessary; this takes care of caching internally.
+
+        Return the modified pose.
+        """
+        # We just modify the target pose, and let the integrator (`interpolate_pose`) do the actual animation.
+        # - This way we don't need to track start state, progress, etc.
+        # - This also makes the animation nonlinear automatically: a saturating exponential trajectory toward the target.
+        #     - If we want to add a smooth start, we'll need a ramp-in mechanism to interpolate the target from the current pose to the actual target gradually.
+        #       The nonlinearity automatically takes care of slowing down when the target is approached.
+
+        random_max = 0.6  # max sway magnitude from center position of each morph
+        noise_max = 0.02  # amount of dynamic noise (re-generated every frame), added on top of the sway target
+
+        SWAYPARTS = ["head_x_index", "head_y_index", "neck_z_index", "body_y_index", "body_z_index"]
+
+        def macrosway() -> List[float]:  # this handles caching and everything
+            time_now = time.time_ns()
+            should_pick_new_sway_target = True
+            if current_emotion == self.last_emotion:
+                if self.sway_interval is not None:  # have we created a swayed pose at least once?
+                    seconds_since_last_sway_target = (time_now - self.last_sway_target_timestamp) / 10**9
+                    if seconds_since_last_sway_target < self.sway_interval:
+                        should_pick_new_sway_target = False
+            # else, emotion has changed, invalidating the old sway target, because it is based on the old emotion.
+
+            if not should_pick_new_sway_target:
+                if self.last_sway_target_pose is not None:  # When keeping the same sway target, return the cached sway pose if we have one.
+                    return self.last_sway_target_pose
+                else:  # Should not happen, but let's be robust.
+                    return original_target_pose
+
+            new_target_pose = list(original_target_pose)  # copy
+            for key in SWAYPARTS:
+                idx = posedict_key_to_index[key]
+                target_value = original_target_pose[idx]
+
+                # Determine the random range so that the swayed target always stays within `[-random_max, random_max]`, regardless of `target_value`.
+                # TODO: This is a simple zeroth-order solution that just cuts the random range.
+                #       Would be nicer to *gradually* decrease the available random range on the "outside" as the target value gets further from the origin.
+                random_upper = max(0, random_max - target_value)  # e.g. if target_value = 0.2, then random_upper = 0.4  => max possible = 0.6 = random_max
+                random_lower = min(0, -random_max - target_value)  # e.g. if target_value = -0.2, then random_lower = -0.4  => min possible = -0.6 = -random_max
+                random_value = random.uniform(random_lower, random_upper)
+
+                new_target_pose[idx] = target_value + random_value
+
+            self.last_sway_target_pose = new_target_pose
+            self.last_sway_target_timestamp = time_now
+            self.sway_interval = random.uniform(5.0, 10.0)  # seconds; duration of this sway target before randomizing new one
+            return new_target_pose
+
+        # Add dynamic noise (re-generated every frame) to the target to make the animation look less robotic, especially once we are near the target pose.
+        def add_microsway() -> None:  # DANGER: MUTATING FUNCTION
+            for key in SWAYPARTS:
+                idx = posedict_key_to_index[key]
+                x = new_target_pose[idx] + random.uniform(-noise_max, noise_max)
+                x = max(-1.0, min(x, 1.0))
+                new_target_pose[idx] = x
+
+        new_target_pose = macrosway()
+        add_microsway()
+        return new_target_pose
+
+    def animate_breathing(self, pose: List[float]) -> List[float]:
+        """Breathing animation driver.
+
+        Return the modified pose.
+        """
+        breathing_cycle_duration = 4.0  # seconds
+
+        time_now = time.time_ns()
+        t = (time_now - self.breathing_epoch) / 10**9  # seconds since breathing-epoch
+        cycle_pos = t / breathing_cycle_duration  # number of cycles since breathing-epoch
+        if cycle_pos > 1.0:  # prevent overflow in long sessions
+            self.breathing_epoch = time_now  # TODO: be more accurate here, should sync to a whole cycle
+        cycle_pos = cycle_pos - float(int(cycle_pos))  # fractional part
+
+        new_pose = list(pose)  # copy
+        idx = posedict_key_to_index["breathing_index"]
+        new_pose[idx] = math.sin(cycle_pos * math.pi)**2  # 0 ... 1 ... 0, smoothly, with slow start and end, fast middle
+        return new_pose
+
+    def interpolate_pose(self, pose: List[float], target_pose: List[float], step: float = 0.1) -> List[float]:
+        """Rate-based pose integrator. Interpolate from `pose` toward `target_pose`.
+
+        `step`: [0, 1]; how far toward `target_pose` to interpolate. 0 is fully `pose`, 1 is fully `target_pose`.
+
+        Note that looping back the output as `pose`, while keeping `target_pose` constant, causes the current pose
+        to approach `target_pose` on a saturating exponential trajectory, like `1 - exp(-lambda * t)`, for some
+        constant `lambda`.
+
+        This is because `step` is the fraction of the *current* difference between `pose` and `target_pose`,
+        which obviously becomes smaller after each repeat. This is a feature, not a bug!
+
+        This is a kind of history-free rate-based formulation, which needs only the current and target poses, and
+        the step size; there is no need to keep track of e.g. the initial pose or the progress along the trajectory.
+        """
+        # NOTE: This overwrites blinking, talking, and breathing, but that doesn't matter, because we apply this first.
+        # The other animation drivers then modify our result.
+        new_pose = list(pose)  # copy
+        for idx, key in enumerate(posedict_keys):
+            # # We now animate blinking *after* interpolating the pose, so when blinking, the eyes close instantly.
+            # # This modification would make the blink also end instantly.
+            # if key in ["eye_wink_left_index", "eye_wink_right_index"]:
+            #     new_pose[idx] = target_pose[idx]
+            # else:
+            #     ...
+
+            delta = target_pose[idx] - pose[idx]
+            new_pose[idx] = pose[idx] + step * delta
+        return new_pose
+
+    # --------------------------------------------------------------------------------
+    # Animation logic
+
+    def render_animation_frame(self) -> None:
+        """Render an animation frame.
+
+        If the previous rendered frame has not been retrieved yet, do nothing.
+        """
+        if not animation_running:
+            return
+
+        # If no one has retrieved the previous frame yet, do not render a new one.
+        if self.frame_ready:
+            return
+
+        if global_reload_image is not None:
+            self.load_image()
+        if self.source_image is None:
+            return
+
+        time_render_start = time.time_ns()
+
+        if self.current_pose is None:  # initialize character pose at plugin startup
+            self.current_pose = posedict_to_pose(self.emotions[current_emotion])
+
+        emotion_posedict = self.emotions[current_emotion]
+        if current_emotion != self.last_emotion:  # some animation drivers need to know when the emotion last changed
+            self.last_emotion_change_timestamp = time_render_start
+
+        target_pose = self.apply_emotion_to_pose(emotion_posedict, self.current_pose)
+        target_pose = self.compute_sway_target_pose(target_pose)
+
+        self.current_pose = self.interpolate_pose(self.current_pose, target_pose)
+        self.current_pose = self.animate_blinking(self.current_pose)
+        self.current_pose = self.animate_talking(self.current_pose)
+        self.current_pose = self.animate_breathing(self.current_pose)
+
+        # Update this last so that animation drivers have access to the old emotion, too.
+        self.last_emotion = current_emotion
+
+        pose = torch.tensor(self.current_pose, device=self.device, dtype=self.poser.get_dtype())
+
+        with torch.no_grad():
+            output_image = self.poser.pose(self.source_image, pose)[0].float()  # [0]: model's output index for the full result image
+            output_image = convert_linear_to_srgb((output_image + 1.0) / 2.0)
+
+            c, h, w = output_image.shape
+            output_image = (255.0 * torch.transpose(output_image.reshape(c, h * w), 0, 1)).reshape(h, w, c).byte()
+            output_image_numpy = output_image.detach().cpu().numpy()
+
+        # Update FPS counter, measuring animation frame render time only.
+        #
+        # This says how fast the renderer *can* run on the current hardware;
+        # note we don't actually render more frames than the client consumes.
+        time_now = time.time_ns()
+        if self.source_image is not None:
+            elapsed_time = time_now - time_render_start
+            fps = 1.0 / (elapsed_time / 10**9)
+            self.fps_statistics.add_fps(fps)
+
+        # Set the new rendered frame as the output image, and mark the frame as ready for consumption.
+        with _animator_output_lock:
+            self.result_image = output_image_numpy
+            self.frame_ready = True
+
+        # Log the FPS counter in 5-second intervals.
+        if self.last_report_time is None or time_now - self.last_report_time > 5e9:
+            trimmed_fps = round(self.fps_statistics.get_average_fps(), 1)
+            logger.info("available render FPS: {:.1f}".format(trimmed_fps))
+            self.last_report_time = time_now

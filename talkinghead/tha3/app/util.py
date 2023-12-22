@@ -13,7 +13,7 @@ from typing import Dict, List, Tuple
 
 import PIL
 
-import numpy
+import numpy as np
 
 import torch
 
@@ -138,7 +138,7 @@ def pose_to_posedict(pose: List[float]) -> Dict[str, float]:
 # --------------------------------------------------------------------------------
 # TODO: move the image utils to the lower-level `tha3.util`?
 
-def torch_image_to_numpy(image: torch.tensor) -> numpy.array:
+def torch_image_to_numpy(image: torch.tensor) -> np.array:
     if image.shape[2] == 2:
         h, w, c = image.shape
         numpy_image = torch.transpose(image.reshape(h * w, c), 0, 1).reshape(c, h, w)
@@ -156,7 +156,7 @@ def torch_image_to_numpy(image: torch.tensor) -> numpy.array:
         msg = f"torch_image_to_numpy: unsupported # image channels: {image.shape[0]}"
         logger.error(msg)
         raise RuntimeError(msg)
-    numpy_image = numpy.uint8(numpy.rint(numpy_image * 255.0))
+    numpy_image = np.uint8(np.rint(numpy_image * 255.0))
     return numpy_image
 
 def to_talkinghead_image(image: PIL.Image, new_size: Tuple[int] = (512, 512)) -> PIL.Image:

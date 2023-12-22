@@ -63,7 +63,7 @@ from typing import List
 
 import PIL.Image
 
-import numpy
+import numpy as np
 
 import torch
 
@@ -947,7 +947,7 @@ class MainFrame(wx.Frame):
         finally:
             dir_dialog.Destroy()
 
-    def save_numpy_image(self, numpy_image: numpy.array, image_file_name: str) -> None:
+    def save_numpy_image(self, numpy_image: np.array, image_file_name: str) -> None:
         """Save the output image.
 
         Output format is determined by file extension (which must be supported by the installed `Pillow`).
