@@ -48,10 +48,6 @@ This fork maintained by the SillyTavern-extras project.
 Manual poser app improved and documented by Juha Jeronen (@Technologicat).
 """
 
-# TODO: manual poser:
-#   - Write new README: use case and supported features are different from the original THA3 package.
-#   - Refactor stuff needed both by this and the live mode that is served by `app.py`.
-
 import argparse
 import json
 import logging

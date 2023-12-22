@@ -22,6 +22,8 @@ If you want to play around with THA3 expressions in a standalone app, see `manua
 #      - The preview thumbnail doesn't update
 #      - Talkinghead must be switched off and back on to actually send the new image to the backend
 #  - PNG sending efficiency? Look into encoding the stream into YUVA420 using `ffmpeg`.
+# TODO: talkinghead common:
+#   - Write new README: use case and supported features are different from the original THA3 package.
 
 import atexit
 import io
