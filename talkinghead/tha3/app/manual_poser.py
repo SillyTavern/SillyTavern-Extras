@@ -13,7 +13,7 @@ There are two motivations:
 
   - Much faster than inpainting all 28 expressions manually in Stable Diffusion. Enables agile experimentation
     on the look of your character, since you only need to produce one new image to change the look.
-  - No CPU or GPU load while running SillyTavern, unlike the live plugin mode, which is cool, but slow.
+  - No CPU or GPU load while running SillyTavern, unlike the live plugin mode.
 
 For best results for generating the static input image in Stable Diffusion, consider the various vtuber checkpoints
 available on the internet. These should reduce the amount of work it takes to get SD to render your character in
@@ -48,10 +48,6 @@ This fork maintained by the SillyTavern-extras project.
 Manual poser app improved and documented by Juha Jeronen (@Technologicat).
 """
 
-# TODO: manual poser:
-#   - Write new README: use case and supported features are different from the original THA3 package.
-#   - Refactor stuff needed both by this and the live mode that is served by `app.py`.
-
 import argparse
 import json
 import logging
@@ -63,7 +59,7 @@ from typing import List
 
 import PIL.Image
 
-import numpy
+import numpy as np
 
 import torch
 
@@ -947,7 +943,7 @@ class MainFrame(wx.Frame):
         finally:
             dir_dialog.Destroy()
 
-    def save_numpy_image(self, numpy_image: numpy.array, image_file_name: str) -> None:
+    def save_numpy_image(self, numpy_image: np.array, image_file_name: str) -> None:
         """Save the output image.
 
         Output format is determined by file extension (which must be supported by the installed `Pillow`).
