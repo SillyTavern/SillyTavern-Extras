@@ -23,7 +23,7 @@ RUN conda create -n extras
 
 RUN /bin/bash -c "source activate extras"
 
-RUN conda install pytorch torchvision torchaudio pytorch-cuda=11.7 git -c pytorch -c nvidia -c conda-forge
+RUN conda install -y python=3.11
 
 WORKDIR /sillytavern-extras/
 COPY . .
