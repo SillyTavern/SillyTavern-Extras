@@ -2,7 +2,7 @@ version: "3"
 services:
   sillytavern-extras:
 #    runtime: nvidia
-     deploy:
+    deploy:
       resources:
         reservations:
           devices:
@@ -23,7 +23,7 @@ services:
     volumes:
       #- "./chromadb:/chromadb"
       - "./cache:/root/.cache"
-      - "./api_key.txt:/sillytavern-extras/api_key.txt:rw"
+      - "../api_key.txt:/sillytavern-extras/api_key.txt:rw"
     ports:
       - "5100:5100"
     environment:
