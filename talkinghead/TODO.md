@@ -20,14 +20,11 @@
       the network rate limiter already makes the animation run at a constant FPS (since we produce only
       as many frames as are consumed).
 - Add more postprocessing filters. Possible ideas, no guarantee I'll ever get around to them:
-  - VHS tape
-    - Bad tracking: black/white static at bottom
-    - Deformation: rolling zigzag horizontal offset, sine-based?
   - Pixelize, posterize (8-bit look)
   - Monochrome, plus optional tint
-  - Data connection glitches
-    - Apply to random rectangles; may need to persist for a few frames
-    - May need to protect important regions like the character's head; we're after "Hollywood glitchy", not actually glitchy
+  - Digital data connection glitches
+    - Apply to random rectangles; may need to persist for a few frames to animate and/or make them more noticeable
+    - May need to protect important regions like the character's head (approximately, from the template); we're after "Hollywood glitchy", not actually glitchy
     - Types:
       - Missing data (replace with actual average color, or zero out the alpha?)
       - Blur
