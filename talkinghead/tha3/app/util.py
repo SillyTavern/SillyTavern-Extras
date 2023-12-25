@@ -80,30 +80,31 @@ def load_emotion_presets(directory: str) -> Tuple[Dict[str, Dict[str, float]], L
     a neutral pose. (This is separate from the "neutral" emotion, which is allowed
     to be "non-zero".)
     """
-    emotion_names = []
+    emotion_names = set()
     for root, dirs, files in os.walk(directory, topdown=True):
         for filename in files:
             if filename == "_defaults.json":  # skip the repository containing the default fallbacks
                 continue
             if filename.lower().endswith(".json"):
-                emotion_names.append(filename[:-5])  # drop the ".json"
+                emotion_names.add(filename[:-5])  # drop the ".json"
+
+    # Load the factory-default emotions as a fallback
+    with open(os.path.join(directory, "_defaults.json"), "r") as json_file:
+        factory_default_emotions = json.load(json_file)
+    for key in factory_default_emotions:  # get keys from here too, in case some emotion files are missing
+        if key != "zero":  # not an actual emotion, but a "reset character" feature
+            emotion_names.add(key)
+
+    emotion_names = list(emotion_names)
     emotion_names.sort()  # the 28 actual emotions
 
-    # TODO: Note that currently, we build the list of emotion names from JSON filenames,
-    #       and then check whether each JSON implements the emotion matching its filename.
-    #       On second thought, I'm not sure whether that makes much sense. Maybe rethink the design.
-    #         - We *do* want custom JSON files to show up in the list, if those are placed in "tha3/emotions". So the list of emotions shouldn't be hardcoded.
-    #         - *Having* a fallback repository with factory defaults (and a hidden "zero" preset) is useful.
-    #           But we are currently missing a way to reset an emotion to its factory default.
     def load_emotion_with_fallback(emotion_name: str) -> Dict[str, float]:
         try:
             with open(os.path.join(directory, f"{emotion_name}.json"), "r") as json_file:
                 emotions_from_json = json.load(json_file)  # A single json file may contain presets for multiple emotions.
             posedict = emotions_from_json[emotion_name]
-        except (FileNotFoundError, KeyError):  # If no separate json exists for the specified emotion, load the default (all 28 emotions have a default).
-            with open(os.path.join(directory, "_defaults.json"), "r") as json_file:
-                emotions_from_json = json.load(json_file)
-            posedict = emotions_from_json[emotion_name]
+        except (FileNotFoundError, KeyError):  # If no separate json exists for the specified emotion, load the factory default (all 28 emotions have a default).
+            posedict = factory_default_emotions[emotion_name]
         # If still not found, it's an error, so fail-fast: let the app exit with an informative exception message.
         return posedict
 

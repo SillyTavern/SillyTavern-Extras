@@ -92,7 +92,8 @@ parser.add_argument(
     choices=["auto", "standard_float", "separable_float", "standard_half", "separable_half"],
 )
 parser.add_argument(
-    "--talkinghead-models", type=str, help="If THA3 models are not yet installed, use the given HuggingFace repository to install them.",
+    "--talkinghead-models", metavar="HFREPO",
+    type=str, help="If THA3 models are not yet installed, use the given HuggingFace repository to install them. Defaults to OktayAlpk/talking-head-anime-3.",
     default="OktayAlpk/talking-head-anime-3"
 )
 
@@ -203,7 +204,10 @@ if "talkinghead" in modules:
             )
         os.makedirs(talkinghead_models_dir, exist_ok=True)
         print(f"THA3 models not yet installed. Installing from {args.talkinghead_models} into talkinghead/tha3/models.")
-        # TODO: I'd prefer to install with symlinks, but how about Windows users?
+        # Installing with symlinks would be generally better, but MS Windows support for symlinks is not optimal,
+        # so for maximal compatibility we avoid them. The drawback of installing directly as plain files is that
+        # if multiple programs need to download THA3, they will do so separately. But THA3 is rather rare, so in
+        # practice this is unlikely to be an issue.
         snapshot_download(repo_id=args.talkinghead_models, local_dir=talkinghead_models_dir, local_dir_use_symlinks=False)
 
     import sys
