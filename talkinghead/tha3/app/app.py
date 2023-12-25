@@ -273,7 +273,7 @@ class TalkingheadAnimator:
 
         self.breathing_epoch = time.time_ns()
 
-        self.frame_evenodd = 0
+        self.frame_no = 0
 
     def load_image(self, file_path=None) -> None:
         """Load the image file at `file_path`, and replace the current character with it.
@@ -607,11 +607,11 @@ class TalkingheadAnimator:
                            for a more authentic CRT look (like Phosphor deinterlacer in VLC).
                 """
                 if dynamic:
-                    start = (field + self.frame_evenodd) % 2
+                    start = (field + self.frame_no) % 2
                 else:
                     start = field
                 image[3, start::2, :].mul_(0.5)  # TODO: should ideally modify just Y channel in YUV space
-                self.frame_evenodd = (self.frame_evenodd + 1) % 2
+                self.frame_no += 1
 
             def apply_alphanoise(image: torch.tensor, magnitude: float = 0.1) -> None:
                 """Dynamic noise to alpha channel."""
@@ -622,11 +622,74 @@ class TalkingheadAnimator:
                 """Translucency for hologram look."""
                 image[3, :, :].mul_(alpha)
 
+            def apply_banding(image: torch.tensor, strength: float = 0.4, density: float = 2.0, speed: float = 16.0) -> None:
+                """Simulate a bad analog signal, with brighter and darker bands.
+
+                `strength`: maximum brightness factor
+                `density`: how many banding cycles per full image height
+                `speed`: band movement, in pixels per frame
+                """
+                IMAGE_HEIGHT = self.poser.get_image_size()
+                y = torch.linspace(0, math.pi, IMAGE_HEIGHT, dtype=self.poser.get_dtype(), device=self.device)
+
+                # Animation
+                cycle_pos = (self.frame_no / IMAGE_HEIGHT) * speed
+                cycle_pos = cycle_pos - float(int(cycle_pos))  # fractional part
+                cycle_pos = 1.0 - cycle_pos  # -> motion from top toward bottom
+
+                band_effect = torch.sin(density * y + cycle_pos * math.pi)**2  # [512] = [h]
+                band_effect = torch.unsqueeze(band_effect, 0)  # -> [1, 512] = [c, h]
+                band_effect = torch.unsqueeze(band_effect, 2)  # -> [1, 512, 1] = [c, h, w]
+                image[:3, :, :].mul_(1.0 + strength * band_effect)
+                torch.clamp_(image, min=0.0, max=1.0)
+
+            def apply_wave_deform(image: torch.tensor, speed: float = 8.0,
+                                  amp1: float = 0.001, density1: float = 4.0,
+                                  amp2: float = 0.001, density2: float = 13.0,
+                                  amp3: float = 0.001, density3: float = 27.0) -> None:
+                """Simulate a bad analog signal, with a horizontal wave deformation.
+
+                We superpose three waves with different densities (1 / cycle length)
+                to make the pattern look more irregular.
+
+                E.g. density of 2.0 means that two full waves fit into the image height.
+                Amplitudes are given in units where the height and width of the image
+                are both 2.0.
+                """
+                IMAGE_HEIGHT = self.poser.get_image_size()
+
+                # Seems the deformation geometry must be float32 no matter the image data type.
+                d = torch.linspace(-1.0, 1.0, IMAGE_HEIGHT, dtype=torch.float32, device=self.device)
+                yy = d
+                xx = d
+                meshy, meshx = torch.meshgrid((yy, xx), indexing="ij")
+
+                # Animation
+                cycle_pos = (self.frame_no / IMAGE_HEIGHT) * speed
+                cycle_pos = cycle_pos - float(int(cycle_pos))  # fractional part
+                cycle_pos = 1.0 - cycle_pos  # -> motion from top toward bottom
+                cycle_pos *= 2.0  # full cycle = 2 units
+
+                # Deformation
+                meshx = (meshx +
+                         amp1 * torch.sin((density1 * (meshy + cycle_pos)) * math.pi) +
+                         amp2 * torch.sin((density2 * (meshy + cycle_pos)) * math.pi) +
+                         amp3 * torch.sin((density3 * (meshy + cycle_pos)) * math.pi))
+
+                grid = torch.stack((meshx, meshy), 2)
+                grid = grid.unsqueeze(0)  # batch of one
+                image = image.unsqueeze(0)  # batch of one -> [1, c, h, w]
+                warped = torch.nn.functional.grid_sample(image, grid, mode="bilinear", padding_mode="border", align_corners=False)
+                warped = warped.squeeze(0)  # [1, c, h, w] -> [c, h, w]
+                image[:, :, :] = warped
+
             # apply postprocess chain
             apply_bloom(output_image)
-            apply_scanlines(output_image)
-            apply_alphanoise(output_image)
             apply_translucency(output_image)
+            apply_wave_deform(output_image)
+            apply_banding(output_image)
+            apply_alphanoise(output_image)
+            apply_scanlines(output_image)
 
             # end postproc filters
             # --------------------------------------------------------------------------------
