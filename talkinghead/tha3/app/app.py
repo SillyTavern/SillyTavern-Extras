@@ -572,6 +572,8 @@ class TalkingheadAnimator:
 
             # --------------------------------------------------------------------------------
             # Postproc filters (TODO: refactor, and make configurable)
+            #
+            # Let the glitch artistry begin.
 
             def apply_bloom(image: torch.tensor, luma_threshold: float = 0.8, hdr_exposure: float = 0.7) -> None:
                 """Bloom effect (lighting bleed, fake HDR). Popular in early 2000s anime."""
@@ -614,16 +616,16 @@ class TalkingheadAnimator:
                 self.frame_no += 1
 
             def apply_alphanoise(image: torch.tensor, magnitude: float = 0.1) -> None:
-                """Dynamic noise to alpha channel."""
+                """Dynamic noise to alpha channel; a cheap alternative to luma noise."""
                 base_magnitude = 1.0 - magnitude
                 image[3, :, :].mul_(base_magnitude + magnitude * torch.rand(h, w, device=self.device))
 
             def apply_translucency(image: torch.tensor, alpha: float = 0.9) -> None:
-                """Translucency for hologram look."""
+                """Translucency for a hologram look."""
                 image[3, :, :].mul_(alpha)
 
             def apply_banding(image: torch.tensor, strength: float = 0.4, density: float = 2.0, speed: float = 16.0) -> None:
-                """Simulate a bad analog signal, with brighter and darker bands.
+                """Bad analog video signal, with traveling brighter and darker bands.
 
                 `strength`: maximum brightness factor
                 `density`: how many banding cycles per full image height
@@ -643,16 +645,17 @@ class TalkingheadAnimator:
                 image[:3, :, :].mul_(1.0 + strength * band_effect)
                 torch.clamp_(image, min=0.0, max=1.0)
 
-            def apply_wave_deform(image: torch.tensor, speed: float = 8.0,
-                                  amp1: float = 0.001, density1: float = 4.0,
-                                  amp2: float = 0.001, density2: float = 13.0,
-                                  amp3: float = 0.001, density3: float = 27.0) -> None:
-                """Simulate a bad analog signal, with a horizontal wave deformation.
+            def apply_badanalog(image: torch.tensor, speed: float = 8.0,
+                                amp1: float = 0.001, density1: float = 4.0,
+                                amp2: float = 0.001, density2: float = 13.0,
+                                amp3: float = 0.001, density3: float = 27.0) -> None:
+                """Analog video signal with bad hsync.
 
                 We superpose three waves with different densities (1 / cycle length)
                 to make the pattern look more irregular.
 
                 E.g. density of 2.0 means that two full waves fit into the image height.
+
                 Amplitudes are given in units where the height and width of the image
                 are both 2.0.
                 """
@@ -678,17 +681,58 @@ class TalkingheadAnimator:
 
                 grid = torch.stack((meshx, meshy), 2)
                 grid = grid.unsqueeze(0)  # batch of one
-                image = image.unsqueeze(0)  # batch of one -> [1, c, h, w]
-                warped = torch.nn.functional.grid_sample(image, grid, mode="bilinear", padding_mode="border", align_corners=False)
+                image_batch = image.unsqueeze(0)  # batch of one -> [1, c, h, w]
+                warped = torch.nn.functional.grid_sample(image_batch, grid, mode="bilinear", padding_mode="border", align_corners=False)
                 warped = warped.squeeze(0)  # [1, c, h, w] -> [c, h, w]
                 image[:, :, :] = warped
 
-            # apply postprocess chain
+            def apply_badvhs(image: torch.tensor, base_offset: float = 0.015, max_dynamic_offset: float = 0.005, speed: float = 2.0) -> None:
+                """1980s VHS tape with bad tracking.
+
+                Image floats up and down, and a band of black and white noise appears at the bottom.
+
+                Units like in `apply_badanalog`.
+                """
+                IMAGE_HEIGHT = self.poser.get_image_size()
+
+                # Seems the deformation geometry must be float32 no matter the image data type.
+                d = torch.linspace(-1.0, 1.0, IMAGE_HEIGHT, dtype=torch.float32, device=self.device)
+                yy = d
+                xx = d
+                meshy, meshx = torch.meshgrid((yy, xx), indexing="ij")
+
+                # Animation
+                cycle_pos = (self.frame_no / IMAGE_HEIGHT) * speed
+                cycle_pos = cycle_pos - float(int(cycle_pos))  # fractional part
+                cycle_pos *= 2.0  # full cycle = 2 units
+
+                # Deformation - move image up/down
+                yoffs = max_dynamic_offset * math.sin(cycle_pos * math.pi)
+                meshy = meshy + yoffs
+
+                grid = torch.stack((meshx, meshy), 2)
+                grid = grid.unsqueeze(0)  # batch of one
+                image_batch = image.unsqueeze(0)  # batch of one -> [1, c, h, w]
+                warped = torch.nn.functional.grid_sample(image_batch, grid, mode="bilinear", padding_mode="border", align_corners=False)
+                warped = warped.squeeze(0)  # [1, c, h, w] -> [c, h, w]
+                image[:, :, :] = warped
+
+                # Noise from bad VHS tracking at bottom
+                yoffs_pixels = int((yoffs / 2.0) * 512.0)
+                base_offset_pixels = int((base_offset / 2.0) * 512.0)
+                noise_pixels = yoffs_pixels + base_offset_pixels
+                if noise_pixels > 0:
+                    # TODO: Actual VHS noise has horizontal runs of the same color, and the transitions between black and white are smooth.
+                    # This looks best if we randomize the alpha channel, too.
+                    image[:, -noise_pixels:, :] = torch.rand(noise_pixels, w, device=self.device).unsqueeze(0)
+
+            # apply postprocess chain (this is the correct order for the filters)
             apply_bloom(output_image)
             apply_translucency(output_image)
-            apply_wave_deform(output_image)
-            apply_banding(output_image)
             apply_alphanoise(output_image)
+            apply_badanalog(output_image)
+            apply_badvhs(output_image)
+            apply_banding(output_image)
             apply_scanlines(output_image)
 
             # end postproc filters
