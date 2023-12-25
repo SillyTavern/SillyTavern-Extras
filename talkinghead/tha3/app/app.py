@@ -479,7 +479,7 @@ class TalkingheadAnimator:
         time_now = time.time_ns()
         t = (time_now - self.breathing_epoch) / 10**9  # seconds since breathing-epoch
         cycle_pos = t / breathing_cycle_duration  # number of cycles since breathing-epoch
-        if cycle_pos > 1.0:  # prevent overflow in long sessions
+        if cycle_pos > 1.0:  # prevent loss of accuracy in long sessions
             self.breathing_epoch = time_now  # TODO: be more accurate here, should sync to a whole cycle
         cycle_pos = cycle_pos - float(int(cycle_pos))  # fractional part
 
