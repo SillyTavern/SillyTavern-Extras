@@ -696,7 +696,7 @@ class TalkingheadAnimator:
                 warped = warped.squeeze(0)  # [1, c, h, w] -> [c, h, w]
                 image[:, :, :] = warped
 
-            def apply_badvhs(image: torch.tensor, base_offset: float = 0.015, max_dynamic_offset: float = 0.005, speed: float = 2.0) -> None:
+            def apply_badvhs(image: torch.tensor, base_offset: float = 0.03, max_dynamic_offset: float = 0.01, speed: float = 3.0) -> None:
                 """1980s VHS tape with bad tracking.
 
                 Image floats up and down, and a band of black and white noise appears at the bottom.
