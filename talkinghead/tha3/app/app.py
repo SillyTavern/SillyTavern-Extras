@@ -590,8 +590,12 @@ class TalkingheadAnimator:
 
                 # Blur the bright parts. Two-pass blur to save compute.
                 # It seems that in Torch, one large 1D blur is faster than looping with a smaller one.
-                brights = torchvision.transforms.GaussianBlur((21, 1), sigma=7.0)(brights)
-                brights = torchvision.transforms.GaussianBlur((1, 21), sigma=7.0)(brights)
+                #
+                # Although everything else in Torch takes (height, width), kernel size is given as (size_x, size_y);
+                # see `gaussian_blur_image` in https://pytorch.org/vision/main/_modules/torchvision/transforms/v2/functional/_misc.html
+                # for a hint (the part where it computes the padding).
+                brights = torchvision.transforms.GaussianBlur((21, 1), sigma=7.0)(brights)  # blur along x
+                brights = torchvision.transforms.GaussianBlur((1, 21), sigma=7.0)(brights)  # blur along y
 
                 # Additively blend the images (note we are working in linear intensity space).
                 image.add_(brights)
@@ -742,40 +746,7 @@ class TalkingheadAnimator:
                     # This looks best if we randomize the alpha channel, too.
                     image[:, -noise_pixels:, :] = torch.rand(noise_pixels, w, device=self.device).unsqueeze(0)
                     # Actual VHS noise has horizontal runs of the same color, and the transitions between black and white are smooth.
-
-                    # TODO: figure out why this crashes. The image tensor size is fine, [4, 512, 512].
-                    #
-                    # Exception in thread Thread-2 (animation_update):
-                    # Traceback (most recent call last):
-                    #   File "/home/jje/miniconda3/envs/extras/lib/python3.11/threading.py", line 1038, in _bootstrap_inner
-                    #     self.run()
-                    #   File "/home/jje/miniconda3/envs/extras/lib/python3.11/threading.py", line 975, in run
-                    #     self._target(*self._args, **self._kwargs)
-                    #   File "/home/jje/SillyTavern-extras/talkinghead/tha3/app/app.py", line 322, in animation_update
-                    #     self.render_animation_frame()
-                    #   File "/home/jje/SillyTavern-extras/talkinghead/tha3/app/app.py", line 736, in render_animation_frame
-                    #     apply_badvhs(output_image)
-                    #   File "/home/jje/SillyTavern-extras/talkinghead/tha3/app/app.py", line 729, in apply_badvhs
-                    #     image[:, -noise_pixels:, :] = torchvision.transforms.GaussianBlur((1, 5), sigma=2.0)(image[:, -noise_pixels:, :])
-                    #                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-                    #   File "/home/jje/miniconda3/envs/extras/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1518, in _wrapped_call_impl
-                    #     return self._call_impl(*args, **kwargs)
-                    #            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-                    #   File "/home/jje/miniconda3/envs/extras/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1527, in _call_impl
-                    #     return forward_call(*args, **kwargs)
-                    #            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-                    #   File "/home/jje/miniconda3/envs/extras/lib/python3.11/site-packages/torchvision/transforms/transforms.py", line 1819, in forward
-                    #     return F.gaussian_blur(img, self.kernel_size, [sigma, sigma])
-                    #            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-                    #   File "/home/jje/miniconda3/envs/extras/lib/python3.11/site-packages/torchvision/transforms/functional.py", line 1386, in gaussian_blur
-                    #     output = F_t.gaussian_blur(t_img, kernel_size, sigma)
-                    #              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-                    #   File "/home/jje/miniconda3/envs/extras/lib/python3.11/site-packages/torchvision/transforms/_functional_tensor.py", line 760, in gaussian_blur
-                    #     img = torch_pad(img, padding, mode="reflect")
-                    #           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-                    # RuntimeError: Padding size should be less than the corresponding input dimension, but got: padding (2, 2) at dimension 2 of input [1, 4, 2, 512]
-
-                    # image[:, -noise_pixels:, :] = torchvision.transforms.GaussianBlur((1, 5), sigma=2.0)(image[:, -noise_pixels:, :])
+                    image[:, -noise_pixels:, :] = torchvision.transforms.GaussianBlur((5, 1), sigma=2.0)(image[:, -noise_pixels:, :])
 
             # apply postprocess chain (this is the correct order for the filters)
 
