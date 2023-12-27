@@ -571,13 +571,26 @@ class TalkingheadAnimator:
             c, h, w = output_image.shape
 
             # --------------------------------------------------------------------------------
-            # Postproc filters (TODO: refactor, and make configurable)
+            # Postproc filters
             #
             # Let the glitch artistry begin.
 
+            # TODO:
+            #   - refactor this into a `postprocessor.py`
+            #   - make configurable (ask Cohee1207 about the preferable way)
+            #   - create the base meshgrid for image coordinates only once (not once per effect per frame, as now)
+
             def apply_bloom(image: torch.tensor, luma_threshold: float = 0.8, hdr_exposure: float = 0.7) -> None:
-                """Bloom effect (lighting bleed, fake HDR). Popular in early 2000s anime."""
-                # There are tutorials on the net, see e.g.:
+                """Bloom effect (fake HDR). Popular in early 2000s anime.
+
+                Bright parts of the image bleed light into their surroundings, creating enhanced perceived contrast.
+                Only makes sense when the character is rendered on a dark-ish background.
+
+                `luma_threshold`: How bright is bright. 0.0 is full black, 1.0 is full white.
+                `hdr_exposure`: Controls the overall brightness of the output. Like in photography,
+                                higher exposure means brighter image (saturating toward white).
+                """
+                # There are online tutorials for how to create this effect, see e.g.:
                 #   https://learnopengl.com/Advanced-Lighting/Bloom
 
                 # Find the bright parts.
@@ -588,7 +601,7 @@ class TalkingheadAnimator:
                 mask = torch.unsqueeze(mask, 0)  # -> [1, h, w]
                 brights = image * mask  # [c, h, w]
 
-                # Blur the bright parts. Two-pass blur to save compute.
+                # Blur the bright parts. Two-pass blur to save compute, since we need a very large blur kernel.
                 # It seems that in Torch, one large 1D blur is faster than looping with a smaller one.
                 #
                 # Although everything else in Torch takes (height, width), kernel size is given as (size_x, size_y);
@@ -597,7 +610,7 @@ class TalkingheadAnimator:
                 brights = torchvision.transforms.GaussianBlur((21, 1), sigma=7.0)(brights)  # blur along x
                 brights = torchvision.transforms.GaussianBlur((1, 21), sigma=7.0)(brights)  # blur along y
 
-                # Additively blend the images (note we are working in linear intensity space).
+                # Additively blend the images. Note we are working in linear intensity space, and we will now go over 1.0 intensity.
                 image.add_(brights)
 
                 # We now have a fake HDR image. Tonemap it back to LDR.
@@ -616,20 +629,27 @@ class TalkingheadAnimator:
                     start = (field + self.frame_no) % 2
                 else:
                     start = field
-                image[3, start::2, :].mul_(0.5)  # TODO: should ideally modify just Y channel in YUV space
+                # We should ideally modify just the Y channel in YUV space, but modifying the alpha instead looks alright.
+                image[3, start::2, :].mul_(0.5)
                 self.frame_no += 1
 
             def apply_alphanoise(image: torch.tensor, magnitude: float = 0.1) -> None:
-                """Dynamic noise to alpha channel; a cheap alternative to luma noise."""
+                """Dynamic noise to alpha channel. A cheap alternative to luma noise."""
+                # TODO: add a feature to blur the noise, to control its spatial frequency ("size").
                 base_magnitude = 1.0 - magnitude
                 image[3, :, :].mul_(base_magnitude + magnitude * torch.rand(h, w, device=self.device))
 
             def apply_translucency(image: torch.tensor, alpha: float = 0.9) -> None:
-                """Translucency for a hologram look."""
+                """A simple translucency filter for a hologram look.
+
+                Multiplicatively adjusts the alpha channel.
+                """
                 image[3, :, :].mul_(alpha)
 
             def apply_banding(image: torch.tensor, strength: float = 0.4, density: float = 2.0, speed: float = 16.0) -> None:
                 """Bad analog video signal, with traveling brighter and darker bands.
+
+                This simulates a CRT display as it looks when filmed on video without syncing.
 
                 `strength`: maximum brightness factor
                 `density`: how many banding cycles per full image height
@@ -649,21 +669,25 @@ class TalkingheadAnimator:
                 image[:3, :, :].mul_(1.0 + strength * band_effect)
                 torch.clamp_(image, min=0.0, max=1.0)
 
-            def apply_lowresanalog(image: torch.tensor, kernel_size: int = 5, sigma: float = 1.0) -> None:
-                """Low-resolution analog video signal, simulated by Gaussian blurring.
+            def apply_analog_lowres(image: torch.tensor, kernel_size: int = 5, sigma: float = 1.0) -> None:
+                """Low-resolution analog video signal, simulated by blurring.
 
                 `kernel_size`: size of the Gaussian blur kernel, in pixels.
                 `sigma`: standard deviation of the Gaussian blur kernel, in pixels.
+
+                Ideally, `kernel_size` should be `2 * (3 * sigma) + 1`, so that the kernel
+                reaches its "3 sigma" (99.7% mass) point where the finitely sized kernel
+                cuts the tail. "2 sigma" (95% mass) is also acceptable, to save some compute.
 
                 The default settings create a slight blur without destroying much detail.
                 """
                 image[:, :, :] = torchvision.transforms.GaussianBlur((kernel_size, kernel_size), sigma=sigma)(image)
 
-            def apply_badanalog(image: torch.tensor, speed: float = 8.0,
-                                amp1: float = 0.001, density1: float = 4.0,
-                                amp2: float = 0.001, density2: float = 13.0,
-                                amp3: float = 0.001, density3: float = 27.0) -> None:
-                """Analog video signal with bad hsync.
+            def apply_analog_badhsync(image: torch.tensor, speed: float = 8.0,
+                                      amplitude1: float = 0.001, density1: float = 4.0,
+                                      amplitude2: Optional[float] = 0.001, density2: Optional[float] = 13.0,
+                                      amplitude3: Optional[float] = 0.001, density3: Optional[float] = 27.0) -> None:
+                """Analog video signal with fluctuating hsync.
 
                 We superpose three waves with different densities (1 / cycle length)
                 to make the pattern look more irregular.
@@ -688,10 +712,11 @@ class TalkingheadAnimator:
                 cycle_pos *= 2.0  # full cycle = 2 units
 
                 # Deformation
-                meshx = (meshx +
-                         amp1 * torch.sin((density1 * (meshy + cycle_pos)) * math.pi) +
-                         amp2 * torch.sin((density2 * (meshy + cycle_pos)) * math.pi) +
-                         amp3 * torch.sin((density3 * (meshy + cycle_pos)) * math.pi))
+                meshx = meshx + amplitude1 * torch.sin((density1 * (meshy + cycle_pos)) * math.pi)
+                if amplitude2 and density2:
+                    meshx = meshx + amplitude2 * torch.sin((density2 * (meshy + cycle_pos)) * math.pi)
+                if amplitude3 and density3:
+                    meshx = meshx + amplitude3 * torch.sin((density3 * (meshy + cycle_pos)) * math.pi)
 
                 grid = torch.stack((meshx, meshy), 2)
                 grid = grid.unsqueeze(0)  # batch of one
@@ -700,12 +725,12 @@ class TalkingheadAnimator:
                 warped = warped.squeeze(0)  # [1, c, h, w] -> [c, h, w]
                 image[:, :, :] = warped
 
-            def apply_badvhs(image: torch.tensor, base_offset: float = 0.03, max_dynamic_offset: float = 0.01, speed: float = 3.0) -> None:
+            def apply_analog_vhstracking(image: torch.tensor, base_offset: float = 0.03, max_dynamic_offset: float = 0.01, speed: float = 2.5) -> None:
                 """1980s VHS tape with bad tracking.
 
                 Image floats up and down, and a band of black and white noise appears at the bottom.
 
-                Units like in `apply_badanalog`.
+                Units like in `apply_analog_badhsync`.
                 """
                 IMAGE_HEIGHT = self.poser.get_image_size()
 
@@ -732,43 +757,148 @@ class TalkingheadAnimator:
                 image[:, :, :] = warped
 
                 # Noise from bad VHS tracking at bottom
-                # TODO: separate VHS filter into several
-                #  - exists: image sway up/down
-                #  - exists: tracking noise
-                #  - add new: rows of noise, trigger randomly per frame
-                #  - add add: random white spots (low probability but bright additive noise)
                 yoffs_pixels = int((yoffs / 2.0) * 512.0)
                 base_offset_pixels = int((base_offset / 2.0) * 512.0)
                 noise_pixels = yoffs_pixels + base_offset_pixels
                 if noise_pixels > 0:
-                    # TODO: maybe only apply at the middle, or fade out toward left/right?
+                    image[:, -noise_pixels:, :] = _vhs_noise(height=noise_pixels)
+                    # # Fade out toward left/right, since the character does not take up the full width.
+                    # # Works, but fails at reaching the iconic VHS look.
+                    # x = torch.linspace(0, math.pi, IMAGE_HEIGHT, dtype=self.poser.get_dtype(), device=self.device)
+                    # fade = torch.sin(x)**2  # [w]
+                    # fade = fade.unsqueeze(0)  # [1, w]
+                    # image[3, -noise_pixels:, :] = fade
 
-                    # This looks best if we randomize the alpha channel, too.
-                    image[:, -noise_pixels:, :] = torch.rand(noise_pixels, w, device=self.device).unsqueeze(0)
-                    # Actual VHS noise has horizontal runs of the same color, and the transitions between black and white are smooth.
-                    image[:, -noise_pixels:, :] = torchvision.transforms.GaussianBlur((5, 1), sigma=2.0)(image[:, -noise_pixels:, :])
+            def apply_analog_vhsglitches(image: torch.tensor, strength: float = 0.1, unboost: float = 4.0,
+                                         max_glitches: int = 3, min_glitch_height: int = 3, max_glitch_height: int = 6) -> None:
+                """Damaged 1980s VHS video tape, with transient (per-frame) glitching lines.
+
+                This leaves the alpha channel alone, so the effect only affects parts that already show something.
+                This is an artistic interpretation that makes the effect less distracting when used with RGBA data.
+
+                `strength`: How much to blend in noise.
+                `unboost`: Use this to adjust the probability profile for the appearance of glitches.
+                           The higher `unboost` is, the less probable it is for glitches to appear at all,
+                           and there will be fewer of them (in the same video frame) when they do appear.
+                `max_glitches`: Maximum number of glitches in the video frame.
+                `min_glitch_height`, `max_glitch_height`: in pixels. The height is randomized separately for each glitch.
+                """
+                IMAGE_HEIGHT = self.poser.get_image_size()
+                n_glitches = torch.rand(1, device="cpu")**unboost  # higher probability of having none or few glitching lines
+                n_glitches = int(max_glitches * n_glitches[0])
+                if not n_glitches:
+                    return
+                glitch_start_lines = torch.rand(n_glitches, device="cpu")
+                glitch_start_lines = [int((IMAGE_HEIGHT - (max_glitch_height - 1)) * x) for x in glitch_start_lines]
+                for line in glitch_start_lines:
+                    glitch_height = torch.rand(1, device="cpu")
+                    glitch_height = int(min_glitch_height + (max_glitch_height - min_glitch_height) * glitch_height[0])
+                    noise_image = _vhs_noise(height=glitch_height)
+                    # Apply glitch to RGB only, so fully transparent parts stay transparent (important to make the effect less distracting).
+                    image[:3, line:(line + glitch_height), :] = (1.0 - strength) * image[:3, line:(line + glitch_height), :] + strength * noise_image
+
+            def _vhs_noise(height: int) -> torch.tensor:
+                """Generate a band of noise that looks as if playing a blank VHS tape."""
+                # This looks best if we randomize the alpha channel, too.
+                noise_image = torch.rand(height, w, device=self.device, dtype=self.poser.get_dtype()).unsqueeze(0)  # [1, h, w]
+                # Real VHS noise has horizontal runs of the same color, and the transitions between black and white are smooth.
+                noise_image = torchvision.transforms.GaussianBlur((5, 1), sigma=2.0)(noise_image)
+                return noise_image
+
+            def apply_chromatic_aberration(image: torch.tensor, transverse_sigma: float = 0.5, axial_scale: float = 0.005) -> None:
+                """Simulate the two types of chromatic aberration in a camera lens.
+
+                Like everything else here, this is of course made of smoke and mirrors. We simulate the axial effect
+                (index of refraction varying w.r.t. wavelength) by geometrically scaling the RGB channels individually,
+                and the transverse effect (focal distance varying w.r.t. wavelength) by a gaussian blur.
+
+                Note that in a real lens:
+                  - Axial CA is typical at long focal lengths (e.g. tele/zoom lens)
+                  - Axial CA increases at high F-stops (low depth of field, i.e. sharp focus at all distances)
+                  - Transverse CA is typical at short focal lengths (e.g. macro lens)
+
+                However, in an RGB postproc effect, it is useful to apply both together, to help hide the clear-cut red/blue bands
+                resulting from the different geometric scalings of just three wavelengths (instead of a continuous spectrum, like
+                a scene lit with natural light would have).
+
+                See:
+                    https://en.wikipedia.org/wiki/Chromatic_aberration
+                """
+                IMAGE_HEIGHT = self.poser.get_image_size()
+
+                d = torch.linspace(-1.0, 1.0, IMAGE_HEIGHT, dtype=torch.float32, device=self.device)
+                yy = d
+                xx = d
+                meshy, meshx = torch.meshgrid((yy, xx), indexing="ij")
+
+                # Axial: Shrink R (deflected less), pass G through (lens reference wavelength), enlarge B (deflected more).
+                grid_R = torch.stack((meshx * (1.0 + axial_scale), meshy * (1.0 + axial_scale)), 2)
+                grid_R = grid_R.unsqueeze(0)
+                grid_B = torch.stack((meshx * (1.0 - axial_scale), meshy * (1.0 - axial_scale)), 2)
+                grid_B = grid_B.unsqueeze(0)
+
+                image_batch_R = image[0, :, :].unsqueeze(0).unsqueeze(0)  # [h, w] -> [c, h, w] -> [n, c, h, w]
+                warped_R = torch.nn.functional.grid_sample(image_batch_R, grid_R, mode="bilinear", padding_mode="border", align_corners=False)
+                warped_R = warped_R.squeeze(0)  # [1, c, h, w] -> [c, h, w]
+                image_batch_B = image[2, :, :].unsqueeze(0).unsqueeze(0)
+                warped_B = torch.nn.functional.grid_sample(image_batch_B, grid_B, mode="bilinear", padding_mode="border", align_corners=False)
+                warped_B = warped_B.squeeze(0)  # [1, c, h, w] -> [c, h, w]
+
+                # Transverse (blur to simulate wrong focal distance for R and B)
+                warped_R[:, :, :] = torchvision.transforms.GaussianBlur((5, 5), sigma=transverse_sigma)(warped_R)
+                warped_B[:, :, :] = torchvision.transforms.GaussianBlur((5, 5), sigma=transverse_sigma)(warped_B)
+
+                # Alpha channel: treat similarly to each of R,G,B and average the three resulting alpha channels
+                image_batch_A = image[3, :, :].unsqueeze(0).unsqueeze(0)
+                warped_A1 = torch.nn.functional.grid_sample(image_batch_A, grid_R, mode="bilinear", padding_mode="border", align_corners=False)
+                warped_A1[:, :, :] = torchvision.transforms.GaussianBlur((5, 5), sigma=transverse_sigma)(warped_A1)
+                warped_A2 = torch.nn.functional.grid_sample(image_batch_A, grid_B, mode="bilinear", padding_mode="border", align_corners=False)
+                warped_A2[:, :, :] = torchvision.transforms.GaussianBlur((5, 5), sigma=transverse_sigma)(warped_A2)
+                averaged_alpha = (warped_A1 + image[3, :, :] + warped_A2) / 3.0
+
+                image[0, :, :] = warped_R
+                # image[1, :, :] passed through as-is
+                image[2, :, :] = warped_B
+                image[3, :, :] = averaged_alpha
+
+            def apply_vignetting(image: torch.tensor, strength: float = 0.42) -> None:
+                """Simulate vignetting (less light hitting the corners of a film frame or CCD sensor).
+
+                The profile used here is [cos(strength * d * pi)]**2, where `d` is the distance
+                from the center, scaled such that `d = 1.0` is reached at the corners.
+                Thus, at the midpoints of the frame edges, `d = 1 / sqrt(2) ~ 0.707`.
+                """
+                IMAGE_HEIGHT = self.poser.get_image_size()
+
+                d = torch.linspace(-1.0, 1.0, IMAGE_HEIGHT, dtype=torch.float32, device=self.device)
+                yy = d
+                xx = d
+                meshy, meshx = torch.meshgrid((yy, xx), indexing="ij")
+
+                euclidean_distance_from_center = (meshy**2 + meshx**2)**0.5 / 2**0.5  # [h, w]
+
+                brightness = torch.cos(strength * euclidean_distance_from_center * math.pi)**2  # [h, w]
+                brightness = torch.unsqueeze(brightness, 0)  # -> [1, h, w]
+                image[:3, :, :] *= brightness
 
             # apply postprocess chain (this is the correct order for the filters)
 
             # physical input signal
-            apply_bloom(output_image)  # HDR
+            apply_bloom(output_image)  # fake HDR; only makes sense with dark-ish backgrounds!
 
-            # TODO: video camera
-            # - chromatic aberration
-            #   - scale R, G, B geometrically differently, maybe apply very slight blur
-            #   - average the alpha channel from the three scalings
-            # - vignetting
-            #   - darken the corners, to simulate less light hitting the corners of the film frame
-            #   - corners are mostly not in use, so maybe this phenomenon doesn't matter much
+            # video camera
+            apply_chromatic_aberration(output_image)
+            apply_vignetting(output_image)
 
             # scifi hologram
             apply_translucency(output_image)
             apply_alphanoise(output_image)
 
-            # analog video transport
-            apply_lowresanalog(output_image)
-            apply_badanalog(output_image)
-            apply_badvhs(output_image)
+            # # lo-fi analog video transport
+            # apply_analog_lowres(output_image)
+            # apply_analog_badhsync(output_image)
+            # apply_analog_vhsglitches(output_image)
+            # apply_analog_vhstracking(output_image)
 
             # CRT TV output
             apply_banding(output_image)
