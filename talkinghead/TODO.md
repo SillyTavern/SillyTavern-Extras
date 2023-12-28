@@ -21,13 +21,14 @@
       as many frames as are consumed).
 - Add more postprocessing filters. Possible ideas, no guarantee I'll ever get around to them:
   - Pixelize, posterize (8-bit look)
-  - Monochrome, plus optional tint
+  - Analog video glitches
+    - Partition image into bands, move some left/right temporarily
   - Digital data connection glitches
     - Apply to random rectangles; may need to persist for a few frames to animate and/or make them more noticeable
     - May need to protect important regions like the character's head (approximately, from the template); we're after "Hollywood glitchy", not actually glitchy
     - Types:
-      - Missing data (replace with actual average color, or zero out the alpha?)
-      - Blur
+      - Missing data (zero out the alpha?)
+      - Blur (leads to replacing by average color)
       - Zigzag deformation
 - PNG sending efficiency? Look into encoding the stream into YUVA420 using `ffmpeg`.
 - Investigate if some particular emotions could use a small random per-frame oscillation applied to "iris_small",

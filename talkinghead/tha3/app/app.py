@@ -594,7 +594,7 @@ class TalkingheadAnimator:
                 #   https://learnopengl.com/Advanced-Lighting/Bloom
 
                 # Find the bright parts.
-                Y = 0.2126 * image[0, :, :] + 0.7152 * image[1, :, :] + 0.0722 * image[2, :, :]  # HDTV luminance
+                Y = 0.2126 * image[0, :, :] + 0.7152 * image[1, :, :] + 0.0722 * image[2, :, :]  # HDTV luminance (ITU-R Rec. 709)
                 mask = torch.ge(Y, luma_threshold)  # [h, w]
 
                 # Make a copy of the image with just the bright parts.
@@ -633,11 +633,29 @@ class TalkingheadAnimator:
                 image[3, start::2, :].mul_(0.5)
                 self.frame_no += 1
 
-            def apply_alphanoise(image: torch.tensor, magnitude: float = 0.1) -> None:
-                """Dynamic noise to alpha channel. A cheap alternative to luma noise."""
-                # TODO: add a feature to blur the noise, to control its spatial frequency ("size").
+            def apply_alphanoise(image: torch.tensor, magnitude: float = 0.1, sigma: float = 0.0) -> None:
+                """Dynamic noise to alpha channel. A cheap alternative to luma noise.
+
+                `magnitude`: How much noise to apply. 0 is off, 1 is as much noise as possible.
+
+                `sigma`: If nonzero, apply a Gaussian blur to the noise, thus reducing its spatial frequency
+                         (i.e. making larger and smoother "noise blobs").
+
+                         The blur kernel size is fixed to 5, so `sigma = 1.0` is the largest that will be
+                         somewhat accurate. Nevertheless, `sigma = 2.0` looks acceptable, too, producing
+                         square blobs.
+
+                Suggested settings:
+                    Scifi hologram:   magnitude=0.1, sigma=0.0
+                    Analog VHS tape:  magnitude=0.2, sigma=2.0
+                """
+                noise_image = torch.rand(h, w, device=self.device, dtype=self.poser.get_dtype())
+                if sigma > 0.0:
+                    noise_image = noise_image.unsqueeze(0)  # [h, w] -> [c, h, w] (where c=1)
+                    noise_image = torchvision.transforms.GaussianBlur((5, 5), sigma=sigma)(noise_image)
+                    noise_image = noise_image.squeeze(0)  # -> [h, w]
                 base_magnitude = 1.0 - magnitude
-                image[3, :, :].mul_(base_magnitude + magnitude * torch.rand(h, w, device=self.device))
+                image[3, :, :].mul_(base_magnitude + magnitude * noise_image)
 
             def apply_translucency(image: torch.tensor, alpha: float = 0.9) -> None:
                 """A simple translucency filter for a hologram look.
@@ -669,7 +687,7 @@ class TalkingheadAnimator:
                 image[:3, :, :].mul_(1.0 + strength * band_effect)
                 torch.clamp_(image, min=0.0, max=1.0)
 
-            def apply_analog_lowres(image: torch.tensor, kernel_size: int = 5, sigma: float = 1.0) -> None:
+            def apply_analog_lowres(image: torch.tensor, kernel_size: int = 5, sigma: float = 0.75) -> None:
                 """Low-resolution analog video signal, simulated by blurring.
 
                 `kernel_size`: size of the Gaussian blur kernel, in pixels.
@@ -798,7 +816,12 @@ class TalkingheadAnimator:
                     image[:3, line:(line + glitch_height), :] = (1.0 - strength) * image[:3, line:(line + glitch_height), :] + strength * noise_image
 
             def _vhs_noise(height: int) -> torch.tensor:
-                """Generate a band of noise that looks as if playing a blank VHS tape."""
+                """Generate a horizontal band of noise that looks as if it came from a blank VHS tape.
+
+                `height`: desired height of noise band, in pixels.
+
+                Output is a tensor of shape `[1, height, w]`, where `w` is the postprocessor's input image width.
+                """
                 # This looks best if we randomize the alpha channel, too.
                 noise_image = torch.rand(height, w, device=self.device, dtype=self.poser.get_dtype()).unsqueeze(0)  # [1, h, w]
                 # Real VHS noise has horizontal runs of the same color, and the transitions between black and white are smooth.
@@ -881,10 +904,97 @@ class TalkingheadAnimator:
                 brightness = torch.unsqueeze(brightness, 0)  # -> [1, h, w]
                 image[:3, :, :] *= brightness
 
-            # apply postprocess chain (this is the correct order for the filters)
+            def rgb_to_hue(rgb: List[float]) -> float:
+                """Convert an RGB color to an HSL hue, for use as `bandpass_hue` in `apply_desaturate`.
+
+                This uses a cartesian-to-polar approximation of the HSL representation,
+                which is fine for hue detection, but should not be taken as an authoritative
+                H component of an accurate RGB->HSL conversion.
+                """
+                R, G, B = rgb
+                alpha = 0.5 * (2.0 * R - G - B)
+                beta = 3.0**0.5 / 2.0 * (G - B)
+                hue = math.atan2(beta, alpha) / (2.0 * math.pi)  # note atan2(0, 0) := 0
+                return hue
+
+            # This filter is adapted from an old GLSL code I made for Panda3D 1.8 back in 2014.
+            def apply_desaturate(image: torch.tensor,
+                                 strength: float = 1.0,
+                                 tint_rgb: List[float] = [1.0, 1.0, 1.0],
+                                 bandpass_hue: float = rgb_to_hue([1.0, 0.0, 0.0]), bandpass_q: float = 0.0) -> None:
+                """Desaturation with bells and whistles.
+
+                Does not touch the alpha channel.
+
+                `strength`: Overall blending strength of the filter (0 is off, 1 is fully applied).
+
+                `tint_rgb`: Color to multiplicatively tint the image with. Applied after desaturation.
+
+                            Some example tint values:
+                                Green monochrome computer monitor: [0.5, 1.0, 0.5]
+                                Amber monochrome computer monitor: [1.0, 0.5, 0.2]
+                                Sepia effect:                      [0.8039, 0.6588, 0.5098]
+                                No tint (off; default):            [1.0, 1.0, 1.0]
+
+                `bandpass_hue`: Reference hue to let through the bandpass.
+                                Use this to let e.g. red things bypass the desaturation.
+                                Given a reference RGB color, use `rgb_to_hue` to get the `bandpass_hue`.
+
+                `bandpass_q`: Hue bandpass band half-width, in (0, 1]. Hues farther away from `bandpass_hue`
+                              than `bandpass_q` will be fully desaturated. The opposite colors on the color
+                              circle are defined as having the largest possible hue difference, 1.0.
+
+                              The shape of the filter is a quadratic spike centered on the reference hue,
+                              and smoothly decaying to zero at `bandpass_q` away from the center.
+
+                              The special value 0 (default) switches the hue bandpass code off,
+                              saving some compute.
+                """
+                R = image[0, :, :]
+                G = image[1, :, :]
+                B = image[2, :, :]
+                if bandpass_q > 0.0:  # hue bandpass enabled?
+                    # Calculate hue of each pixel, using a cartesian-to-polar approximation of the HSL representation.
+                    # An approximation is fine here, because we only use this for a hue detector.
+                    # This is faster and requires less branching than the exact hexagonal representation.
+                    desat_alpha = 0.5 * (2.0 * R - G - B)
+                    desat_beta = 3.0**0.5 / 2.0 * (G - B)
+                    desat_hue = torch.atan2(desat_beta, desat_alpha) / (2.0 * math.pi)  # note atan2(0, 0) := 0
+                    desat_hue = desat_hue + torch.where(torch.lt(desat_hue, 0.0), 0.5, 0.0)  # convert from `[-0.5, 0.5)` to `[0, 1)`
+                    # -> [h, w]
+
+                    # Determine whether to keep this pixel or desaturate (and by how much).
+                    #
+                    # Calculate distance of each pixel from reference hue, accounting for wrap-around.
+                    desat_temp1 = torch.abs(desat_hue - bandpass_hue)
+                    desat_temp2 = torch.abs((desat_hue + 1.0) - bandpass_hue)
+                    desat_temp3 = torch.abs(desat_hue - (bandpass_hue + 1.0))
+                    desat_hue_distance = 2.0 * torch.minimum(torch.minimum(desat_temp1, desat_temp2),
+                                                             desat_temp3)  # [0, 0.5] -> [0, 1]
+                    # -> [h, w]
+
+                    # - Pixels with their hue at least `bandpass_q` away from `bandpass_hue` are fully desaturated.
+                    # - As distance falls below `bandpass_q`, a blend starts very gradually.
+                    # - As the hue difference approaches zero, the pixel is fully passed through.
+                    # - The 1.0 - ... together with the square makes a sharp spike at the reference hue.
+                    desat_diff2 = (1.0 - torch.clamp(desat_hue_distance / bandpass_q, max=1.0))**2
+                    strength_field = strength * (1.0 - desat_diff2)  # [h, w]
+                else:
+                    strength_field = strength  # just a scalar!
+
+                # Desaturate, then apply tint
+                Y = 0.2126 * R + 0.7152 * G + 0.0722 * B  # HDTV luminance (ITU-R Rec. 709)  -> [h, w]
+                Y = Y.unsqueeze(0)  # -> [1, h, w]
+                tint_color = torch.tensor(tint_rgb, device=self.device, dtype=self.poser.get_dtype()).unsqueeze(1).unsqueeze(2)  # [c, 1, 1]
+                tinted_desat_image = Y * tint_color  # -> [c, h, w]
+
+                # Final blend
+                image[:3, :, :] = (1.0 - strength_field) * image[:3, :, :] + strength_field * tinted_desat_image
+
+            # Apply postprocess chain (this is the correct order for the filters)
 
             # physical input signal
-            apply_bloom(output_image)  # fake HDR; only makes sense with dark-ish backgrounds!
+            apply_bloom(output_image)  # Fake HDR; only makes sense with dark-ish backgrounds!
 
             # video camera
             apply_chromatic_aberration(output_image)
@@ -892,15 +1002,17 @@ class TalkingheadAnimator:
 
             # scifi hologram
             apply_translucency(output_image)
-            apply_alphanoise(output_image)
+            apply_alphanoise(output_image, magnitude=0.1, sigma=0.0)
 
-            # # lo-fi analog video transport
+            # # lo-fi analog video
             # apply_analog_lowres(output_image)
+            # apply_alphanoise(output_image, magnitude=0.2, sigma=2.0)
             # apply_analog_badhsync(output_image)
-            # apply_analog_vhsglitches(output_image)
+            # # apply_analog_vhsglitches(output_image)
             # apply_analog_vhstracking(output_image)
 
             # CRT TV output
+            # apply_desaturate(output_image)
             apply_banding(output_image)
             apply_scanlines(output_image)
 
