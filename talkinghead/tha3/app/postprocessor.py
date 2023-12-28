@@ -1,4 +1,7 @@
-"""Smoke and mirrors. Glitch artistry. Pixel-space postprocessing effects."""
+"""Smoke and mirrors. Glitch artistry. Pixel-space postprocessing effects.
+
+These effects work in linear intensity space, before gamma correction.
+"""
 
 import math
 from typing import List, Optional
