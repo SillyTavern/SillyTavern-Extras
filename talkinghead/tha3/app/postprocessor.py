@@ -4,52 +4,71 @@ These effects work in linear intensity space, before gamma correction.
 """
 
 import math
-from typing import List, Optional
+from typing import Dict, List, Optional, Tuple, Union
 
 import torch
 import torchvision
 
 # TODO:
-#   - make configurable (ask Cohee1207 about the preferable way)
+#   - add configuration support to the client, pass the data all the way here (from ST client, to ST server, to ST-extras server, to talkinghead)
 #   - create the base meshgrid for image coordinates only once (not once per effect per frame, as now)
 
+# Default configuration for the postprocessor.
+# This documents the correct ordering of the filters.
+# Feel free to improvise, but make sure to understand why your filter chain makes sense.
+default_chain = [
+                 # physical input signal
+                 ("bloom", {}),
+                 # video camera
+                 ("chromatic_aberration", {}),
+                 ("vignetting", {}),
+                 # scifi hologram output
+                 ("translucency", {}),
+                 ("alphanoise", {"magnitude": 0.1, "sigma": 0.0}),
+                 # # lo-fi analog video
+                 # ("analog_lowres", {}),
+                 # ("alphanoise", {"magnitude": 0.2, "sigma": 2.0}),
+                 # ("analog_badhsync", {}),
+                 # # ("analog_vhsglitches", {}),
+                 # ("analog_vhstracking", {}),
+                 # CRT TV output
+                 ("banding", {}),
+                 ("scanlines", {})
+                ]
+
 class Postprocessor:
-    def __init__(self, device: torch.device):
+    """
+    `chain`: Postprocessor filter chain configuration. If `None`, use a hardcoded default configuration (for testing).
+
+             Don't mind the complicated type signature; the format is just::
+
+                 [(filter_name0, {param0: value0, ...}),
+                  ...]
+
+             The filter name must be a method of `Postprocessor`, taking in an image, and any number of named parameters.
+             The value types are restricted to `[str, bool, int, float]` so that these configurations JSON easily.
+
+             To use a filter's default parameter values, supply an empty dictionary for the parameters.
+
+             Stored as `self.chain`. Any modifications to that attribute modify the chain, taking effect immediately.
+             It is recommended to do an atomic update, by `my_postprocessor.chain = my_new_chain`.
+    """
+
+    def __init__(self, device: torch.device, chain: Optional[List[Tuple[str, Dict[str, Union[str, bool, int, float]]]]] = None):
+        # We intentionally keep very little state in this class, for a more FP/REST approach with less bugs.
+        # There's just the device info, a frame counter, and the current filter chain config (which is read at every frame).
+        # The filters themselves are stateless; but note that they overwrite the image being processed.
         self.device = device
         self.frame_no = 0
-
-    def configure(self):
-        # TODO: take in a dict of config: {effect0: {key0: value0, ...}, ...}
-        pass
+        if chain is None:
+            chain = default_chain
+        self.chain = chain
 
     def render_into(self, image):
-        """Apply postprocess chain, modifying `image`."""
-        # This also documents the correct ordering of the filters.
-
-        # physical input signal
-        self.apply_bloom(image)  # Fake HDR; only makes sense with dark-ish backgrounds!
-
-        # video camera
-        self.apply_chromatic_aberration(image)
-        self.apply_vignetting(image)
-
-        # scifi hologram
-        self.apply_translucency(image)
-        self.apply_alphanoise(image, magnitude=0.1, sigma=0.0)
-
-        # # lo-fi analog video
-        # apply_analog_lowres(output_image)
-        # apply_alphanoise(output_image, magnitude=0.2, sigma=2.0)
-        # apply_analog_badhsync(output_image)
-        # # apply_analog_vhsglitches(output_image)
-        # apply_analog_vhstracking(output_image)
-
-        # CRT TV output
-        # apply_desaturate(output_image)
-        self.apply_banding(image)
-        self.apply_scanlines(image)
-
-        # All done!
+        """Apply current postprocess chain, modifying `image`."""
+        for filter_name, settings in self.chain:
+            apply_filter = getattr(self, filter_name)
+            apply_filter(image, **settings)
         self.frame_complete()
 
     def frame_complete(self):
@@ -57,12 +76,15 @@ class Postprocessor:
         self.frame_no += 1
 
     # --------------------------------------------------------------------------------
+    # Physical input signal
 
-    def apply_bloom(self, image: torch.tensor, luma_threshold: float = 0.8, hdr_exposure: float = 0.7) -> None:
+    def bloom(self, image: torch.tensor, *,
+              luma_threshold: float = 0.8,
+              hdr_exposure: float = 0.7) -> None:
         """Bloom effect (fake HDR). Popular in early 2000s anime.
 
-        Bright parts of the image bleed light into their surroundings, creating enhanced perceived contrast.
-        Only makes sense when the character is rendered on a dark-ish background.
+        Makes bright parts of the image bleed light into their surroundings, enhancing perceived contrast.
+        Only makes sense when the talkinghead is rendered on a dark-ish background.
 
         `luma_threshold`: How bright is bright. 0.0 is full black, 1.0 is full white.
         `hdr_exposure`: Controls the overall brightness of the output. Like in photography,
@@ -96,216 +118,12 @@ class Postprocessor:
         image[3, :, :] = torch.maximum(image[3, :, :], brights[3, :, :])  # alpha: max-combine
         torch.clamp_(image, min=0.0, max=1.0)
 
-    def apply_scanlines(self, image: torch.tensor, field: int = 0, dynamic: bool = True) -> None:
-        """CRT TV like scanlines.
+    # --------------------------------------------------------------------------------
+    # Video camera
 
-        `field`: Which CRT field is dimmed at the first frame. 0 = top, 1 = bottom.
-        `dynamic`: If `True`, the dimmed field will alternate each frame (top, bottom, top, bottom, ...)
-                   for a more authentic CRT look (like Phosphor deinterlacer in VLC).
-        """
-        if dynamic:
-            start = (field + self.frame_no) % 2
-        else:
-            start = field
-        # We should ideally modify just the Y channel in YUV space, but modifying the alpha instead looks alright.
-        image[3, start::2, :].mul_(0.5)
-
-    def apply_alphanoise(self, image: torch.tensor, magnitude: float = 0.1, sigma: float = 0.0) -> None:
-        """Dynamic noise to alpha channel. A cheap alternative to luma noise.
-
-        `magnitude`: How much noise to apply. 0 is off, 1 is as much noise as possible.
-
-        `sigma`: If nonzero, apply a Gaussian blur to the noise, thus reducing its spatial frequency
-                 (i.e. making larger and smoother "noise blobs").
-
-                 The blur kernel size is fixed to 5, so `sigma = 1.0` is the largest that will be
-                 somewhat accurate. Nevertheless, `sigma = 2.0` looks acceptable, too, producing
-                 square blobs.
-
-        Suggested settings:
-            Scifi hologram:   magnitude=0.1, sigma=0.0
-            Analog VHS tape:  magnitude=0.2, sigma=2.0
-        """
-        c, h, w = image.shape
-        noise_image = torch.rand(h, w, device=self.device, dtype=image.dtype)
-        if sigma > 0.0:
-            noise_image = noise_image.unsqueeze(0)  # [h, w] -> [c, h, w] (where c=1)
-            noise_image = torchvision.transforms.GaussianBlur((5, 5), sigma=sigma)(noise_image)
-            noise_image = noise_image.squeeze(0)  # -> [h, w]
-        base_magnitude = 1.0 - magnitude
-        image[3, :, :].mul_(base_magnitude + magnitude * noise_image)
-
-    def apply_translucency(self, image: torch.tensor, alpha: float = 0.9) -> None:
-        """A simple translucency filter for a hologram look.
-
-        Multiplicatively adjusts the alpha channel.
-        """
-        image[3, :, :].mul_(alpha)
-
-    def apply_banding(self, image: torch.tensor, strength: float = 0.4, density: float = 2.0, speed: float = 16.0) -> None:
-        """Bad analog video signal, with traveling brighter and darker bands.
-
-        This simulates a CRT display as it looks when filmed on video without syncing.
-
-        `strength`: maximum brightness factor
-        `density`: how many banding cycles per full image height
-        `speed`: band movement, in pixels per frame
-        """
-        c, h, w = image.shape
-        yy = torch.linspace(0, math.pi, h, dtype=image.dtype, device=self.device)
-
-        # Animation
-        cycle_pos = (self.frame_no / h) * speed
-        cycle_pos = cycle_pos - float(int(cycle_pos))  # fractional part
-        cycle_pos = 1.0 - cycle_pos  # -> motion from top toward bottom
-
-        band_effect = torch.sin(density * yy + cycle_pos * math.pi)**2  # [h]
-        band_effect = torch.unsqueeze(band_effect, 0)  # -> [1, h] = [c, h]
-        band_effect = torch.unsqueeze(band_effect, 2)  # -> [1, h, 1] = [c, h, w]
-        image[:3, :, :].mul_(1.0 + strength * band_effect)
-        torch.clamp_(image, min=0.0, max=1.0)
-
-    def apply_analog_lowres(self, image: torch.tensor, kernel_size: int = 5, sigma: float = 0.75) -> None:
-        """Low-resolution analog video signal, simulated by blurring.
-
-        `kernel_size`: size of the Gaussian blur kernel, in pixels.
-        `sigma`: standard deviation of the Gaussian blur kernel, in pixels.
-
-        Ideally, `kernel_size` should be `2 * (3 * sigma) + 1`, so that the kernel
-        reaches its "3 sigma" (99.7% mass) point where the finitely sized kernel
-        cuts the tail. "2 sigma" (95% mass) is also acceptable, to save some compute.
-
-        The default settings create a slight blur without destroying much detail.
-        """
-        image[:, :, :] = torchvision.transforms.GaussianBlur((kernel_size, kernel_size), sigma=sigma)(image)
-
-    def apply_analog_badhsync(self, image: torch.tensor, speed: float = 8.0,
-                              amplitude1: float = 0.001, density1: float = 4.0,
-                              amplitude2: Optional[float] = 0.001, density2: Optional[float] = 13.0,
-                              amplitude3: Optional[float] = 0.001, density3: Optional[float] = 27.0) -> None:
-        """Analog video signal with fluctuating hsync.
-
-        We superpose three waves with different densities (1 / cycle length)
-        to make the pattern look more irregular.
-
-        E.g. density of 2.0 means that two full waves fit into the image height.
-
-        Amplitudes are given in units where the height and width of the image
-        are both 2.0.
-        """
-        c, h, w = image.shape
-
-        # Seems the deformation geometry must be float32 no matter the image data type.
-        yy = torch.linspace(-1.0, 1.0, h, dtype=torch.float32, device=self.device)
-        xx = torch.linspace(-1.0, 1.0, w, dtype=torch.float32, device=self.device)
-        meshy, meshx = torch.meshgrid((yy, xx), indexing="ij")
-
-        # Animation
-        cycle_pos = (self.frame_no / h) * speed
-        cycle_pos = cycle_pos - float(int(cycle_pos))  # fractional part
-        cycle_pos = 1.0 - cycle_pos  # -> motion from top toward bottom
-        cycle_pos *= 2.0  # full cycle = 2 units
-
-        # Deformation
-        meshx = meshx + amplitude1 * torch.sin((density1 * (meshy + cycle_pos)) * math.pi)
-        if amplitude2 and density2:
-            meshx = meshx + amplitude2 * torch.sin((density2 * (meshy + cycle_pos)) * math.pi)
-        if amplitude3 and density3:
-            meshx = meshx + amplitude3 * torch.sin((density3 * (meshy + cycle_pos)) * math.pi)
-
-        grid = torch.stack((meshx, meshy), 2)
-        grid = grid.unsqueeze(0)  # batch of one
-        image_batch = image.unsqueeze(0)  # batch of one -> [1, c, h, w]
-        warped = torch.nn.functional.grid_sample(image_batch, grid, mode="bilinear", padding_mode="border", align_corners=False)
-        warped = warped.squeeze(0)  # [1, c, h, w] -> [c, h, w]
-        image[:, :, :] = warped
-
-    def _vhs_noise(self, image: torch.tensor, height: int) -> torch.tensor:
-        """Generate a horizontal band of noise that looks as if it came from a blank VHS tape.
-
-        `height`: desired height of noise band, in pixels.
-
-        Output is a tensor of shape `[1, height, w]`, where `w` is the postprocessor's input image width.
-        """
-        c, h, w = image.shape
-        # This looks best if we randomize the alpha channel, too.
-        noise_image = torch.rand(height, w, device=self.device, dtype=image.dtype).unsqueeze(0)  # [1, h, w]
-        # Real VHS noise has horizontal runs of the same color, and the transitions between black and white are smooth.
-        noise_image = torchvision.transforms.GaussianBlur((5, 1), sigma=2.0)(noise_image)
-        return noise_image
-
-    def apply_analog_vhstracking(self, image: torch.tensor, base_offset: float = 0.03, max_dynamic_offset: float = 0.01, speed: float = 2.5) -> None:
-        """1980s VHS tape with bad tracking.
-
-        Image floats up and down, and a band of black and white noise appears at the bottom.
-
-        Units like in `apply_analog_badhsync`.
-        """
-        c, h, w = image.shape
-
-        # Seems the deformation geometry must be float32 no matter the image data type.
-        yy = torch.linspace(-1.0, 1.0, h, dtype=torch.float32, device=self.device)
-        xx = torch.linspace(-1.0, 1.0, w, dtype=torch.float32, device=self.device)
-        meshy, meshx = torch.meshgrid((yy, xx), indexing="ij")
-
-        # Animation
-        cycle_pos = (self.frame_no / h) * speed
-        cycle_pos = cycle_pos - float(int(cycle_pos))  # fractional part
-        cycle_pos *= 2.0  # full cycle = 2 units
-
-        # Deformation - move image up/down
-        yoffs = max_dynamic_offset * math.sin(cycle_pos * math.pi)
-        meshy = meshy + yoffs
-
-        grid = torch.stack((meshx, meshy), 2)
-        grid = grid.unsqueeze(0)  # batch of one
-        image_batch = image.unsqueeze(0)  # batch of one -> [1, c, h, w]
-        warped = torch.nn.functional.grid_sample(image_batch, grid, mode="bilinear", padding_mode="border", align_corners=False)
-        warped = warped.squeeze(0)  # [1, c, h, w] -> [c, h, w]
-        image[:, :, :] = warped
-
-        # Noise from bad VHS tracking at bottom
-        yoffs_pixels = int((yoffs / 2.0) * 512.0)
-        base_offset_pixels = int((base_offset / 2.0) * 512.0)
-        noise_pixels = yoffs_pixels + base_offset_pixels
-        if noise_pixels > 0:
-            image[:, -noise_pixels:, :] = self._vhs_noise(image, height=noise_pixels)
-            # # Fade out toward left/right, since the character does not take up the full width.
-            # # Works, but fails at reaching the iconic VHS look.
-            # x = torch.linspace(0, math.pi, IMAGE_HEIGHT, dtype=image.dtype, device=self.device)
-            # fade = torch.sin(x)**2  # [w]
-            # fade = fade.unsqueeze(0)  # [1, w]
-            # image[3, -noise_pixels:, :] = fade
-
-    def apply_analog_vhsglitches(self, image: torch.tensor, strength: float = 0.1, unboost: float = 4.0,
-                                 max_glitches: int = 3, min_glitch_height: int = 3, max_glitch_height: int = 6) -> None:
-        """Damaged 1980s VHS video tape, with transient (per-frame) glitching lines.
-
-        This leaves the alpha channel alone, so the effect only affects parts that already show something.
-        This is an artistic interpretation that makes the effect less distracting when used with RGBA data.
-
-        `strength`: How much to blend in noise.
-        `unboost`: Use this to adjust the probability profile for the appearance of glitches.
-                   The higher `unboost` is, the less probable it is for glitches to appear at all,
-                   and there will be fewer of them (in the same video frame) when they do appear.
-        `max_glitches`: Maximum number of glitches in the video frame.
-        `min_glitch_height`, `max_glitch_height`: in pixels. The height is randomized separately for each glitch.
-        """
-        c, h, w = image.shape
-        n_glitches = torch.rand(1, device="cpu")**unboost  # higher probability of having none or few glitching lines
-        n_glitches = int(max_glitches * n_glitches[0])
-        if not n_glitches:
-            return
-        glitch_start_lines = torch.rand(n_glitches, device="cpu")
-        glitch_start_lines = [int((h - (max_glitch_height - 1)) * x) for x in glitch_start_lines]
-        for line in glitch_start_lines:
-            glitch_height = torch.rand(1, device="cpu")
-            glitch_height = int(min_glitch_height + (max_glitch_height - min_glitch_height) * glitch_height[0])
-            noise_image = self._vhs_noise(image, height=glitch_height)
-            # Apply glitch to RGB only, so fully transparent parts stay transparent (important to make the effect less distracting).
-            image[:3, line:(line + glitch_height), :] = (1.0 - strength) * image[:3, line:(line + glitch_height), :] + strength * noise_image
-
-    def apply_chromatic_aberration(self, image: torch.tensor, transverse_sigma: float = 0.5, axial_scale: float = 0.005) -> None:
+    def chromatic_aberration(self, image: torch.tensor, *,
+                             transverse_sigma: float = 0.5,
+                             axial_scale: float = 0.005) -> None:
         """Simulate the two types of chromatic aberration in a camera lens.
 
         Like everything else here, this is of course made of smoke and mirrors. We simulate the axial effect
@@ -361,7 +179,8 @@ class Postprocessor:
         image[2, :, :] = warped_B
         image[3, :, :] = averaged_alpha
 
-    def apply_vignetting(self, image: torch.tensor, strength: float = 0.42) -> None:
+    def vignetting(self, image: torch.tensor, *,
+                   strength: float = 0.42) -> None:
         """Simulate vignetting (less light hitting the corners of a film frame or CCD sensor).
 
         The profile used here is [cos(strength * d * pi)]**2, where `d` is the distance
@@ -381,8 +200,205 @@ class Postprocessor:
         brightness = torch.unsqueeze(brightness, 0)  # -> [1, h, w]
         image[:3, :, :] *= brightness
 
+    # --------------------------------------------------------------------------------
+    # Scifi hologram
+
+    def translucency(self, image: torch.tensor, *,
+                     alpha: float = 0.9) -> None:
+        """A simple translucency filter for a hologram look.
+
+        Multiplicatively adjusts the alpha channel.
+        """
+        image[3, :, :].mul_(alpha)
+
+    # --------------------------------------------------------------------------------
+    # General use
+
+    def alphanoise(self, image: torch.tensor, *,
+                   magnitude: float = 0.1,
+                   sigma: float = 0.0) -> None:
+        """Dynamic noise to alpha channel. A cheap alternative to luma noise.
+
+        `magnitude`: How much noise to apply. 0 is off, 1 is as much noise as possible.
+
+        `sigma`: If nonzero, apply a Gaussian blur to the noise, thus reducing its spatial frequency
+                 (i.e. making larger and smoother "noise blobs").
+
+                 The blur kernel size is fixed to 5, so `sigma = 1.0` is the largest that will be
+                 somewhat accurate. Nevertheless, `sigma = 2.0` looks acceptable, too, producing
+                 square blobs.
+
+        Suggested settings:
+            Scifi hologram:   magnitude=0.1, sigma=0.0
+            Analog VHS tape:  magnitude=0.2, sigma=2.0
+        """
+        c, h, w = image.shape
+        noise_image = torch.rand(h, w, device=self.device, dtype=image.dtype)
+        if sigma > 0.0:
+            noise_image = noise_image.unsqueeze(0)  # [h, w] -> [c, h, w] (where c=1)
+            noise_image = torchvision.transforms.GaussianBlur((5, 5), sigma=sigma)(noise_image)
+            noise_image = noise_image.squeeze(0)  # -> [h, w]
+        base_magnitude = 1.0 - magnitude
+        image[3, :, :].mul_(base_magnitude + magnitude * noise_image)
+
+    # --------------------------------------------------------------------------------
+    # Lo-fi analog video
+
+    def analog_lowres(self, image: torch.tensor, *,
+                      kernel_size: int = 5,
+                      sigma: float = 0.75) -> None:
+        """Low-resolution analog video signal, simulated by blurring.
+
+        `kernel_size`: size of the Gaussian blur kernel, in pixels.
+        `sigma`: standard deviation of the Gaussian blur kernel, in pixels.
+
+        Ideally, `kernel_size` should be `2 * (3 * sigma) + 1`, so that the kernel
+        reaches its "3 sigma" (99.7% mass) point where the finitely sized kernel
+        cuts the tail. "2 sigma" (95% mass) is also acceptable, to save some compute.
+
+        The default settings create a slight blur without destroying much detail.
+        """
+        image[:, :, :] = torchvision.transforms.GaussianBlur((kernel_size, kernel_size), sigma=sigma)(image)
+
+    def analog_badhsync(self, image: torch.tensor, *,
+                        speed: float = 8.0,
+                        amplitude1: float = 0.001, density1: float = 4.0,
+                        amplitude2: Optional[float] = 0.001, density2: Optional[float] = 13.0,
+                        amplitude3: Optional[float] = 0.001, density3: Optional[float] = 27.0) -> None:
+        """Analog video signal with fluctuating hsync.
+
+        We superpose three waves with different densities (1 / cycle length)
+        to make the pattern look more irregular.
+
+        E.g. density of 2.0 means that two full waves fit into the image height.
+
+        Amplitudes are given in units where the height and width of the image
+        are both 2.0.
+        """
+        c, h, w = image.shape
+
+        # Seems the deformation geometry must be float32 no matter the image data type.
+        yy = torch.linspace(-1.0, 1.0, h, dtype=torch.float32, device=self.device)
+        xx = torch.linspace(-1.0, 1.0, w, dtype=torch.float32, device=self.device)
+        meshy, meshx = torch.meshgrid((yy, xx), indexing="ij")
+
+        # Animation
+        cycle_pos = (self.frame_no / h) * speed
+        cycle_pos = cycle_pos - float(int(cycle_pos))  # fractional part
+        cycle_pos = 1.0 - cycle_pos  # -> motion from top toward bottom
+        cycle_pos *= 2.0  # full cycle = 2 units
+
+        # Deformation
+        meshx = meshx + amplitude1 * torch.sin((density1 * (meshy + cycle_pos)) * math.pi)
+        if amplitude2 and density2:
+            meshx = meshx + amplitude2 * torch.sin((density2 * (meshy + cycle_pos)) * math.pi)
+        if amplitude3 and density3:
+            meshx = meshx + amplitude3 * torch.sin((density3 * (meshy + cycle_pos)) * math.pi)
+
+        grid = torch.stack((meshx, meshy), 2)
+        grid = grid.unsqueeze(0)  # batch of one
+        image_batch = image.unsqueeze(0)  # batch of one -> [1, c, h, w]
+        warped = torch.nn.functional.grid_sample(image_batch, grid, mode="bilinear", padding_mode="border", align_corners=False)
+        warped = warped.squeeze(0)  # [1, c, h, w] -> [c, h, w]
+        image[:, :, :] = warped
+
+    def _vhs_noise(self, image: torch.tensor, *,
+                   height: int) -> torch.tensor:
+        """Generate a horizontal band of noise that looks as if it came from a blank VHS tape.
+
+        `height`: desired height of noise band, in pixels.
+
+        Output is a tensor of shape `[1, height, w]`, where `w` is the postprocessor's input image width.
+        """
+        c, h, w = image.shape
+        # This looks best if we randomize the alpha channel, too.
+        noise_image = torch.rand(height, w, device=self.device, dtype=image.dtype).unsqueeze(0)  # [1, h, w]
+        # Real VHS noise has horizontal runs of the same color, and the transitions between black and white are smooth.
+        noise_image = torchvision.transforms.GaussianBlur((5, 1), sigma=2.0)(noise_image)
+        return noise_image
+
+    def analog_vhsglitches(self, image: torch.tensor, *,
+                           strength: float = 0.1,
+                           unboost: float = 4.0,
+                           max_glitches: int = 3,
+                           min_glitch_height: int = 3, max_glitch_height: int = 6) -> None:
+        """Damaged 1980s VHS video tape, with transient (per-frame) glitching lines.
+
+        This leaves the alpha channel alone, so the effect only affects parts that already show something.
+        This is an artistic interpretation that makes the effect less distracting when used with RGBA data.
+
+        `strength`: How much to blend in noise.
+        `unboost`: Use this to adjust the probability profile for the appearance of glitches.
+                   The higher `unboost` is, the less probable it is for glitches to appear at all,
+                   and there will be fewer of them (in the same video frame) when they do appear.
+        `max_glitches`: Maximum number of glitches in the video frame.
+        `min_glitch_height`, `max_glitch_height`: in pixels. The height is randomized separately for each glitch.
+        """
+        c, h, w = image.shape
+        n_glitches = torch.rand(1, device="cpu")**unboost  # higher probability of having none or few glitching lines
+        n_glitches = int(max_glitches * n_glitches[0])
+        if not n_glitches:
+            return
+        glitch_start_lines = torch.rand(n_glitches, device="cpu")
+        glitch_start_lines = [int((h - (max_glitch_height - 1)) * x) for x in glitch_start_lines]
+        for line in glitch_start_lines:
+            glitch_height = torch.rand(1, device="cpu")
+            glitch_height = int(min_glitch_height + (max_glitch_height - min_glitch_height) * glitch_height[0])
+            noise_image = self._vhs_noise(image, height=glitch_height)
+            # Apply glitch to RGB only, so fully transparent parts stay transparent (important to make the effect less distracting).
+            image[:3, line:(line + glitch_height), :] = (1.0 - strength) * image[:3, line:(line + glitch_height), :] + strength * noise_image
+
+    def analog_vhstracking(self, image: torch.tensor, *,
+                           base_offset: float = 0.03,
+                           max_dynamic_offset: float = 0.01,
+                           speed: float = 2.5) -> None:
+        """1980s VHS tape with bad tracking.
+
+        Image floats up and down, and a band of black and white noise appears at the bottom.
+
+        Units like in `analog_badhsync`.
+        """
+        c, h, w = image.shape
+
+        # Seems the deformation geometry must be float32 no matter the image data type.
+        yy = torch.linspace(-1.0, 1.0, h, dtype=torch.float32, device=self.device)
+        xx = torch.linspace(-1.0, 1.0, w, dtype=torch.float32, device=self.device)
+        meshy, meshx = torch.meshgrid((yy, xx), indexing="ij")
+
+        # Animation
+        cycle_pos = (self.frame_no / h) * speed
+        cycle_pos = cycle_pos - float(int(cycle_pos))  # fractional part
+        cycle_pos *= 2.0  # full cycle = 2 units
+
+        # Deformation - move image up/down
+        yoffs = max_dynamic_offset * math.sin(cycle_pos * math.pi)
+        meshy = meshy + yoffs
+
+        grid = torch.stack((meshx, meshy), 2)
+        grid = grid.unsqueeze(0)  # batch of one
+        image_batch = image.unsqueeze(0)  # batch of one -> [1, c, h, w]
+        warped = torch.nn.functional.grid_sample(image_batch, grid, mode="bilinear", padding_mode="border", align_corners=False)
+        warped = warped.squeeze(0)  # [1, c, h, w] -> [c, h, w]
+        image[:, :, :] = warped
+
+        # Noise from bad VHS tracking at bottom
+        yoffs_pixels = int((yoffs / 2.0) * 512.0)
+        base_offset_pixels = int((base_offset / 2.0) * 512.0)
+        noise_pixels = yoffs_pixels + base_offset_pixels
+        if noise_pixels > 0:
+            image[:, -noise_pixels:, :] = self._vhs_noise(image, height=noise_pixels)
+            # # Fade out toward left/right, since the character does not take up the full width.
+            # # Works, but fails at reaching the iconic VHS look.
+            # x = torch.linspace(0, math.pi, IMAGE_HEIGHT, dtype=image.dtype, device=self.device)
+            # fade = torch.sin(x)**2  # [w]
+            # fade = fade.unsqueeze(0)  # [1, w]
+            # image[3, -noise_pixels:, :] = fade
+
+    # --------------------------------------------------------------------------------
+    # CRT TV output
+
     def _rgb_to_hue(rgb: List[float]) -> float:
-        """Convert an RGB color to an HSL hue, for use as `bandpass_hue` in `apply_desaturate`.
+        """Convert an RGB color to an HSL hue, for use as `bandpass_hue` in `desaturate`.
 
         This uses a cartesian-to-polar approximation of the HSL representation,
         which is fine for hue detection, but should not be taken as an authoritative
@@ -395,10 +411,10 @@ class Postprocessor:
         return hue
 
     # This filter is adapted from an old GLSL code I made for Panda3D 1.8 back in 2014.
-    def apply_desaturate(self, image: torch.tensor,
-                         strength: float = 1.0,
-                         tint_rgb: List[float] = [1.0, 1.0, 1.0],
-                         bandpass_reference_rgb: List[float] = [1.0, 0.0, 0.0], bandpass_q: float = 0.0) -> None:
+    def desaturate(self, image: torch.tensor, *,
+                   strength: float = 1.0,
+                   tint_rgb: List[float] = [1.0, 1.0, 1.0],
+                   bandpass_reference_rgb: List[float] = [1.0, 0.0, 0.0], bandpass_q: float = 0.0) -> None:
         """Desaturation with bells and whistles.
 
         Does not touch the alpha channel.
@@ -468,3 +484,45 @@ class Postprocessor:
 
         # Final blend
         image[:3, :, :] = (1.0 - strength_field) * image[:3, :, :] + strength_field * tinted_desat_image
+
+    def banding(self, image: torch.tensor, *,
+                strength: float = 0.4,
+                density: float = 2.0,
+                speed: float = 16.0) -> None:
+        """Bad analog video signal, with traveling brighter and darker bands.
+
+        This simulates a CRT display as it looks when filmed on video without syncing.
+
+        `strength`: maximum brightness factor
+        `density`: how many banding cycles per full image height
+        `speed`: band movement, in pixels per frame
+        """
+        c, h, w = image.shape
+        yy = torch.linspace(0, math.pi, h, dtype=image.dtype, device=self.device)
+
+        # Animation
+        cycle_pos = (self.frame_no / h) * speed
+        cycle_pos = cycle_pos - float(int(cycle_pos))  # fractional part
+        cycle_pos = 1.0 - cycle_pos  # -> motion from top toward bottom
+
+        band_effect = torch.sin(density * yy + cycle_pos * math.pi)**2  # [h]
+        band_effect = torch.unsqueeze(band_effect, 0)  # -> [1, h] = [c, h]
+        band_effect = torch.unsqueeze(band_effect, 2)  # -> [1, h, 1] = [c, h, w]
+        image[:3, :, :].mul_(1.0 + strength * band_effect)
+        torch.clamp_(image, min=0.0, max=1.0)
+
+    def scanlines(self, image: torch.tensor, *,
+                  field: int = 0,
+                  dynamic: bool = True) -> None:
+        """CRT TV like scanlines.
+
+        `field`: Which CRT field is dimmed at the first frame. 0 = top, 1 = bottom.
+        `dynamic`: If `True`, the dimmed field will alternate each frame (top, bottom, top, bottom, ...)
+                   for a more authentic CRT look (like Phosphor deinterlacer in VLC).
+        """
+        if dynamic:
+            start = (field + self.frame_no) % 2
+        else:
+            start = field
+        # We should ideally modify just the Y channel in YUV space, but modifying the alpha instead looks alright.
+        image[3, start::2, :].mul_(0.5)
