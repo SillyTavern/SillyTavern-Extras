@@ -106,7 +106,6 @@ class Postprocessor:
             start = field
         # We should ideally modify just the Y channel in YUV space, but modifying the alpha instead looks alright.
         image[3, start::2, :].mul_(0.5)
-        self.frame_no += 1
 
     def apply_alphanoise(self, image: torch.tensor, magnitude: float = 0.1, sigma: float = 0.0) -> None:
         """Dynamic noise to alpha channel. A cheap alternative to luma noise.
