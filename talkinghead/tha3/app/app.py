@@ -567,13 +567,11 @@ class TalkingheadAnimator:
             output_image.add_(1.0)
             output_image.mul_(0.5)
 
-            c, h, w = output_image.shape
-
-            self.postprocessor.render_into(output_image)
-
+            self.postprocessor.render_into(output_image)  # apply pixel-space glitch artistry
             output_image = convert_linear_to_srgb(output_image)  # apply gamma correction
 
             # convert [c, h, w] float -> [h, w, c] uint8
+            c, h, w = output_image.shape
             output_image = torch.transpose(output_image.reshape(c, h * w), 0, 1).reshape(h, w, c)
             output_image = (255.0 * output_image).byte()
 
