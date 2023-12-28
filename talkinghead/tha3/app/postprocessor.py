@@ -11,7 +11,6 @@ import torchvision
 
 # TODO:
 #   - add configuration support to the client, pass the data all the way here (from ST client, to ST server, to ST-extras server, to talkinghead)
-#   - create the base meshgrid for image coordinates only once (not once per effect per frame, as now)
 
 # Default configuration for the postprocessor.
 # This documents the correct ordering of the filters.
@@ -63,12 +62,33 @@ class Postprocessor:
         if chain is None:
             chain = default_chain
         self.chain = chain
+        self._prev_h = None
+        self._prev_w = None
 
     def render_into(self, image):
         """Apply current postprocess chain, modifying `image`."""
+        c, h, w = image.shape
+        if h != self._prev_h or w != self._prev_w:
+            # Compute base meshgrid for the geometric position of each pixel.
+            # This is needed by filters that either vary by geometric position (e.g. `vignetting`),
+            # or deform the image (e.g. `analog_badhsync`).
+            #
+            # This postprocessor is typically applied to a video stream. As long as
+            # the image dimensions stay constant, we can re-use the previous meshgrid.
+            #
+            # We don't strictly keep state here - we just cache. :P
+
+            # Seems the deformation geometry must be float32 no matter the image data type.
+            self._yy = torch.linspace(-1.0, 1.0, h, dtype=torch.float32, device=self.device)
+            self._xx = torch.linspace(-1.0, 1.0, w, dtype=torch.float32, device=self.device)
+            self._meshy, self._meshx = torch.meshgrid((self._yy, self._xx), indexing="ij")
+            self._prev_h = h
+            self._prev_w = w
+
         for filter_name, settings in self.chain:
             apply_filter = getattr(self, filter_name)
             apply_filter(image, **settings)
+
         self.frame_no += 1
 
     # --------------------------------------------------------------------------------
@@ -138,17 +158,10 @@ class Postprocessor:
         See:
             https://en.wikipedia.org/wiki/Chromatic_aberration
         """
-        c, h, w = image.shape
-
-        # Seems the deformation geometry must be float32 no matter the image data type.
-        yy = torch.linspace(-1.0, 1.0, h, dtype=torch.float32, device=self.device)
-        xx = torch.linspace(-1.0, 1.0, w, dtype=torch.float32, device=self.device)
-        meshy, meshx = torch.meshgrid((yy, xx), indexing="ij")
-
         # Axial: Shrink R (deflected less), pass G through (lens reference wavelength), enlarge B (deflected more).
-        grid_R = torch.stack((meshx * (1.0 + axial_scale), meshy * (1.0 + axial_scale)), 2)
+        grid_R = torch.stack((self._meshx * (1.0 + axial_scale), self._meshy * (1.0 + axial_scale)), 2)
         grid_R = grid_R.unsqueeze(0)
-        grid_B = torch.stack((meshx * (1.0 - axial_scale), meshy * (1.0 - axial_scale)), 2)
+        grid_B = torch.stack((self._meshx * (1.0 - axial_scale), self._meshy * (1.0 - axial_scale)), 2)
         grid_B = grid_B.unsqueeze(0)
 
         image_batch_R = image[0, :, :].unsqueeze(0).unsqueeze(0)  # [h, w] -> [c, h, w] -> [n, c, h, w]
@@ -183,15 +196,7 @@ class Postprocessor:
         from the center, scaled such that `d = 1.0` is reached at the corners.
         Thus, at the midpoints of the frame edges, `d = 1 / sqrt(2) ~ 0.707`.
         """
-        c, h, w = image.shape
-
-        # Seems the deformation geometry must be float32 no matter the image data type.
-        yy = torch.linspace(-1.0, 1.0, h, dtype=torch.float32, device=self.device)
-        xx = torch.linspace(-1.0, 1.0, w, dtype=torch.float32, device=self.device)
-        meshy, meshx = torch.meshgrid((yy, xx), indexing="ij")
-
-        euclidean_distance_from_center = (meshy**2 + meshx**2)**0.5 / 2**0.5  # [h, w]
-
+        euclidean_distance_from_center = (self._meshy**2 + self._meshx**2)**0.5 / 2**0.5  # [h, w]
         brightness = torch.cos(strength * euclidean_distance_from_center * math.pi)**2  # [h, w]
         brightness = torch.unsqueeze(brightness, 0)  # -> [1, h, w]
         image[:3, :, :] *= brightness
@@ -273,11 +278,6 @@ class Postprocessor:
         """
         c, h, w = image.shape
 
-        # Seems the deformation geometry must be float32 no matter the image data type.
-        yy = torch.linspace(-1.0, 1.0, h, dtype=torch.float32, device=self.device)
-        xx = torch.linspace(-1.0, 1.0, w, dtype=torch.float32, device=self.device)
-        meshy, meshx = torch.meshgrid((yy, xx), indexing="ij")
-
         # Animation
         cycle_pos = (self.frame_no / h) * speed
         cycle_pos = cycle_pos - float(int(cycle_pos))  # fractional part
@@ -285,11 +285,12 @@ class Postprocessor:
         cycle_pos *= 2.0  # full cycle = 2 units
 
         # Deformation
-        meshx = meshx + amplitude1 * torch.sin((density1 * (meshy + cycle_pos)) * math.pi)
+        meshy = self._meshy
+        meshx = self._meshx + amplitude1 * torch.sin((density1 * (self._meshy + cycle_pos)) * math.pi)
         if amplitude2 and density2:
-            meshx = meshx + amplitude2 * torch.sin((density2 * (meshy + cycle_pos)) * math.pi)
+            meshx = self._meshx + amplitude2 * torch.sin((density2 * (self._meshy + cycle_pos)) * math.pi)
         if amplitude3 and density3:
-            meshx = meshx + amplitude3 * torch.sin((density3 * (meshy + cycle_pos)) * math.pi)
+            meshx = self._meshx + amplitude3 * torch.sin((density3 * (self._meshy + cycle_pos)) * math.pi)
 
         grid = torch.stack((meshx, meshy), 2)
         grid = grid.unsqueeze(0)  # batch of one
@@ -356,11 +357,6 @@ class Postprocessor:
         """
         c, h, w = image.shape
 
-        # Seems the deformation geometry must be float32 no matter the image data type.
-        yy = torch.linspace(-1.0, 1.0, h, dtype=torch.float32, device=self.device)
-        xx = torch.linspace(-1.0, 1.0, w, dtype=torch.float32, device=self.device)
-        meshy, meshx = torch.meshgrid((yy, xx), indexing="ij")
-
         # Animation
         cycle_pos = (self.frame_no / h) * speed
         cycle_pos = cycle_pos - float(int(cycle_pos))  # fractional part
@@ -368,7 +364,8 @@ class Postprocessor:
 
         # Deformation - move image up/down
         yoffs = max_dynamic_offset * math.sin(cycle_pos * math.pi)
-        meshy = meshy + yoffs
+        meshy = self._meshy + yoffs
+        meshx = self._meshx
 
         grid = torch.stack((meshx, meshy), 2)
         grid = grid.unsqueeze(0)  # batch of one
