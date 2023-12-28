@@ -305,7 +305,7 @@ class Postprocessor:
 
         `height`: desired height of noise band, in pixels.
 
-        Output is a tensor of shape `[1, height, w]`, where `w` is the postprocessor's input image width.
+        Output is a tensor of shape `[1, height, w]`, where `w` is the width of `image`.
         """
         c, h, w = image.shape
         # This looks best if we randomize the alpha channel, too.
