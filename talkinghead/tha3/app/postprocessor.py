@@ -69,10 +69,6 @@ class Postprocessor:
         for filter_name, settings in self.chain:
             apply_filter = getattr(self, filter_name)
             apply_filter(image, **settings)
-        self.frame_complete()
-
-    def frame_complete(self):
-        """Mark frame as complete, incrementing the frame counter."""
         self.frame_no += 1
 
     # --------------------------------------------------------------------------------
