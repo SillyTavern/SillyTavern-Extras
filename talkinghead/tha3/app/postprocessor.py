@@ -382,8 +382,8 @@ class Postprocessor:
             image[:, -noise_pixels:, :] = self._vhs_noise(image, height=noise_pixels)
             # # Fade out toward left/right, since the character does not take up the full width.
             # # Works, but fails at reaching the iconic VHS look.
-            # x = torch.linspace(0, math.pi, IMAGE_HEIGHT, dtype=image.dtype, device=self.device)
-            # fade = torch.sin(x)**2  # [w]
+            # xx = torch.linspace(0, math.pi, w, dtype=image.dtype, device=self.device)
+            # fade = torch.sin(xx)**2  # [w]
             # fade = fade.unsqueeze(0)  # [1, w]
             # image[3, -noise_pixels:, :] = fade
 
