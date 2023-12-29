@@ -4,7 +4,7 @@ These effects work in linear intensity space, before gamma correction.
 """
 
 import math
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple, TypeVar, Union
 
 import torch
 import torchvision
@@ -32,9 +32,13 @@ default_chain = [
                  ("scanlines", {})
                 ]
 
+T = TypeVar("T")
+Atom = Union[str, bool, int, float]
+MaybeContained = Union[T, List[T], Dict[str: T]]
+
 class Postprocessor:
     """
-    `chain`: Postprocessor filter chain configuration. If `None`, use a hardcoded default configuration (for testing).
+    `chain`: Postprocessor filter chain configuration.
 
              Don't mind the complicated type signature; the format is just::
 
@@ -42,15 +46,29 @@ class Postprocessor:
                   ...]
 
              The filter name must be a method of `Postprocessor`, taking in an image, and any number of named parameters.
-             The value types are restricted to `[str, bool, int, float]` so that these configurations JSON easily.
-
              To use a filter's default parameter values, supply an empty dictionary for the parameters.
 
-             Stored as `self.chain`. Any modifications to that attribute modify the chain, taking effect immediately.
-             It is recommended to do an atomic update, by `my_postprocessor.chain = my_new_chain`.
+             The outer `Optional[List[Tuple[...]]]` just formalizes that `chain` may be omitted (to use the built-in
+             default chain, for testing), and the top-level format that it's an ordered list of filters. The filters
+             are applied in order, first to last.
+
+             The auxiliary type definitions are::
+
+                 MaybeContained = Union[T, List[T], Dict[str: T]]
+                 Atom = Union[str, bool, int, float]
+
+             The leaf value (atom) types are restricted so that filter chain configurations JSON easily.
+
+             The leaf values may actually be contained inside arbitrarily nested lists and dicts (with str keys),
+             which is currently not captured by the type signature (the definition should be recursive).
+
+             The chain is stored as `self.chain`. Any modifications to that attribute modify the chain,
+             taking effect immediately. It is recommended to update the chain atomically, by::
+
+                 my_postprocessor.chain = my_new_chain
     """
 
-    def __init__(self, device: torch.device, chain: Optional[List[Tuple[str, Dict[str, Union[str, bool, int, float]]]]] = None):
+    def __init__(self, device: torch.device, chain: Optional[List[Tuple[str, Dict[str, MaybeContained[Atom]]]]] = None):
         # We intentionally keep very little state in this class, for a more FP/REST approach with less bugs.
         # There's just the device info, a frame counter, and the current filter chain config (which is read at every frame).
         # The filters themselves are stateless; but note that they overwrite the image being processed.
