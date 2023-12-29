@@ -34,7 +34,7 @@ default_chain = [
 
 T = TypeVar("T")
 Atom = Union[str, bool, int, float]
-MaybeContained = Union[T, List[T], Dict[str: T]]
+MaybeContained = Union[T, List[T], Dict[str, T]]
 
 class Postprocessor:
     """
