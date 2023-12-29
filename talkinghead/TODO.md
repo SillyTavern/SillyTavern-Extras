@@ -29,8 +29,9 @@
     - Apply to random rectangles; may need to persist for a few frames to animate and/or make them more noticeable
     - May need to protect important regions like the character's head (approximately, from the template); we're after "Hollywood glitchy", not actually glitchy
     - Types:
+      - Constant-color rectangle
       - Missing data (zero out the alpha?)
-      - Blur (leads to replacing by average color)
+      - Blur (leads to replacing by average color, with controllable sigma)
       - Zigzag deformation
 - PNG sending efficiency? Look into encoding the stream into YUVA420 using `ffmpeg`.
 - Investigate if some particular emotions could use a small random per-frame oscillation applied to "iris_small",
