@@ -9,9 +9,6 @@ from typing import Dict, List, Optional, Tuple, Union
 import torch
 import torchvision
 
-# TODO:
-#   - add configuration support to the client, pass the data all the way here (from ST client, to ST server, to ST-extras server, to talkinghead)
-
 # Default configuration for the postprocessor.
 # This documents the correct ordering of the filters.
 # Feel free to improvise, but make sure to understand why your filter chain makes sense.

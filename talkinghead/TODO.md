@@ -2,16 +2,18 @@
 
 ### Live mode
 
-- Add a config file
-  - Output target FPS
-  - Postprocessor effect settings
-  - Animation parameters (ideally per character, but let's make a global version first)
-    - Blink timing: `blink_interval` min/max
-    - Blink probability per frame
-    - "confusion" emotion initial segment duration (where blinking quickly in succession is allowed)
-    - Sway timing: `sway_interval` min/max
-    - Sway strength (`max_random`, `max_noise`)
-    - Breathing cycle duration
+- Add configuration support to the client
+  - Pass the data all the way here (from ST client, to ST server, to ST-extras server, to talkinghead)
+  - Configuration:
+    - Output target FPS
+    - Postprocessor effect chain (including settings)
+    - Animation parameters (ideally per character, but let's make a global version first)
+      - Blink timing: `blink_interval` min/max
+      - Blink probability per frame
+      - "confusion" emotion initial segment duration (where blinking quickly in succession is allowed)
+      - Sway timing: `sway_interval` min/max
+     - Sway strength (`max_random`, `max_noise`)
+      - Breathing cycle duration
 - Improve frame timing
   - Try to keep the output FPS constant
     - Use a queue or an event instead of a polling loop? Difficult to get this working at plugin startup time.
