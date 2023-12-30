@@ -30,7 +30,7 @@ from tha3.poser.poser import Poser
 from tha3.util import (torch_linear_to_srgb, resize_PIL_image,
                        extract_PIL_image_from_filelike, extract_pytorch_image_from_PIL_image)
 from tha3.app.postprocessor import Postprocessor
-from tha3.app.util import posedict_keys, posedict_key_to_index, load_emotion_presets, posedict_to_pose, to_talkinghead_image, FpsStatistics
+from tha3.app.util import posedict_keys, posedict_key_to_index, load_emotion_presets, posedict_to_pose, to_talkinghead_image, RunningAverage
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -101,21 +101,38 @@ def stop_talking() -> str:
     logger.debug("stop_talking called")
     return "stopped"
 
-# Despite the global interpreter lock, by my measurements it's useful to divide responsibilities
-# into three threads to get the most accurate timing for the network send:
+# There are three tasks we must do each frame:
+#
 #   1) Render animation frame
 #   2) Encode new frame for network transport
 #   3) Send frame over network
-# Either there's enough waiting for I/O for the split between render and encode to make a difference,
-# or it's the fact that most of the work in both of those is performed inside C libraries that
-# release the GIL (Torch, and the PNG encoder in Pillow, respectively).
+#
+# Instead of running serially:
+#
+#   [render1][encode1][send] [render2][encode2][send]
+# ----------------------------------------------------> time
+#
+# we get better throughput if (at the cost of introducing a one-frame buffer):
+#
+#   [render2]       [render3]
+#   [encode1]       [encode2]
+#            [send]          [send]
+# ----------------------------------> time
+#
+# Despite the global interpreter lock, this increases throughput, as well as improves the timing of the network send
+# since the network thread only needs to care about getting the send timing right.
+#
+# Either there's enough waiting for I/O for the split between render and encode to make a difference, or it's the fact
+# that most of the work in both of those is performed inside C libraries that release the GIL (Torch, and the PNG encoder
+# in Pillow, respectively).
+#
 def result_feed() -> Response:
     """Return a Flask `Response` that repeatedly yields the current image as 'image/png'."""
     def generate():
         last_frame_send_complete_time = None
         last_report_time = None
         send_duration_sec = 0.0
-        fps_statistics = FpsStatistics()
+        send_duration_statistics = RunningAverage()
 
         while True:
             # Send the animation frame.
@@ -127,12 +144,12 @@ def result_feed() -> Response:
                 # Thus, if we have a new frame, or enough time has elapsed already (slow GPU or running on CPU), send it now. Otherwise wait for a bit.
                 # Target an acceptable anime frame rate of 25 FPS.
                 TARGET_FPS = 30
-                target_time_sec = 1 / TARGET_FPS
+                frame_duration_target_sec = 1 / TARGET_FPS
                 if last_frame_send_complete_time is not None:
                     time_now = time.time_ns()
-                    elapsed_sec = (time_now - last_frame_send_complete_time) / 10**9
+                    this_frame_elapsed_sec = (time_now - last_frame_send_complete_time) / 10**9
                     # The 2* is a fudge factor. It doesn't matter if the frame is a bit too early, but we don't want it to be late.
-                    time_until_frame_deadline = target_time_sec - elapsed_sec - 2 * send_duration_sec
+                    time_until_frame_deadline = frame_duration_target_sec - this_frame_elapsed_sec - 2 * send_duration_sec
                 else:
                     time_until_frame_deadline = 0.0  # nothing rendered yet
 
@@ -146,9 +163,8 @@ def result_feed() -> Response:
                     # Update the FPS counter, measuring the time between network sends.
                     time_now = time.time_ns()
                     if last_frame_send_complete_time is not None:
-                        elapsed_sec = (time_now - last_frame_send_complete_time) / 10**9
-                        fps = 1.0 / elapsed_sec
-                        fps_statistics.add_fps(fps)
+                        this_frame_elapsed_sec = (time_now - last_frame_send_complete_time) / 10**9
+                        send_duration_statistics.add_datapoint(this_frame_elapsed_sec)
                     last_frame_send_complete_time = time_now
                 else:
                     time.sleep(time_until_frame_deadline)
@@ -156,8 +172,10 @@ def result_feed() -> Response:
                 # Log the FPS counter in 5-second intervals.
                 time_now = time.time_ns()
                 if animation_running and (last_report_time is None or time_now - last_report_time > 5e9):
-                    trimmed_fps = round(fps_statistics.get_average_fps(), 1)
-                    logger.info(f"network FPS: {trimmed_fps:.1f} [target {TARGET_FPS:.1f}]")
+                    avg_send_sec = send_duration_statistics.average()
+                    msec = round(1000 * avg_send_sec, 1)
+                    fps = round(1 / avg_send_sec, 1) if avg_send_sec > 0.0 else 0.0
+                    logger.info(f"output thread: {msec:.1f}ms [{fps} FPS; target {TARGET_FPS:.1f} FPS]")
                     last_report_time = time_now
 
             else:  # first frame not yet available
@@ -240,7 +258,7 @@ class Animator:
         self.reset_animation_state()
 
         self.postprocessor = Postprocessor(device)
-        self.fps_statistics = FpsStatistics()
+        self.render_duration_statistics = RunningAverage()
         self.animator_thread = None
 
         self.source_image: Optional[torch.tensor] = None
@@ -580,8 +598,7 @@ class Animator:
         time_now = time.time_ns()
         if self.source_image is not None:
             render_elapsed_sec = (time_now - time_render_start) / 10**9
-            fps = 1.0 / render_elapsed_sec
-            self.fps_statistics.add_fps(fps)
+            self.render_duration_statistics.add_datapoint(render_elapsed_sec)
 
         # Set the new rendered frame as the output image, and mark the frame as ready for consumption.
         with _animator_output_lock:
@@ -590,8 +607,10 @@ class Animator:
 
         # Log the FPS counter in 5-second intervals.
         if animation_running and (self.last_report_time is None or time_now - self.last_report_time > 5e9):
-            trimmed_fps = round(self.fps_statistics.get_average_fps(), 1)
-            logger.info(f"available render FPS: {trimmed_fps:.1f}")
+            avg_render_sec = self.render_duration_statistics.average()
+            msec = round(1000 * avg_render_sec, 1)
+            fps = round(1 / avg_render_sec, 1) if avg_render_sec > 0.0 else 0.0
+            logger.info(f"render thread: {msec:.1f}ms [{fps} FPS available]")
             self.last_report_time = time_now
 
 
@@ -612,7 +631,7 @@ class Encoder:
         self._terminated = False
         def encoder_update():
             last_report_time = None
-            fps_statistics = FpsStatistics()
+            encode_duration_statistics = RunningAverage()
 
             while not self._terminated:
                 # Retrieve a new frame from the animator if available.
@@ -650,14 +669,15 @@ class Encoder:
                     # Update FPS counter.
                     time_now = time.time_ns()
                     encode_elapsed_sec = (time_now - time_encode_start) / 10**9
-                    fps = 1.0 / encode_elapsed_sec
-                    fps_statistics.add_fps(fps)
+                    encode_duration_statistics.add_datapoint(encode_elapsed_sec)
 
                 # Log the FPS counter in 5-second intervals.
                 time_now = time.time_ns()
                 if animation_running and (last_report_time is None or time_now - last_report_time > 5e9):
-                    trimmed_fps = round(fps_statistics.get_average_fps(), 1)
-                    logger.info(f"available encode FPS: {trimmed_fps:.1f}")
+                    avg_encode_sec = encode_duration_statistics.average()
+                    msec = round(1000 * avg_encode_sec, 1)
+                    fps = round(1 / avg_encode_sec, 1) if avg_encode_sec > 0.0 else 0.0
+                    logger.info(f"encode thread: {msec:.1f}ms [{fps} FPS available]")
                     last_report_time = time_now
 
                 time.sleep(0.01)  # rate-limit the encoder to 100 FPS maximum (this could be adjusted later)

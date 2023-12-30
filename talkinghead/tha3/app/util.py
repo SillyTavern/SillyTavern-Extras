@@ -4,7 +4,7 @@ __all__ = ["posedict_keys", "posedict_key_to_index",
            "load_emotion_presets",
            "posedict_to_pose", "pose_to_posedict",
            "torch_image_to_numpy", "to_talkinghead_image",
-           "FpsStatistics"]
+           "RunningAverage"]
 
 import logging
 import json
@@ -177,19 +177,19 @@ def to_talkinghead_image(image: PIL.Image, new_size: Tuple[int] = (512, 512)) ->
 
 # --------------------------------------------------------------------------------
 
-class FpsStatistics:
-    """A simple average FPS (frames per second) counter."""
+class RunningAverage:
+    """A simple running average, for things like FPS (frames per second) counters."""
     def __init__(self):
         self.count = 100
-        self.fps = []
+        self.data = []
 
-    def add_fps(self, fps: float) -> None:
-        self.fps.append(fps)
-        while len(self.fps) > self.count:
-            del self.fps[0]
+    def add_datapoint(self, data: float) -> None:
+        self.data.append(data)
+        while len(self.data) > self.count:
+            del self.data[0]
 
-    def get_average_fps(self) -> float:
-        if len(self.fps) == 0:
+    def average(self) -> float:
+        if len(self.data) == 0:
             return 0.0
         else:
-            return sum(self.fps) / len(self.fps)
+            return sum(self.data) / len(self.data)

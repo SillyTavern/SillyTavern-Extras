@@ -68,7 +68,7 @@ import wx
 from tha3.poser.modes.load_poser import load_poser
 from tha3.poser.poser import Poser, PoseParameterCategory, PoseParameterGroup
 from tha3.util import resize_PIL_image, extract_PIL_image_from_filelike, extract_pytorch_image_from_PIL_image
-from tha3.app.util import load_emotion_presets, posedict_to_pose, pose_to_posedict, torch_image_to_numpy, FpsStatistics
+from tha3.app.util import load_emotion_presets, posedict_to_pose, pose_to_posedict, torch_image_to_numpy, RunningAverage
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -361,7 +361,7 @@ class MainFrame(wx.Frame):
         self.init_right_panel()
         self.main_sizer.Fit(self)
 
-        self.fps_statistics = FpsStatistics()
+        self.fps_statistics = RunningAverage()
 
         self.timer = wx.Timer(self, wx.ID_ANY)
         self.Bind(wx.EVT_TIMER, self.update_images, self.timer)
@@ -824,8 +824,8 @@ class MainFrame(wx.Frame):
                         elapsed_time = time.time_ns() - last_update_time
                         fps = 1.0 / (elapsed_time / 10**9)
                         if self.torch_source_image is not None:
-                            self.fps_statistics.add_fps(fps)
-                        self.fps_text.SetLabelText(f"Render: {self.fps_statistics.get_average_fps():0.2f} FPS")
+                            self.fps_statistics.add_datapoint(fps)
+                        self.fps_text.SetLabelText(f"Render: {self.fps_statistics.average():0.2f} FPS")
 
                     self.update_in_progress = False
                 wx.CallAfter(update_images_cont2)
