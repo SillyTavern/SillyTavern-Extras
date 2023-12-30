@@ -41,7 +41,7 @@ logger = logging.getLogger(__name__)
 talkinghead_basedir = "talkinghead"
 
 global_animator_instance = None
-_animator_output_lock = threading.Lock()  # protect from concurrent access to `result_image` and the `frame_ready` flag.
+_animator_output_lock = threading.Lock()  # protect from concurrent access to `result_image` and the `new_frame_available` flag.
 global_encoder_instance = None
 
 # These need to be written to by the API functions.
@@ -175,7 +175,7 @@ def result_feed() -> Response:
                     avg_send_sec = send_duration_statistics.average()
                     msec = round(1000 * avg_send_sec, 1)
                     fps = round(1 / avg_send_sec, 1) if avg_send_sec > 0.0 else 0.0
-                    logger.info(f"output thread: {msec:.1f}ms [{fps} FPS; target {TARGET_FPS:.1f} FPS]")
+                    logger.info(f"output: {msec:.1f}ms [{fps} FPS; target {TARGET_FPS:.1f} FPS]")
                     last_report_time = time_now
 
             else:  # first frame not yet available
@@ -263,7 +263,7 @@ class Animator:
 
         self.source_image: Optional[torch.tensor] = None
         self.result_image: Optional[np.array] = None
-        self.frame_ready = False
+        self.new_frame_available = False
         self.last_report_time = None
 
         self.emotions, self.emotion_names = load_emotion_presets(os.path.join("talkinghead", "emotions"))
@@ -276,7 +276,11 @@ class Animator:
         self._terminated = False
         def animator_update():
             while not self._terminated:
-                self.render_animation_frame()
+                try:
+                    self.render_animation_frame()
+                except Exception as exc:
+                    logger.error(exc)
+                    raise  # let the animator stop so we won't spam the log
                 time.sleep(0.01)  # rate-limit the renderer to 100 FPS maximum (this could be adjusted later)
         self.animator_thread = threading.Thread(target=animator_update, daemon=True)
         self.animator_thread.start()
@@ -542,8 +546,8 @@ class Animator:
         if not animation_running:
             return
 
-        # If no one has retrieved the previous frame yet, do not render a new one.
-        if self.frame_ready:
+        # If no one has retrieved the latest rendered frame yet, do not render a new one.
+        if self.new_frame_available:
             return
 
         if global_reload_image is not None:
@@ -602,15 +606,15 @@ class Animator:
 
         # Set the new rendered frame as the output image, and mark the frame as ready for consumption.
         with _animator_output_lock:
-            self.result_image = output_image_numpy
-            self.frame_ready = True
+            self.result_image = output_image_numpy  # atomic replace
+            self.new_frame_available = True
 
         # Log the FPS counter in 5-second intervals.
         if animation_running and (self.last_report_time is None or time_now - self.last_report_time > 5e9):
             avg_render_sec = self.render_duration_statistics.average()
             msec = round(1000 * avg_render_sec, 1)
             fps = round(1 / avg_render_sec, 1) if avg_render_sec > 0.0 else 0.0
-            logger.info(f"render thread: {msec:.1f}ms [{fps} FPS available]")
+            logger.info(f"render: {msec:.1f}ms [{fps} FPS available]")
             self.last_report_time = time_now
 
 
@@ -638,33 +642,34 @@ class Encoder:
                 have_new_frame = False
                 time_encode_start = time.time_ns()
                 with _animator_output_lock:
-                    if global_animator_instance.frame_ready:
+                    if global_animator_instance.new_frame_available:
                         image_rgba = global_animator_instance.result_image
-                        try:
-                            pil_image = PIL.Image.fromarray(np.uint8(image_rgba[:, :, :3]))
-                            if image_rgba.shape[2] == 4:
-                                alpha_channel = image_rgba[:, :, 3]
-                                pil_image.putalpha(PIL.Image.fromarray(np.uint8(alpha_channel)))
-                            global_animator_instance.frame_ready = False  # Animation frame consumed; tell the animator it can begin rendering the next one.
-                            have_new_frame = True  # This flag is needed so we can release the animator lock as early as possible.
-                        except Exception as exc:
-                            logger.error(exc)
+                        global_animator_instance.new_frame_available = False  # animation frame consumed
+                        have_new_frame = True  # This flag is needed so we can release the animator lock as early as possible.
 
                 # Pack the new animation frame for sending.
                 if have_new_frame:
                     try:
-                        # time_now = time.time_ns()
-                        buffer = io.BytesIO()  # Save as PNG with RGBA mode
-                        pil_image.save(buffer, format="PNG", compress_level=1)
-                        self.image_bytes = buffer.getvalue()  # atomic replace so no need for a lock
+                        pil_image = PIL.Image.fromarray(np.uint8(image_rgba[:, :, :3]))
+                        if image_rgba.shape[2] == 4:
+                            alpha_channel = image_rgba[:, :, 3]
+                            pil_image.putalpha(PIL.Image.fromarray(np.uint8(alpha_channel)))
+
+                        # Save as PNG with RGBA mode. Use the fastest compression level available.
+                        #
                         # On an i7-12700H @ 2.3 GHz (laptop optimized for low fan noise):
                         #  - `compress_level=1` (fastest), about 20 ms
                         #  - `compress_level=6` (default), about 40 ms (!) - too slow!
-                        #  - `compress_level=9` (most compact), about 120 ms
+                        #  - `compress_level=9` (smallest size), about 120 ms
+                        #
+                        # time_now = time.time_ns()
+                        buffer = io.BytesIO()
+                        pil_image.save(buffer, format="PNG", compress_level=1)
+                        self.image_bytes = buffer.getvalue()  # atomic replace so no need for a lock
                         # pack_duration_sec = (time.time_ns() - time_now) / 10**9
                     except Exception as exc:
-                        logger.error(f"Cannot write image to buffer: {exc}")
-                        raise
+                        logger.error(exc)
+                        raise  # let the encoder stop so we won't spam the log
 
                     # Update FPS counter.
                     time_now = time.time_ns()
@@ -677,7 +682,7 @@ class Encoder:
                     avg_encode_sec = encode_duration_statistics.average()
                     msec = round(1000 * avg_encode_sec, 1)
                     fps = round(1 / avg_encode_sec, 1) if avg_encode_sec > 0.0 else 0.0
-                    logger.info(f"encode thread: {msec:.1f}ms [{fps} FPS available]")
+                    logger.info(f"encode: {msec:.1f}ms [{fps} FPS available]")
                     last_report_time = time_now
 
                 time.sleep(0.01)  # rate-limit the encoder to 100 FPS maximum (this could be adjusted later)
