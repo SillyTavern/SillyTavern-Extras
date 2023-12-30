@@ -174,8 +174,9 @@ def result_feed() -> Response:
                 if animation_running and (last_report_time is None or time_now - last_report_time > 5e9):
                     avg_send_sec = send_duration_statistics.average()
                     msec = round(1000 * avg_send_sec, 1)
+                    target_msec = round(1000 * frame_duration_target_sec, 1)
                     fps = round(1 / avg_send_sec, 1) if avg_send_sec > 0.0 else 0.0
-                    logger.info(f"output: {msec:.1f}ms [{fps} FPS; target {TARGET_FPS:.1f} FPS]")
+                    logger.info(f"output: {msec:.1f}ms [{fps:.1f} FPS]; target {target_msec:.1f}ms [{TARGET_FPS:.1f} FPS]")
                     last_report_time = time_now
 
             else:  # first frame not yet available
