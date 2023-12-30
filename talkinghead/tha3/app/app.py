@@ -140,9 +140,6 @@ def result_feed() -> Response:
                 # How often should we send?
                 #  - Excessive spamming can DoS the SillyTavern GUI, so there needs to be a rate limit.
                 #  - OTOH, we must constantly send something, or the GUI will lock up waiting.
-                #
-                # Thus, if we have a new frame, or enough time has elapsed already (slow GPU or running on CPU), send it now. Otherwise wait for a bit.
-                # Target an acceptable anime frame rate of 25 FPS.
                 TARGET_FPS = 30
                 frame_duration_target_sec = 1 / TARGET_FPS
                 if last_frame_send_complete_time is not None:
@@ -645,10 +642,10 @@ class Encoder:
                 with _animator_output_lock:
                     if global_animator_instance.new_frame_available:
                         image_rgba = global_animator_instance.result_image
-                        global_animator_instance.new_frame_available = False  # animation frame consumed
+                        global_animator_instance.new_frame_available = False  # animation frame consumed; start rendering the next one
                         have_new_frame = True  # This flag is needed so we can release the animator lock as early as possible.
 
-                # Pack the new animation frame for sending.
+                # Pack the latest available animation frame for sending (but only once for each new frame).
                 if have_new_frame:
                     try:
                         pil_image = PIL.Image.fromarray(np.uint8(image_rgba[:, :, :3]))
