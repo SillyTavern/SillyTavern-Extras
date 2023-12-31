@@ -104,28 +104,50 @@ def stop_talking() -> str:
 
 # There are three tasks we must do each frame:
 #
-#   1) Render animation frame
-#   2) Encode new frame for network transport
-#   3) Send frame over network
+#   1) Render an animation frame
+#   2) Encode the new animation frame for network transport
+#   3) Send the animation frame over the network
 #
 # Instead of running serially:
 #
-#   [render1][encode1][send] [render2][encode2][send]
+#   [render1][encode1][send1] [render2][encode2][send2]
+# ------------------------------------------------------> time
+#
+# we get better throughput by parallelizing and interleaving:
+#
+#   [render1] [render2] [render3] [render4] [render5]
+#             [encode1] [encode2] [encode3] [encode4]
+#                       [send1]   [send2]   [send3]
 # ----------------------------------------------------> time
-#
-# we get better throughput if (at the cost of introducing a one-frame buffer):
-#
-#   [render2]       [render3]
-#   [encode1]       [encode2]
-#            [send]          [send]
-# ----------------------------------> time
 #
 # Despite the global interpreter lock, this increases throughput, as well as improves the timing of the network send
 # since the network thread only needs to care about getting the send timing right.
 #
 # Either there's enough waiting for I/O for the split between render and encode to make a difference, or it's the fact
-# that most of the work in both of those is performed inside C libraries that release the GIL (Torch, and the PNG encoder
-# in Pillow, respectively).
+# that much of the compute-heavy work in both of those is performed inside C libraries that release the GIL (Torch,
+# and the PNG encoder in Pillow, respectively).
+#
+# This is a simplified picture. Some important details:
+#
+#   - At startup:
+#     - The animator renders the first frame on its own.
+#     - The encoder waits for the animator to publish a frame, and then starts normal operation.
+#     - The network thread waits for the encoder to publish a frame, and then starts normal operation.
+#   - In normal operation (after startup):
+#     - The animator waits until the encoder has consumed the previous published frame. Then it proceeds to render and publish a new frame.
+#       - This communication is handled through the flag `animator.new_frame_available`.
+#     - The network thread does its own thing on a regular schedule, based on the desired target FPS.
+#       - However, the network thread publishes metadata on which frame is the latest that has been sent over the network at least once.
+#         This is stored as an `id` (i.e. memory address) in `global_latest_frame_sent`.
+#       - If the target FPS is too high for the animator and/or encoder to keep up with, the network thread re-sends
+#         the latest frame published by the encoder as many times as necessary, to keep the network output at the target FPS
+#         regardless of render/encode speed. This handles the case of hardware slower than the target FPS.
+#       - On localhost, the network send is very fast, under 0.15 ms.
+#     - The encoder uses the metadata to wait until the latest encoded frame has been sent at least once before publishing a new frame.
+#       This ensures that no more frames are generated than are actually sent, and syncs also the animator (because the animator is
+#       rate-limited by the encoder consuming its frames). This handles the case of hardware faster than the target FPS.
+#     - When the animator and encoder are fast enough to keep up with the target FPS, generally when frame N is being sent,
+#       frame N+1 is being encoded (or is already encoded, and waiting for frame N to be sent), and frame N+2 is being rendered.
 #
 def result_feed() -> Response:
     """Return a Flask `Response` that repeatedly yields the current image as 'image/png'."""
