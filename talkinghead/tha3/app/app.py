@@ -43,6 +43,7 @@ talkinghead_basedir = "talkinghead"
 global_animator_instance = None
 _animator_output_lock = threading.Lock()  # protect from concurrent access to `result_image` and the `new_frame_available` flag.
 global_encoder_instance = None
+global_latest_frame_sent = None
 
 # These need to be written to by the API functions.
 #
@@ -129,14 +130,18 @@ def stop_talking() -> str:
 def result_feed() -> Response:
     """Return a Flask `Response` that repeatedly yields the current image as 'image/png'."""
     def generate():
+        global global_latest_frame_sent
+
         last_frame_send_complete_time = None
         last_report_time = None
         send_duration_sec = 0.0
         send_duration_statistics = RunningAverage()
 
         while True:
-            # Send the animation frame.
-            if global_encoder_instance.image_bytes is not None:
+            # Send the latest available animation frame.
+            # Important: grab reference to `image_bytes` only once, since it will be atomically updated without a lock.
+            image_bytes = global_encoder_instance.image_bytes
+            if image_bytes is not None:
                 # How often should we send?
                 #  - Excessive spamming can DoS the SillyTavern GUI, so there needs to be a rate limit.
                 #  - OTOH, we must constantly send something, or the GUI will lock up waiting.
@@ -153,7 +158,8 @@ def result_feed() -> Response:
                 if time_until_frame_deadline <= 0.0:
                     time_now = time.time_ns()
                     yield (b"--frame\r\n"
-                           b"Content-Type: image/png\r\n\r\n" + global_encoder_instance.image_bytes + b"\r\n")
+                           b"Content-Type: image/png\r\n\r\n" + image_bytes + b"\r\n")
+                    global_latest_frame_sent = id(image_bytes)  # atomic update, no need for lock
                     send_duration_sec = (time.time_ns() - time_now) / 10**9  # about 0.12 ms on localhost (compress_level=1 or 6, doesn't matter)
                     # print(f"send {send_duration_sec:0.6g}s")  # DEBUG
 
@@ -634,6 +640,7 @@ class Encoder:
         def encoder_update():
             last_report_time = None
             encode_duration_statistics = RunningAverage()
+            wait_duration_statistics = RunningAverage()
 
             while not self._terminated:
                 # Retrieve a new frame from the animator if available.
@@ -645,7 +652,7 @@ class Encoder:
                         global_animator_instance.new_frame_available = False  # animation frame consumed; start rendering the next one
                         have_new_frame = True  # This flag is needed so we can release the animator lock as early as possible.
 
-                # Pack the latest available animation frame for sending (but only once for each new frame).
+                # If a new frame arrived, pack it for sending (only once for each new frame).
                 if have_new_frame:
                     try:
                         pil_image = PIL.Image.fromarray(np.uint8(image_rgba[:, :, :3]))
@@ -663,24 +670,43 @@ class Encoder:
                         # time_now = time.time_ns()
                         buffer = io.BytesIO()
                         pil_image.save(buffer, format="PNG", compress_level=1)
-                        self.image_bytes = buffer.getvalue()  # atomic replace so no need for a lock
+                        image_bytes = buffer.getvalue()
                         # pack_duration_sec = (time.time_ns() - time_now) / 10**9
+
+                        # We now have a new encoded frame; but first, sync with network send.
+                        # This prevents from rendering/encoding more frames than are actually sent.
+                        previous_frame = self.image_bytes
+                        if previous_frame is not None:
+                            time_wait_start = time.time_ns()
+                            # Wait in 1ms increments until the previous encoded frame has been sent
+                            while global_latest_frame_sent != id(previous_frame) and not self._terminated:
+                                time.sleep(0.001)
+                            time_now = time.time_ns()
+                            wait_elapsed_sec = (time_now - time_wait_start) / 10**9
+                        else:
+                            wait_elapsed_sec = 0.0
+
+                        self.image_bytes = image_bytes  # atomic replace so no need for a lock
                     except Exception as exc:
                         logger.error(exc)
                         raise  # let the encoder stop so we won't spam the log
 
                     # Update FPS counter.
                     time_now = time.time_ns()
-                    encode_elapsed_sec = (time_now - time_encode_start) / 10**9
+                    walltime_elapsed_sec = (time_now - time_encode_start) / 10**9
+                    encode_elapsed_sec = walltime_elapsed_sec - wait_elapsed_sec
                     encode_duration_statistics.add_datapoint(encode_elapsed_sec)
+                    wait_duration_statistics.add_datapoint(wait_elapsed_sec)
 
                 # Log the FPS counter in 5-second intervals.
                 time_now = time.time_ns()
                 if animation_running and (last_report_time is None or time_now - last_report_time > 5e9):
                     avg_encode_sec = encode_duration_statistics.average()
                     msec = round(1000 * avg_encode_sec, 1)
+                    avg_wait_sec = wait_duration_statistics.average()
+                    wait_msec = round(1000 * avg_wait_sec, 1)
                     fps = round(1 / avg_encode_sec, 1) if avg_encode_sec > 0.0 else 0.0
-                    logger.info(f"encode: {msec:.1f}ms [{fps} FPS available]")
+                    logger.info(f"encode: {msec:.1f}ms [{fps} FPS available]; send sync wait {wait_msec:.1f}ms")
                     last_report_time = time_now
 
                 time.sleep(0.01)  # rate-limit the encoder to 100 FPS maximum (this could be adjusted later)
