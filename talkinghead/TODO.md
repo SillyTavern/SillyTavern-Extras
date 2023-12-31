@@ -7,20 +7,13 @@
   - Configuration:
     - Output target FPS
     - Postprocessor effect chain (including settings)
-    - Animation parameters (ideally per character, but let's make a global version first)
+    - Animation parameters (ideally per character)
       - Blink timing: `blink_interval` min/max
       - Blink probability per frame
       - "confusion" emotion initial segment duration (where blinking quickly in succession is allowed)
       - Sway timing: `sway_interval` min/max
      - Sway strength (`max_random`, `max_noise`)
       - Breathing cycle duration
-- Improve frame timing
-  - Try to keep the output FPS constant
-    - Use a queue or an event instead of a polling loop? Difficult to get this working at plugin startup time.
-  - Decouple animation speed from render FPS; need to calibrate against wall time.
-    - OTOH, do we need to do this? Only needed for slow renderers, because if render FPS > network FPS,
-      the network rate limiter already makes the animation run at a constant FPS (since we produce only
-      as many frames as are consumed).
 - Add more postprocessing filters. Possible ideas, no guarantee I'll ever get around to them:
   - Pixelize, posterize (8-bit look)
   - Analog video glitches
@@ -33,7 +26,6 @@
       - Missing data (zero out the alpha?)
       - Blur (leads to replacing by average color, with controllable sigma)
       - Zigzag deformation
-- PNG sending efficiency? Look into encoding the stream into YUVA420 using `ffmpeg`.
 - Investigate if some particular emotions could use a small random per-frame oscillation applied to "iris_small",
   for that anime "intense emotion" effect (since THA3 doesn't have a morph specifically for the specular reflections in the eyes).
 - The "eye_unimpressed" morph has just one key in the emotion JSON, although the model has two morphs (left and right) for this.
