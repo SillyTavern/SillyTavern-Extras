@@ -145,7 +145,7 @@ def result_feed() -> Response:
                 # How often should we send?
                 #  - Excessive spamming can DoS the SillyTavern GUI, so there needs to be a rate limit.
                 #  - OTOH, we must constantly send something, or the GUI will lock up waiting.
-                TARGET_FPS = 30
+                TARGET_FPS = 25
                 frame_duration_target_sec = 1 / TARGET_FPS
                 if last_frame_send_complete_time is not None:
                     time_now = time.time_ns()
