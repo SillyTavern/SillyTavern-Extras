@@ -14,6 +14,10 @@
       - Sway timing: `sway_interval` min/max
      - Sway strength (`max_random`, `max_noise`)
       - Breathing cycle duration
+- In live mode, move model install code to `talkinghead/tha3/app/app.py` (new function `maybe_install_models`), for symmetry with the manual poser.
+  - Could implement `maybe_install_models` in `talkinghead/tha3/app/util.py`, and call it from both.
+- Small performance optimization: see if we could use more in-place updates in the postprocessor, to reduce allocation of temporary tensors.
+  - The effect on speed will be small; the compute-heaviest part is the inference of the THA3 deep-learning model.
 - Add more postprocessing filters. Possible ideas, no guarantee I'll ever get around to them:
   - Pixelize, posterize (8-bit look)
   - Analog video glitches
