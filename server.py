@@ -667,24 +667,29 @@ def api_classify_labels():
     return jsonify({"labels": labels})
 
 @app.route("/api/talkinghead/load", methods=["POST"])
+@require_module("talkinghead")
 def live_load():
     file = request.files['file']
     # convert stream to bytes and pass to talkinghead_load
     return talkinghead.talkinghead_load_file(file.stream)
 
 @app.route('/api/talkinghead/unload')
+@require_module("talkinghead")
 def live_unload():
     return talkinghead.unload()
 
 @app.route('/api/talkinghead/start_talking')
+@require_module("talkinghead")
 def start_talking():
     return talkinghead.start_talking()
 
 @app.route('/api/talkinghead/stop_talking')
+@require_module("talkinghead")
 def stop_talking():
     return talkinghead.stop_talking()
 
 @app.route('/api/talkinghead/result_feed')
+@require_module("talkinghead")
 def result_feed():
     return talkinghead.result_feed()
 
