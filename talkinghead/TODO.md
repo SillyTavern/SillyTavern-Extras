@@ -61,8 +61,6 @@
 ### Client-side bugs / missing features:
 
 - Talking animation is broken, seems the client isn't sending us a request to start/stop talking.
-- Add `/emote xxx` support for talkinghead to make testing much easier.
-  - Needs a new API endpoint ("emote"?) in `server.py`, and making the client call that when `/emote xxx` is used.
 - If `classify` is enabled, emotion state should be updated from the latest AI-generated text
   when switching chat files, to resume in the same emotion state where the chat left off.
   - Either call the "classify" endpoint (which will re-analyze), or if the client stores the emotion,
