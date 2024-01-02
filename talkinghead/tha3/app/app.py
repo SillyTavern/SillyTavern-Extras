@@ -96,7 +96,7 @@ def unload() -> str:
     """Stop animation."""
     global animation_running
     animation_running = False
-    logger.debug("unload: animation paused")
+    logger.info("unload: animation paused")
     return "Animation Paused"
 
 def start_talking() -> str:
@@ -225,7 +225,7 @@ def talkinghead_load_file(stream) -> str:
     """Load image from stream and start animation."""
     global global_reload_image
     global animation_running
-    logger.debug("talkinghead_load_file: loading new input image from stream")
+    logger.info("talkinghead_load_file: loading new input image from stream")
 
     try:
         animation_running = False  # pause animation while loading a new image
