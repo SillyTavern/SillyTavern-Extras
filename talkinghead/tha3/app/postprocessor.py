@@ -9,28 +9,29 @@ from typing import Dict, List, Optional, Tuple, TypeVar, Union
 import torch
 import torchvision
 
-# Default configuration for the postprocessor.
-# This documents the correct ordering of the filters.
-# Feel free to improvise, but make sure to understand why your filter chain makes sense.
-default_chain = [
-                 # physical input signal
-                 ("bloom", {}),
-                 # video camera
-                 ("chromatic_aberration", {}),
-                 ("vignetting", {}),
-                 # scifi hologram output
-                 ("translucency", {}),
-                 ("alphanoise", {"magnitude": 0.1, "sigma": 0.0}),
-                 # # lo-fi analog video
-                 # ("analog_lowres", {}),
-                 # ("alphanoise", {"magnitude": 0.2, "sigma": 2.0}),
-                 # ("analog_badhsync", {}),
-                 # # ("analog_vhsglitches", {}),
-                 # ("analog_vhstracking", {}),
-                 # CRT TV output
-                 ("banding", {}),
-                 ("scanlines", {})
-                ]
+# # Default configuration for the postprocessor.
+# # This documents the correct ordering of the filters.
+# # Feel free to improvise, but make sure to understand why your filter chain makes sense.
+# default_chain = [
+#                  # physical input signal
+#                  ("bloom", {}),
+#                  # video camera
+#                  ("chromatic_aberration", {}),
+#                  ("vignetting", {}),
+#                  # scifi hologram output
+#                  ("translucency", {}),
+#                  ("alphanoise", {"magnitude": 0.1, "sigma": 0.0}),
+#                  # # lo-fi analog video
+#                  # ("analog_lowres", {}),
+#                  # ("alphanoise", {"magnitude": 0.2, "sigma": 2.0}),
+#                  # ("analog_badhsync", {}),
+#                  # # ("analog_vhsglitches", {}),
+#                  # ("analog_vhstracking", {}),
+#                  # CRT TV output
+#                  ("banding", {}),
+#                  ("scanlines", {})
+#                 ]
+default_chain = []  # TODO: disabled temporarily to get a PR in early, since we are still missing config support in client
 
 T = TypeVar("T")
 Atom = Union[str, bool, int, float]
