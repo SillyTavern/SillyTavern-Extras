@@ -688,6 +688,15 @@ def start_talking():
 def stop_talking():
     return talkinghead.stop_talking()
 
+@app.route('/api/talkinghead/set_emotion', methods=["POST"])
+@require_module("talkinghead")
+def emote():
+    data = request.get_json()
+    if "emotion_name" not in data or not isinstance(data["emotion_name"], str):
+        abort(400, '"emotion_name" is required')
+    emotion_name = data["emotion_name"]
+    return talkinghead.setEmotion([{"label": emotion_name, "score": 1.0}])  # mimic the `classify` API result
+
 @app.route('/api/talkinghead/result_feed')
 @require_module("talkinghead")
 def result_feed():

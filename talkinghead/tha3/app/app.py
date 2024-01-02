@@ -66,6 +66,9 @@ def setEmotion(_emotion: Dict[str, float]) -> None:
 
     Currently, we pick the emotion with the highest confidence score.
 
+    The `set_emotion` API endpoint also uses this function to set the current emotion,
+    with a manually formatted dictionary containing just one entry.
+
     _emotion: result of sentiment analysis: {emotion0: confidence0, ...}
     """
     global current_emotion
@@ -78,8 +81,16 @@ def setEmotion(_emotion: Dict[str, float]) -> None:
             highest_score = item["score"]
             highest_label = item["label"]
 
-    logger.debug(f"setEmotion: applying emotion {highest_label}")
+    # Never triggered currently, because `setSpriteSlashCommand` at the client end (`SillyTavern/public/scripts/extensions/expressions/index.js`)
+    # searches for a static sprite for the given expression, and does not proceed to `sendExpressionCall` if not found.
+    # So beside `talkinghead.png`, your character also needs the static sprites for "/emote xxx" to work.
+    if highest_label not in global_animator_instance.emotions:
+        logger.warning(f"setEmotion: emotion '{highest_label}' does not exist, setting to 'neutral'")
+        highest_label = "neutral"
+
+    logger.info(f"setEmotion: applying emotion {highest_label}")
     current_emotion = highest_label
+    return f"emotion set to {highest_label}"
 
 def unload() -> str:
     """Stop animation."""
