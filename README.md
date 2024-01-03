@@ -69,9 +69,13 @@ We will NOT provide any support for running this on Android. Direct all your que
 
 #### Talkinghead module on Linux
 
-It requires the installation of an additional package because it's not installed automatically due to incompatibility with Colab. Run this after you install other requirements:
+The manual poser app of `talkinghead` requires the installation of an additional package because it's not installed automatically due to incompatibility with Colab. Run this after you install other requirements:
 
 `pip install wxpython==4.2.1`
+
+If you only run `talkinghead` in the live mode (i.e. as a SillyTavern-extras module), `wxpython` is no longer required.
+
+A fast GPU is heavily recommended. For more information, see the [`talkinghead` README](talkinghead/README.md).
 
 ### 💻 Locally
 #### Option 1 - Conda (recommended) 🐍

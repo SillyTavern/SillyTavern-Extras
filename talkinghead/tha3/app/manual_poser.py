@@ -68,7 +68,7 @@ import wx
 from tha3.poser.modes.load_poser import load_poser
 from tha3.poser.poser import Poser, PoseParameterCategory, PoseParameterGroup
 from tha3.util import resize_PIL_image, extract_PIL_image_from_filelike, extract_pytorch_image_from_PIL_image
-from tha3.app.util import load_emotion_presets, posedict_to_pose, pose_to_posedict, torch_image_to_numpy, FpsStatistics
+from tha3.app.util import load_emotion_presets, posedict_to_pose, pose_to_posedict, torch_image_to_numpy, RunningAverage
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -361,7 +361,7 @@ class MainFrame(wx.Frame):
         self.init_right_panel()
         self.main_sizer.Fit(self)
 
-        self.fps_statistics = FpsStatistics()
+        self.fps_statistics = RunningAverage()
 
         self.timer = wx.Timer(self, wx.ID_ANY)
         self.Bind(wx.EVT_TIMER, self.update_images, self.timer)
@@ -824,8 +824,8 @@ class MainFrame(wx.Frame):
                         elapsed_time = time.time_ns() - last_update_time
                         fps = 1.0 / (elapsed_time / 10**9)
                         if self.torch_source_image is not None:
-                            self.fps_statistics.add_fps(fps)
-                        self.fps_text.SetLabelText(f"Render: {self.fps_statistics.get_average_fps():0.2f} FPS")
+                            self.fps_statistics.add_datapoint(fps)
+                        self.fps_text.SetLabelText(f"Render: {self.fps_statistics.average():0.2f} FPS")
 
                     self.update_in_progress = False
                 wx.CallAfter(update_images_cont2)
@@ -973,26 +973,84 @@ class MainFrame(wx.Frame):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="THA 3 Manual Poser. Pose a character image manually. Useful for generating static expression images.")
-    parser.add_argument("--model",
-                        type=str,
-                        required=False,
-                        default="separable_float",
-                        choices=["standard_float", "separable_float", "standard_half", "separable_half"],
-                        help="The model to use. 'float' means fp32, 'half' means fp16.")
     parser.add_argument("--device",
                         type=str,
                         required=False,
                         default="cuda",
                         choices=["cpu", "cuda"],
                         help='The device to use for PyTorch ("cuda" for GPU, "cpu" for CPU).')
+    parser.add_argument("--model",
+                        type=str,
+                        required=False,
+                        default="separable_float",
+                        choices=["standard_float", "separable_float", "standard_half", "separable_half"],
+                        help="The model to use. 'float' means fp32, 'half' means fp16.")
+    parser.add_argument("--models",
+                        metavar="HFREPO",
+                        type=str,
+                        help="If THA3 models are not yet installed, use the given HuggingFace repository to install them. Defaults to OktayAlpk/talking-head-anime-3.",
+                        default="OktayAlpk/talking-head-anime-3")
+    parser.add_argument("--factory-reset",
+                        metavar="EMOTION",
+                        type=str,
+                        help="Overwrite the emotion preset EMOTION with its factory default, and exit. This CANNOT be undone!",
+                        default="")
+    parser.add_argument("--factory-reset-all",
+                        action="store_true",
+                        help="Overwrite ALL emotion presets with their factory defaults, and exit. This CANNOT be undone!")
     args = parser.parse_args()
+
+    # Blunder recovery options
+    if args.factory_reset_all:
+        print("Factory-resetting all emotion templates...")
+        with open(os.path.join("emotions", "_defaults.json"), "r") as json_file:
+            factory_default_emotions = json.load(json_file)
+        factory_default_emotions.pop("zero")  # not an actual emotion
+        for key in factory_default_emotions:
+            with open(os.path.join("emotions", f"{key}.json"), "w") as file:
+                json.dump({key: factory_default_emotions[key]}, file, indent=4)
+        print("Done.")
+        sys.exit(0)
+    if args.factory_reset:
+        key = args.factory_reset
+        print(f"Factory-resetting emotion template '{key}'...")
+        with open(os.path.join("emotions", "_defaults.json"), "r") as json_file:
+            factory_default_emotions = json.load(json_file)
+        factory_default_emotions.pop("zero")  # not an actual emotion
+        if key not in factory_default_emotions:
+            print(f"No such factory-defined emotion: '{key}'. Valid values: {sorted(list(factory_default_emotions.keys()))}")
+            sys.exit(1)
+        with open(os.path.join("emotions", f"{key}.json"), "w") as file:
+            json.dump({key: factory_default_emotions[key]}, file, indent=4)
+        print("Done.")
+        sys.exit(0)
+
+    # Install the THA3 models if needed
+    modelsdir = os.path.join(os.getcwd(), "tha3", "models")
+    if not os.path.exists(modelsdir):
+        # API:
+        #   https://huggingface.co/docs/huggingface_hub/en/guides/download
+        try:
+            from huggingface_hub import snapshot_download
+        except ImportError:
+            raise ImportError(
+                "You need to install huggingface_hub to install talkinghead models automatically. "
+                "See https://pypi.org/project/huggingface-hub/ for installation."
+            )
+        os.makedirs(modelsdir, exist_ok=True)
+        print(f"THA3 models not yet installed. Installing from {args.talkinghead_models} into tha3/models.")
+        # Installing with symlinks would be generally better, but MS Windows support for symlinks is not optimal,
+        # so for maximal compatibility we avoid them. The drawback of installing directly as plain files is that
+        # if multiple programs need to download THA3, they will do so separately. But THA3 is rather rare, so in
+        # practice this is unlikely to be an issue.
+        snapshot_download(repo_id=args.talkinghead_models, local_dir=modelsdir, local_dir_use_symlinks=False)
 
     try:
         device = torch.device(args.device)
-        poser = load_poser(args.model, device, modelsdir="tha3/models")
+        poser = load_poser(args.model, device, modelsdir=modelsdir)
     except RuntimeError as e:
         logger.error(e)
-        sys.exit()
+        sys.exit(255)
 
     # Create the "talkinghead/output" directory if it doesn't exist. This is our default save location.
     p = pathlib.Path("output").expanduser().resolve()

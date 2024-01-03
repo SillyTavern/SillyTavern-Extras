@@ -92,7 +92,8 @@ parser.add_argument(
     choices=["auto", "standard_float", "separable_float", "standard_half", "separable_half"],
 )
 parser.add_argument(
-    "--talkinghead-models", type=str, help="If THA3 models are not yet installed, use the given HuggingFace repository to install them.",
+    "--talkinghead-models", metavar="HFREPO",
+    type=str, help="If THA3 models are not yet installed, use the given HuggingFace repository to install them. Defaults to OktayAlpk/talking-head-anime-3.",
     default="OktayAlpk/talking-head-anime-3"
 )
 
@@ -203,7 +204,10 @@ if "talkinghead" in modules:
             )
         os.makedirs(talkinghead_models_dir, exist_ok=True)
         print(f"THA3 models not yet installed. Installing from {args.talkinghead_models} into talkinghead/tha3/models.")
-        # TODO: I'd prefer to install with symlinks, but how about Windows users?
+        # Installing with symlinks would be generally better, but MS Windows support for symlinks is not optimal,
+        # so for maximal compatibility we avoid them. The drawback of installing directly as plain files is that
+        # if multiple programs need to download THA3, they will do so separately. But THA3 is rather rare, so in
+        # practice this is unlikely to be an issue.
         snapshot_download(repo_id=args.talkinghead_models, local_dir=talkinghead_models_dir, local_dir_use_symlinks=False)
 
     import sys
@@ -663,24 +667,38 @@ def api_classify_labels():
     return jsonify({"labels": labels})
 
 @app.route("/api/talkinghead/load", methods=["POST"])
+@require_module("talkinghead")
 def live_load():
     file = request.files['file']
     # convert stream to bytes and pass to talkinghead_load
     return talkinghead.talkinghead_load_file(file.stream)
 
 @app.route('/api/talkinghead/unload')
+@require_module("talkinghead")
 def live_unload():
     return talkinghead.unload()
 
 @app.route('/api/talkinghead/start_talking')
+@require_module("talkinghead")
 def start_talking():
     return talkinghead.start_talking()
 
 @app.route('/api/talkinghead/stop_talking')
+@require_module("talkinghead")
 def stop_talking():
     return talkinghead.stop_talking()
 
+@app.route('/api/talkinghead/set_emotion', methods=["POST"])
+@require_module("talkinghead")
+def emote():
+    data = request.get_json()
+    if "emotion_name" not in data or not isinstance(data["emotion_name"], str):
+        abort(400, '"emotion_name" is required')
+    emotion_name = data["emotion_name"]
+    return talkinghead.setEmotion([{"label": emotion_name, "score": 1.0}])  # mimic the `classify` API result
+
 @app.route('/api/talkinghead/result_feed')
+@require_module("talkinghead")
 def result_feed():
     return talkinghead.result_feed()
 

@@ -6,25 +6,6 @@ This module implements the live animation backend and serves the API. For usage,
 If you want to play around with THA3 expressions in a standalone app, see `manual_poser.py`.
 """
 
-# TODO: talkinghead live mode:
-#  - Make the various hyperparameters user-configurable (ideally per character, but let's make a global version first):
-#    - Blink timing: `blink_interval` min/max
-#    - Blink probability per frame
-#    - "confusion" emotion initial segment duration (where blinking quickly in succession is allowed)
-#    - Sway timing: `sway_interval` min/max
-#    - Sway strength (`max_random`, `max_noise`)
-#    - Breathing cycle duration
-#  - Client-side bugs / missing features:
-#    - Talking animation is broken, seems the client isn't sending us a request to start/stop talking.
-#    - If `classify` is enabled, emotion state could be updated from the latest AI-generated text
-#      when switching chat files, to resume in the same state where the chat left off.
-#    - When a new talkinghead sprite is uploaded:
-#      - The preview thumbnail doesn't update
-#      - Talkinghead must be switched off and back on to actually send the new image to the backend
-#  - PNG sending efficiency? Look into encoding the stream into YUVA420 using `ffmpeg`.
-# TODO: talkinghead common:
-#   - Write new README: use case and supported features are different from the original THA3 package.
-
 import atexit
 import io
 import logging
@@ -48,7 +29,8 @@ from tha3.poser.modes.load_poser import load_poser
 from tha3.poser.poser import Poser
 from tha3.util import (torch_linear_to_srgb, resize_PIL_image,
                        extract_PIL_image_from_filelike, extract_pytorch_image_from_PIL_image)
-from tha3.app.util import posedict_keys, posedict_key_to_index, load_emotion_presets, posedict_to_pose, to_talkinghead_image, FpsStatistics
+from tha3.app.postprocessor import Postprocessor
+from tha3.app.util import posedict_keys, posedict_key_to_index, load_emotion_presets, posedict_to_pose, to_talkinghead_image, RunningAverage
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -59,7 +41,9 @@ logger = logging.getLogger(__name__)
 talkinghead_basedir = "talkinghead"
 
 global_animator_instance = None
-_animator_output_lock = threading.Lock()  # protect from concurrent access to `result_image` and the `frame_ready` flag.
+_animator_output_lock = threading.Lock()  # protect from concurrent access to `result_image` and the `new_frame_available` flag.
+global_encoder_instance = None
+global_latest_frame_sent = None
 
 # These need to be written to by the API functions.
 #
@@ -82,6 +66,9 @@ def setEmotion(_emotion: Dict[str, float]) -> None:
 
     Currently, we pick the emotion with the highest confidence score.
 
+    The `set_emotion` API endpoint also uses this function to set the current emotion,
+    with a manually formatted dictionary containing just one entry.
+
     _emotion: result of sentiment analysis: {emotion0: confidence0, ...}
     """
     global current_emotion
@@ -94,14 +81,22 @@ def setEmotion(_emotion: Dict[str, float]) -> None:
             highest_score = item["score"]
             highest_label = item["label"]
 
-    logger.debug(f"setEmotion: applying emotion {highest_label}")
+    # Never triggered currently, because `setSpriteSlashCommand` at the client end (`SillyTavern/public/scripts/extensions/expressions/index.js`)
+    # searches for a static sprite for the given expression, and does not proceed to `sendExpressionCall` if not found.
+    # So beside `talkinghead.png`, your character also needs the static sprites for "/emote xxx" to work.
+    if highest_label not in global_animator_instance.emotions:
+        logger.warning(f"setEmotion: emotion '{highest_label}' does not exist, setting to 'neutral'")
+        highest_label = "neutral"
+
+    logger.info(f"setEmotion: applying emotion {highest_label}")
     current_emotion = highest_label
+    return f"emotion set to {highest_label}"
 
 def unload() -> str:
     """Stop animation."""
     global animation_running
     animation_running = False
-    logger.debug("unload: animation paused")
+    logger.info("unload: animation paused")
     return "Animation Paused"
 
 def start_talking() -> str:
@@ -118,79 +113,109 @@ def stop_talking() -> str:
     logger.debug("stop_talking called")
     return "stopped"
 
+# There are three tasks we must do each frame:
+#
+#   1) Render an animation frame
+#   2) Encode the new animation frame for network transport
+#   3) Send the animation frame over the network
+#
+# Instead of running serially:
+#
+#   [render1][encode1][send1] [render2][encode2][send2]
+# ------------------------------------------------------> time
+#
+# we get better throughput by parallelizing and interleaving:
+#
+#   [render1] [render2] [render3] [render4] [render5]
+#             [encode1] [encode2] [encode3] [encode4]
+#                       [send1]   [send2]   [send3]
+# ----------------------------------------------------> time
+#
+# Despite the global interpreter lock, this increases throughput, as well as improves the timing of the network send
+# since the network thread only needs to care about getting the send timing right.
+#
+# Either there's enough waiting for I/O for the split between render and encode to make a difference, or it's the fact
+# that much of the compute-heavy work in both of those is performed inside C libraries that release the GIL (Torch,
+# and the PNG encoder in Pillow, respectively).
+#
+# This is a simplified picture. Some important details:
+#
+#   - At startup:
+#     - The animator renders the first frame on its own.
+#     - The encoder waits for the animator to publish a frame, and then starts normal operation.
+#     - The network thread waits for the encoder to publish a frame, and then starts normal operation.
+#   - In normal operation (after startup):
+#     - The animator waits until the encoder has consumed the previous published frame. Then it proceeds to render and publish a new frame.
+#       - This communication is handled through the flag `animator.new_frame_available`.
+#     - The network thread does its own thing on a regular schedule, based on the desired target FPS.
+#       - However, the network thread publishes metadata on which frame is the latest that has been sent over the network at least once.
+#         This is stored as an `id` (i.e. memory address) in `global_latest_frame_sent`.
+#       - If the target FPS is too high for the animator and/or encoder to keep up with, the network thread re-sends
+#         the latest frame published by the encoder as many times as necessary, to keep the network output at the target FPS
+#         regardless of render/encode speed. This handles the case of hardware slower than the target FPS.
+#       - On localhost, the network send is very fast, under 0.15 ms.
+#     - The encoder uses the metadata to wait until the latest encoded frame has been sent at least once before publishing a new frame.
+#       This ensures that no more frames are generated than are actually sent, and syncs also the animator (because the animator is
+#       rate-limited by the encoder consuming its frames). This handles the case of hardware faster than the target FPS.
+#     - When the animator and encoder are fast enough to keep up with the target FPS, generally when frame N is being sent,
+#       frame N+1 is being encoded (or is already encoded, and waiting for frame N to be sent), and frame N+2 is being rendered.
+#
 def result_feed() -> Response:
     """Return a Flask `Response` that repeatedly yields the current image as 'image/png'."""
     def generate():
-        last_update_time = None
+        global global_latest_frame_sent
+
+        last_frame_send_complete_time = None
         last_report_time = None
-        fps_statistics = FpsStatistics()
-        image_bytes = None
+        send_duration_sec = 0.0
+        send_duration_statistics = RunningAverage()
 
         while True:
-            # Retrieve a new frame from the animator if available.
-            have_new_frame = False
-            with _animator_output_lock:
-                if global_animator_instance.frame_ready:
-                    image_rgba = global_animator_instance.result_image
-                    try:
-                        pil_image = PIL.Image.fromarray(np.uint8(image_rgba[:, :, :3]))
-                        if image_rgba.shape[2] == 4:
-                            alpha_channel = image_rgba[:, :, 3]
-                            pil_image.putalpha(PIL.Image.fromarray(np.uint8(alpha_channel)))
-                        global_animator_instance.frame_ready = False  # Animation frame consumed; tell the animator it can begin rendering the next one.
-                        have_new_frame = True
-                    except Exception as exc:
-                        logger.error(exc)
-
-            # Pack the new animation frame for sending.
-            if have_new_frame:
-                try:
-                    buffer = io.BytesIO()  # Save as PNG with RGBA mode
-                    pil_image.save(buffer, format="PNG")
-                    image_bytes = buffer.getvalue()
-                except Exception as exc:
-                    logger.error(f"Cannot write image to buffer: {exc}")
-                    raise
-
-            # Send the animation frame.
+            # Send the latest available animation frame.
+            # Important: grab reference to `image_bytes` only once, since it will be atomically updated without a lock.
+            image_bytes = global_encoder_instance.image_bytes
             if image_bytes is not None:
                 # How often should we send?
                 #  - Excessive spamming can DoS the SillyTavern GUI, so there needs to be a rate limit.
                 #  - OTOH, we must constantly send something, or the GUI will lock up waiting.
-                #
-                # Thus, if we have a new frame, or enough time has elapsed already (slow GPU or running on CPU), send it now. Otherwise wait for a bit.
-                # Target an acceptable anime frame rate of 25 FPS.
-                TARGET_TIME_SEC = 0.04  # 1/25
-                if last_update_time is not None:
+                TARGET_FPS = 25
+                frame_duration_target_sec = 1 / TARGET_FPS
+                if last_frame_send_complete_time is not None:
                     time_now = time.time_ns()
-                    elapsed_time = time_now - last_update_time
-                    past_frame_deadline = (elapsed_time / 10**9) > TARGET_TIME_SEC
+                    this_frame_elapsed_sec = (time_now - last_frame_send_complete_time) / 10**9
+                    # The 2* is a fudge factor. It doesn't matter if the frame is a bit too early, but we don't want it to be late.
+                    time_until_frame_deadline = frame_duration_target_sec - this_frame_elapsed_sec - 2 * send_duration_sec
                 else:
-                    past_frame_deadline = True  # nothing rendered yet
+                    time_until_frame_deadline = 0.0  # nothing rendered yet
 
-                if have_new_frame or past_frame_deadline:
+                if time_until_frame_deadline <= 0.0:
+                    time_now = time.time_ns()
                     yield (b"--frame\r\n"
                            b"Content-Type: image/png\r\n\r\n" + image_bytes + b"\r\n")
+                    global_latest_frame_sent = id(image_bytes)  # atomic update, no need for lock
+                    send_duration_sec = (time.time_ns() - time_now) / 10**9  # about 0.12 ms on localhost (compress_level=1 or 6, doesn't matter)
+                    # print(f"send {send_duration_sec:0.6g}s")  # DEBUG
 
                     # Update the FPS counter, measuring the time between network sends.
                     time_now = time.time_ns()
-                    if last_update_time is not None:
-                        elapsed_time = time_now - last_update_time
-                        fps = 1.0 / (elapsed_time / 10**9)
-                        fps_statistics.add_fps(fps)
-                    last_update_time = time_now
+                    if last_frame_send_complete_time is not None:
+                        this_frame_elapsed_sec = (time_now - last_frame_send_complete_time) / 10**9
+                        send_duration_statistics.add_datapoint(this_frame_elapsed_sec)
+                    last_frame_send_complete_time = time_now
                 else:
-                    # We don't measure pack/send time, so this is not exact. In practice the resulting framerate is slightly under the target (24 vs. 25 FPS).
-                    # Note the animator runs in a different thread, so it can render while we are waiting.
-                    time.sleep(TARGET_TIME_SEC)
+                    time.sleep(time_until_frame_deadline)
 
                 # Log the FPS counter in 5-second intervals.
-                if last_report_time is None or time_now - last_report_time > 5e9:
-                    trimmed_fps = round(fps_statistics.get_average_fps(), 1)
-                    logger.info("rate-limited network FPS: {:.1f}".format(trimmed_fps))
+                time_now = time.time_ns()
+                if animation_running and (last_report_time is None or time_now - last_report_time > 5e9):
+                    avg_send_sec = send_duration_statistics.average()
+                    msec = round(1000 * avg_send_sec, 1)
+                    target_msec = round(1000 * frame_duration_target_sec, 1)
+                    fps = round(1 / avg_send_sec, 1) if avg_send_sec > 0.0 else 0.0
+                    logger.info(f"output: {msec:.1f}ms [{fps:.1f} FPS]; target {target_msec:.1f}ms [{TARGET_FPS:.1f} FPS]")
                     last_report_time = time_now
 
-            else:  # first frame not yet available, animator still booting
+            else:  # first frame not yet available
                 time.sleep(0.1)
 
     return Response(generate(), mimetype="multipart/x-mixed-replace; boundary=frame")
@@ -200,7 +225,7 @@ def talkinghead_load_file(stream) -> str:
     """Load image from stream and start animation."""
     global global_reload_image
     global animation_running
-    logger.debug("talkinghead_load_file: loading new input image from stream")
+    logger.info("talkinghead_load_file: loading new input image from stream")
 
     try:
         animation_running = False  # pause animation while loading a new image
@@ -225,6 +250,7 @@ def launch(device: str, model: str) -> Union[None, NoReturn]:
     model: one of the folder names inside "talkinghead/tha3/models/"
     """
     global global_animator_instance
+    global global_encoder_instance
 
     try:
         # If the animator already exists, clean it up first
@@ -232,15 +258,19 @@ def launch(device: str, model: str) -> Union[None, NoReturn]:
             logger.info(f"launch: relaunching on device {device} with model {model}")
             global_animator_instance.exit()
             global_animator_instance = None
+            global_encoder_instance.exit()
+            global_encoder_instance = None
 
         poser = load_poser(model, device, modelsdir=os.path.join(talkinghead_basedir, "tha3", "models"))
-        global_animator_instance = TalkingheadAnimator(poser, device)
+        global_animator_instance = Animator(poser, device)
+        global_encoder_instance = Encoder()
 
         # Load initial blank character image
         full_path = os.path.join(os.getcwd(), os.path.normpath(os.path.join(talkinghead_basedir, "tha3", "images", "inital.png")))
         global_animator_instance.load_image(full_path)
 
         global_animator_instance.start()
+        global_encoder_instance.start()
 
     except RuntimeError as exc:
         logger.error(exc)
@@ -254,7 +284,8 @@ def convert_linear_to_srgb(image: torch.Tensor) -> torch.Tensor:
     rgb_image = torch_linear_to_srgb(image[0:3, :, :])
     return torch.cat([rgb_image, image[3:4, :, :]], dim=0)
 
-class TalkingheadAnimator:
+
+class Animator:
     """uWu Waifu"""
 
     def __init__(self, poser: Poser, device: torch.device):
@@ -263,17 +294,43 @@ class TalkingheadAnimator:
 
         self.reset_animation_state()
 
-        self.fps_statistics = FpsStatistics()
+        self.postprocessor = Postprocessor(device)
+        self.render_duration_statistics = RunningAverage()
+        self.animator_thread = None
 
         self.source_image: Optional[torch.tensor] = None
         self.result_image: Optional[np.array] = None
-        self.frame_ready = False
+        self.new_frame_available = False
         self.last_report_time = None
 
         self.emotions, self.emotion_names = load_emotion_presets(os.path.join("talkinghead", "emotions"))
 
     # --------------------------------------------------------------------------------
     # Management
+
+    def start(self) -> None:
+        """Start the animation thread."""
+        self._terminated = False
+        def animator_update():
+            while not self._terminated:
+                try:
+                    self.render_animation_frame()
+                except Exception as exc:
+                    logger.error(exc)
+                    raise  # let the animator stop so we won't spam the log
+                time.sleep(0.01)  # rate-limit the renderer to 100 FPS maximum (this could be adjusted later)
+        self.animator_thread = threading.Thread(target=animator_update, daemon=True)
+        self.animator_thread.start()
+        atexit.register(self.exit)
+
+    def exit(self) -> None:
+        """Terminate the animation thread.
+
+        Called automatically when the process exits.
+        """
+        self._terminated = True
+        self.animator_thread.join()
+        self.animator_thread = None
 
     def reset_animation_state(self):
         """Reset character state trackers for all animation drivers."""
@@ -329,25 +386,6 @@ class TalkingheadAnimator:
 
         finally:
             global_reload_image = None
-
-    def start(self) -> None:
-        """Start the animation thread."""
-        self._terminated = False
-        def animation_update():
-            while not self._terminated:
-                self.render_animation_frame()
-                time.sleep(0.01)  # rate-limit the renderer to 100 FPS maximum (this could be adjusted later)
-        self.animation_thread = threading.Thread(target=animation_update, daemon=True)
-        self.animation_thread.start()
-        atexit.register(self.exit)
-
-    def exit(self) -> None:
-        """Terminate the animation thread.
-
-        Called automatically when the process exits.
-        """
-        self._terminated = True
-        self.animation_thread.join()
 
     # --------------------------------------------------------------------------------
     # Animation drivers
@@ -495,7 +533,7 @@ class TalkingheadAnimator:
         time_now = time.time_ns()
         t = (time_now - self.breathing_epoch) / 10**9  # seconds since breathing-epoch
         cycle_pos = t / breathing_cycle_duration  # number of cycles since breathing-epoch
-        if cycle_pos > 1.0:  # prevent overflow in long sessions
+        if cycle_pos > 1.0:  # prevent loss of accuracy in long sessions
             self.breathing_epoch = time_now  # TODO: be more accurate here, should sync to a whole cycle
         cycle_pos = cycle_pos - float(int(cycle_pos))  # fractional part
 
@@ -545,8 +583,8 @@ class TalkingheadAnimator:
         if not animation_running:
             return
 
-        # If no one has retrieved the previous frame yet, do not render a new one.
-        if self.frame_ready:
+        # If no one has retrieved the latest rendered frame yet, do not render a new one.
+        if self.new_frame_available:
             return
 
         if global_reload_image is not None:
@@ -577,11 +615,21 @@ class TalkingheadAnimator:
         pose = torch.tensor(self.current_pose, device=self.device, dtype=self.poser.get_dtype())
 
         with torch.no_grad():
-            output_image = self.poser.pose(self.source_image, pose)[0].float()  # [0]: model's output index for the full result image
-            output_image = convert_linear_to_srgb((output_image + 1.0) / 2.0)
+            # - [0]: model's output index for the full result image
+            # - model's data range is [-1, +1], linear intensity ("gamma encoded")
+            output_image = self.poser.pose(self.source_image, pose)[0].float()
+            # output_image = (output_image + 1.0) / 2.0  # -> [0, 1]
+            output_image.add_(1.0)
+            output_image.mul_(0.5)
 
+            self.postprocessor.render_into(output_image)  # apply pixel-space glitch artistry
+            output_image = convert_linear_to_srgb(output_image)  # apply gamma correction
+
+            # convert [c, h, w] float -> [h, w, c] uint8
             c, h, w = output_image.shape
-            output_image = (255.0 * torch.transpose(output_image.reshape(c, h * w), 0, 1)).reshape(h, w, c).byte()
+            output_image = torch.transpose(output_image.reshape(c, h * w), 0, 1).reshape(h, w, c)
+            output_image = (255.0 * output_image).byte()
+
             output_image_numpy = output_image.detach().cpu().numpy()
 
         # Update FPS counter, measuring animation frame render time only.
@@ -590,17 +638,120 @@ class TalkingheadAnimator:
         # note we don't actually render more frames than the client consumes.
         time_now = time.time_ns()
         if self.source_image is not None:
-            elapsed_time = time_now - time_render_start
-            fps = 1.0 / (elapsed_time / 10**9)
-            self.fps_statistics.add_fps(fps)
+            render_elapsed_sec = (time_now - time_render_start) / 10**9
+            self.render_duration_statistics.add_datapoint(render_elapsed_sec)
 
         # Set the new rendered frame as the output image, and mark the frame as ready for consumption.
         with _animator_output_lock:
-            self.result_image = output_image_numpy
-            self.frame_ready = True
+            self.result_image = output_image_numpy  # atomic replace
+            self.new_frame_available = True
 
         # Log the FPS counter in 5-second intervals.
-        if self.last_report_time is None or time_now - self.last_report_time > 5e9:
-            trimmed_fps = round(self.fps_statistics.get_average_fps(), 1)
-            logger.info("available render FPS: {:.1f}".format(trimmed_fps))
+        if animation_running and (self.last_report_time is None or time_now - self.last_report_time > 5e9):
+            avg_render_sec = self.render_duration_statistics.average()
+            msec = round(1000 * avg_render_sec, 1)
+            fps = round(1 / avg_render_sec, 1) if avg_render_sec > 0.0 else 0.0
+            logger.info(f"render: {msec:.1f}ms [{fps} FPS available]")
             self.last_report_time = time_now
+
+
+class Encoder:
+    """Network transport encoder.
+
+    We read each frame from the animator as it becomes ready, and keep it available in `self.image_bytes`
+    until the next frame arrives. The `self.image_bytes` buffer is replaced atomically, so this needs no lock
+    (you always get the latest available frame at the time you access `image_bytes`).
+    """
+
+    def __init__(self) -> None:
+        self.image_bytes = None
+        self.encoder_thread = None
+
+    def start(self) -> None:
+        """Start the output encoder thread."""
+        self._terminated = False
+        def encoder_update():
+            last_report_time = None
+            encode_duration_statistics = RunningAverage()
+            wait_duration_statistics = RunningAverage()
+
+            while not self._terminated:
+                # Retrieve a new frame from the animator if available.
+                have_new_frame = False
+                time_encode_start = time.time_ns()
+                with _animator_output_lock:
+                    if global_animator_instance.new_frame_available:
+                        image_rgba = global_animator_instance.result_image
+                        global_animator_instance.new_frame_available = False  # animation frame consumed; start rendering the next one
+                        have_new_frame = True  # This flag is needed so we can release the animator lock as early as possible.
+
+                # If a new frame arrived, pack it for sending (only once for each new frame).
+                if have_new_frame:
+                    try:
+                        pil_image = PIL.Image.fromarray(np.uint8(image_rgba[:, :, :3]))
+                        if image_rgba.shape[2] == 4:
+                            alpha_channel = image_rgba[:, :, 3]
+                            pil_image.putalpha(PIL.Image.fromarray(np.uint8(alpha_channel)))
+
+                        # Save as PNG with RGBA mode. Use the fastest compression level available.
+                        #
+                        # On an i7-12700H @ 2.3 GHz (laptop optimized for low fan noise):
+                        #  - `compress_level=1` (fastest), about 20 ms
+                        #  - `compress_level=6` (default), about 40 ms (!) - too slow!
+                        #  - `compress_level=9` (smallest size), about 120 ms
+                        #
+                        # time_now = time.time_ns()
+                        buffer = io.BytesIO()
+                        pil_image.save(buffer, format="PNG", compress_level=1)
+                        image_bytes = buffer.getvalue()
+                        # pack_duration_sec = (time.time_ns() - time_now) / 10**9
+
+                        # We now have a new encoded frame; but first, sync with network send.
+                        # This prevents from rendering/encoding more frames than are actually sent.
+                        previous_frame = self.image_bytes
+                        if previous_frame is not None:
+                            time_wait_start = time.time_ns()
+                            # Wait in 1ms increments until the previous encoded frame has been sent
+                            while global_latest_frame_sent != id(previous_frame) and not self._terminated:
+                                time.sleep(0.001)
+                            time_now = time.time_ns()
+                            wait_elapsed_sec = (time_now - time_wait_start) / 10**9
+                        else:
+                            wait_elapsed_sec = 0.0
+
+                        self.image_bytes = image_bytes  # atomic replace so no need for a lock
+                    except Exception as exc:
+                        logger.error(exc)
+                        raise  # let the encoder stop so we won't spam the log
+
+                    # Update FPS counter.
+                    time_now = time.time_ns()
+                    walltime_elapsed_sec = (time_now - time_encode_start) / 10**9
+                    encode_elapsed_sec = walltime_elapsed_sec - wait_elapsed_sec
+                    encode_duration_statistics.add_datapoint(encode_elapsed_sec)
+                    wait_duration_statistics.add_datapoint(wait_elapsed_sec)
+
+                # Log the FPS counter in 5-second intervals.
+                time_now = time.time_ns()
+                if animation_running and (last_report_time is None or time_now - last_report_time > 5e9):
+                    avg_encode_sec = encode_duration_statistics.average()
+                    msec = round(1000 * avg_encode_sec, 1)
+                    avg_wait_sec = wait_duration_statistics.average()
+                    wait_msec = round(1000 * avg_wait_sec, 1)
+                    fps = round(1 / avg_encode_sec, 1) if avg_encode_sec > 0.0 else 0.0
+                    logger.info(f"encode: {msec:.1f}ms [{fps} FPS available]; send sync wait {wait_msec:.1f}ms")
+                    last_report_time = time_now
+
+                time.sleep(0.01)  # rate-limit the encoder to 100 FPS maximum (this could be adjusted later)
+        self.encoder_thread = threading.Thread(target=encoder_update, daemon=True)
+        self.encoder_thread.start()
+        atexit.register(self.exit)
+
+    def exit(self) -> None:
+        """Terminate the output encoder thread.
+
+        Called automatically when the process exits.
+        """
+        self._terminated = True
+        self.encoder_thread.join()
+        self.encoder_thread = None

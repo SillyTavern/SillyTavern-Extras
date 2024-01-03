@@ -91,7 +91,7 @@
         "body_z_index": 0.0,
         "breathing_index": 0.0
     },
-    "angry": {
+    "anger": {
         "eyebrow_troubled_left_index": 0.0,
         "eyebrow_troubled_right_index": 0.0,
         "eyebrow_angry_left_index": 1.0,
