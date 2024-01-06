@@ -67,8 +67,6 @@
     then the new "emote" endpoint.
 - When a new talkinghead sprite is uploaded:
   - The preview thumbnail in the client doesn't update.
-  - Talkinghead must be switched off and back on to actually send the new image to the backend.
-    We have the `/api/talkinghead/load` endpoint already, so just call it in the client.
 
 ### Common
 
