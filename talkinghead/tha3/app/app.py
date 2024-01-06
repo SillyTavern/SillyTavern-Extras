@@ -81,9 +81,6 @@ def setEmotion(_emotion: Dict[str, float]) -> None:
             highest_score = item["score"]
             highest_label = item["label"]
 
-    # Never triggered currently, because `setSpriteSlashCommand` at the client end (`SillyTavern/public/scripts/extensions/expressions/index.js`)
-    # searches for a static sprite for the given expression, and does not proceed to `sendExpressionCall` if not found.
-    # So beside `talkinghead.png`, your character also needs the static sprites for "/emote xxx" to work.
     if highest_label not in global_animator_instance.emotions:
         logger.warning(f"setEmotion: emotion '{highest_label}' does not exist, setting to 'neutral'")
         highest_label = "neutral"
