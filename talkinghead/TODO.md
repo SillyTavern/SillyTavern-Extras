@@ -2,6 +2,16 @@
 
 ### Live mode
 
+- Cleanliness
+  - In live mode, move model install code to `talkinghead/tha3/app/app.py` (new function `maybe_install_models`), for symmetry with the manual poser.
+    - Could implement `maybe_install_models` in `talkinghead/tha3/app/util.py`, and call it from both.
+  - Separate responsibilities better in `classify` and `set_emotion`
+    - Make `set_emotion` the lower-level routine (taking in just one string), called by `classify` (which must handle a dict of results)
+- Improve talking animation
+  - At the 25 FPS target, randomizing the mouth each frame looks too fast.
+  - Early 2000s anime used ~12 FPS as the as the fastest actual frame rate of new cels (notwithstanding camera panning effects and similar), which might look better.
+  - We could simply measure the elapsed time since the last mouth randomization?
+  - Also, the mouth should probably be set to its final position as specified by the current emotion as soon as the talking animation ends.
 - Make animation speed independent of target FPS (choppy animation is better than running slower than realtime in a realtime application)
   - Currently animation works per-frame, so it looks natural only at its design target FPS (25...30)
   - But we should also allow higher-FPS, smoother animation for users who prefer that and have the hardware to support it
@@ -14,8 +24,8 @@
       - Invert this relationship to find out how to scale step size to make the result behave linearly in time.
       - Then scale the "linear step" by `target_sec / reference_sec`, where `target_sec = 1 / target_fps`, and `reference_sec = 1 / reference_fps = 1 / 25`
         (or `1 / 30`, whichever looks better in practice).
-- Add live-modifiable configuration
-  - Add a new control panel to SillyTavern client extension settings
+- Add optional per-character configuration
+  - At client end, JSON files in `SillyTavern/public/characters/characternamehere/`
   - Pass the data all the way here (from ST client, to ST server, to ST-extras server, to talkinghead module)
   - Configuration:
     - Target FPS
@@ -27,14 +37,14 @@
       - Sway timing: `sway_interval` min/max
      - Sway strength (`max_random`, `max_noise`)
       - Breathing cycle duration
-  - Optional per-character config at client end (`SillyTavern/public/characters/characternamehere/`):
-    - `emotions.json`: customized emotion templates
-    - `talkinghead.json`: animation and postprocessor settings
+    - Emotion templates
+      - One JSON file per emotion, like for the server default templates? This format is easily produced by the manual poser GUI tool.
   - Need also global defaults
-    - These could live on the SillyTavern-extras server end
+    - These could live at the SillyTavern-extras server end
     - Still, don't hardcode, but read from JSON file, to keep easily configurable
-- In live mode, move model install code to `talkinghead/tha3/app/app.py` (new function `maybe_install_models`), for symmetry with the manual poser.
-  - Could implement `maybe_install_models` in `talkinghead/tha3/app/util.py`, and call it from both.
+- Add live-modifiable configuration for animation and postprocessor settings?
+  - Add a new control panel to SillyTavern client extension settings
+  - Send new configs whenever anything changes
 - Small performance optimization: see if we could use more in-place updates in the postprocessor, to reduce allocation of temporary tensors.
   - The effect on speed will be small; the compute-heaviest part is the inference of the THA3 deep-learning model.
 - Add more postprocessing filters. Possible ideas, no guarantee I'll ever get around to them:
@@ -60,11 +70,10 @@
 
 ### Client-side bugs / missing features:
 
-- Talking animation is broken, seems the client isn't sending us a request to start/stop talking.
 - If `classify` is enabled, emotion state should be updated from the latest AI-generated text
   when switching chat files, to resume in the same emotion state where the chat left off.
   - Either call the "classify" endpoint (which will re-analyze), or if the client stores the emotion,
-    then the new "emote" endpoint.
+    then the "set_emotion" endpoint.
 - When a new talkinghead sprite is uploaded:
   - The preview thumbnail in the client doesn't update.
 
@@ -73,6 +82,7 @@
 - Add pictures to the README.
   - Screenshot of the manual poser. Anything else the user needs to know about it?
   - Examples of generated poses, highlighting both success and failure cases. How the live talking head looks in the actual SillyTavern GUI.
+- Document postprocessor filters and their settings in the README, with example pictures.
 - Merge appropriate material from old user manual into the new README.
 - Update the user manual.
 - Far future: lip-sync talking animation to TTS output (need realtime data from client)
