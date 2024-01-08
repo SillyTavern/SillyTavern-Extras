@@ -464,19 +464,19 @@ class Animator:
 
         Works by randomizing the mouth-open state in regular intervals.
 
-        When talking ends, the mouth immediately snaps to its value in the target pose
+        When talking ends, the mouth immediately snaps to its position in the target pose
         (to avoid a slow, unnatural closing, since most expressions have the mouth closed).
 
         Return the modified pose.
         """
         if not is_talking:
             try:
-                if self.was_talking:  # snap mouth open ("aaa") to target immediately when talking ends
+                if self.was_talking:  # when talking ends, snap mouth to target immediately
                     new_pose = list(pose)  # copy
                     idx = posedict_key_to_index["mouth_aaa_index"]
                     new_pose[idx] = target_pose[idx]
                     return new_pose
-                return pose  # most common case (not talking, and wasn't talking during previous frame)
+                return pose  # most common case: do nothing (not talking, and wasn't talking during previous frame)
             finally:  # reset state *after* processing
                 self.last_talking_target_value = None
                 self.last_talking_timestamp = None
@@ -485,7 +485,7 @@ class Animator:
 
         # With 25 FPS (or faster) output, randomizing the mouth every frame looks too fast.
         # Determine whether enough wall time has passed to randomize a new mouth position.
-        TARGET_SEC = 1 / 12  # Early 2000s anime used ~12 FPS for the fastest actual framerate of new cels (camera panning effects and such not withstanding).
+        TARGET_SEC = 1 / 12  # Early 2000s anime used ~12 FPS as the fastest actual framerate of new cels (not counting camera panning effects and such).
         time_now = time.time_ns()
         update_mouth = False
         if self.last_talking_timestamp is None:
@@ -495,7 +495,7 @@ class Animator:
             if time_elapsed_sec >= TARGET_SEC:
                 update_mouth = True
 
-        # Apply the mouth open ("aaa") position
+        # Apply the mouth open morph
         new_pose = list(pose)  # copy
         idx = posedict_key_to_index["mouth_aaa_index"]
         if self.last_talking_target_value is None or update_mouth:
