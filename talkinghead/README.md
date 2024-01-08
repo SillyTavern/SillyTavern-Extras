@@ -7,6 +7,8 @@
     - [Introduction](#introduction)
     - [Live mode](#live-mode)
     - [Manual poser](#manual-poser)
+    - [Troubleshooting](#troubleshooting)
+        - [Missing model at startup](#missing-model-at-startup)
     - [Creating a character](#creating-a-character)
     - [Tips for Stable Diffusion](#tips-for-stable-diffusion)
     - [Acknowledgements](#acknowledgements)
@@ -79,6 +81,23 @@ Currently, you can choose the device to run on (GPU or CPU), and which THA3 mode
 GPU mode gives the best response, but CPU mode (~2 FPS) is useful at least for batch-exporting static sprites when your VRAM is already full of AI.
 
 To load a PNG image or emotion JSON, you can either use the buttons, their hotkeys, or **drag'n'drop a PNG or JSON** file from your favorite file manager into the source image pane.
+
+
+### Troubleshooting
+
+#### Missing model at startup
+
+The `separable_float` variant of the THA3 models was previously included in the *SillyTavern-extras* repository. However, this was recently (December 2023) changed to download these models from HuggingFace if necessary, so a local copy of the model is no longer provided.
+
+Therefore, if you updated your *SillyTavern-extras* installation from *git*, it is likely that *git* deleted your local copy of that particular model, leading to an error message like:
+
+```
+FileNotFoundError: Model file /home/xxx/SillyTavern-extras/talkinghead/tha3/models/separable_float/eyebrow_decomposer.pt not found, please check the path.
+```
+
+The solution is to remove (or rename) your `SillyTavern-extras/talkinghead/tha3/models` directory, and try again. If that directory does not exist, `talkinghead` will download the models at the first run.
+
+The models are shared between the live mode and the manual poser, so it doesn't matter which one you run first.
 
 
 ### Creating a character
