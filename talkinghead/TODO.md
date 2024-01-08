@@ -2,9 +2,6 @@
 
 ### Live mode
 
-- Cleanliness
-  - In live mode, move model install code to `talkinghead/tha3/app/app.py` (new function `maybe_install_models`), for symmetry with the manual poser.
-    - Could implement `maybe_install_models` in `talkinghead/tha3/app/util.py`, and call it from both.
 - Make animation speed independent of target FPS (choppy animation is better than running slower than realtime in a realtime application)
   - Currently animation works per-frame, so it looks natural only at its design target FPS (25...30)
   - But we should also allow higher-FPS, smoother animation for users who prefer that and have the hardware to support it
