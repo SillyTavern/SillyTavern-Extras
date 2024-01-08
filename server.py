@@ -13,8 +13,7 @@ from flask_cors import CORS
 from flask_compress import Compress
 import markdown
 import argparse
-from transformers import AutoTokenizer, pipeline
-from transformers import AutoModelForSeq2SeqLM
+from transformers import pipeline
 import unicodedata
 import torch
 import time
@@ -28,7 +27,13 @@ from io import BytesIO
 from random import randint
 import webuiapi
 import hashlib
-from constants import *
+from constants import (DEFAULT_SUMMARIZATION_MODEL,
+                       DEFAULT_CLASSIFICATION_MODEL,
+                       DEFAULT_CAPTIONING_MODEL,
+                       DEFAULT_EMBEDDING_MODEL,
+                       DEFAULT_SD_MODEL, DEFAULT_REMOTE_SD_HOST, DEFAULT_REMOTE_SD_PORT, PROMPT_PREFIX, NEGATIVE_PROMPT,
+                       DEFAULT_CUDA_DEVICE,
+                       DEFAULT_CHROMA_PORT)
 from colorama import Fore, Style, init as colorama_init
 
 colorama_init()
@@ -141,22 +146,10 @@ args = parser.parse_args()
 
 port = args.port if args.port else 5100
 host = "0.0.0.0" if args.listen else "localhost"
-summarization_model = (
-    args.summarization_model
-    if args.summarization_model
-    else DEFAULT_SUMMARIZATION_MODEL
-)
-classification_model = (
-    args.classification_model
-    if args.classification_model
-    else DEFAULT_CLASSIFICATION_MODEL
-)
-captioning_model = (
-    args.captioning_model if args.captioning_model else DEFAULT_CAPTIONING_MODEL
-)
-embedding_model = (
-    args.embedding_model if args.embedding_model else DEFAULT_EMBEDDING_MODEL
-)
+summarization_model = args.summarization_model if args.summarization_model else DEFAULT_SUMMARIZATION_MODEL
+classification_model = args.classification_model if args.classification_model else DEFAULT_CLASSIFICATION_MODEL
+captioning_model = args.captioning_model if args.captioning_model else DEFAULT_CAPTIONING_MODEL
+embedding_model = args.embedding_model if args.embedding_model else DEFAULT_EMBEDDING_MODEL
 
 sd_use_remote = False if args.sd_model else True
 sd_model = args.sd_model if args.sd_model else DEFAULT_SD_MODEL
@@ -179,7 +172,7 @@ if len(modules) == 0:
 cuda_device = DEFAULT_CUDA_DEVICE if not args.cuda_device else args.cuda_device
 device_string = cuda_device if torch.cuda.is_available() and not args.cpu else 'mps' if torch.backends.mps.is_available() and not args.cpu else 'cpu'
 device = torch.device(device_string)
-torch_dtype = torch.float32 if device_string != cuda_device  else torch.float16
+torch_dtype = torch.float32 if device_string != cuda_device else torch.float16
 
 if not torch.cuda.is_available() and not args.cpu:
     print(f"{Fore.YELLOW}{Style.BRIGHT}torch-cuda is not supported on this device.{Style.RESET_ALL}")
@@ -219,7 +212,7 @@ if "talkinghead" in modules:
         model = "separable_half" if args.talkinghead_gpu else "separable_float"
     print(f"Initializing talkinghead pipeline in {mode} mode with model {model}....")
     talkinghead_path = os.path.abspath(os.path.join(os.getcwd(), "talkinghead"))
-    sys.path.append(talkinghead_path) # Add the path to the 'tha3' module to the sys.path list
+    sys.path.append(talkinghead_path)  # Add the path to the 'tha3' module to the sys.path list
 
     try:
         import talkinghead.tha3.app.app as talkinghead
@@ -269,7 +262,7 @@ elif "sd" in modules and sd_use_remote:
             username, password = sd_remote_auth.split(":")
             sd_remote.set_auth(username, password)
         sd_remote.util_wait_for_ready()
-    except Exception as e:
+    except Exception:
         # remote sd from modules
         print(
             f"{Fore.RED}{Style.BRIGHT}Could not connect to remote SD backend at http{'s' if sd_remote_ssl else ''}://{sd_remote_host}:{sd_remote_port}! Disabling SD module...{Style.RESET_ALL}"
@@ -305,7 +298,6 @@ if "chromadb" in modules:
     import posthog
     from chromadb.config import Settings
     from chromadb.utils import embedding_functions
-    from sentence_transformers import SentenceTransformer
 
     # Assume that the user wants in-memory unless a host is specified
     # Also disable chromadb telemetry
@@ -316,11 +308,9 @@ if "chromadb" in modules:
             print(f"ChromaDB is running in-memory with persistence. Persistence is stored in {args.chroma_folder}. Can be cleared by deleting the folder or purging db.")
         else:
             chromadb_client = chromadb.EphemeralClient(Settings(anonymized_telemetry=False))
-            print(f"ChromaDB is running in-memory without persistence.")
+            print("ChromaDB is running in-memory without persistence.")
     else:
-        chroma_port=(
-            args.chroma_port if args.chroma_port else DEFAULT_CHROMA_PORT
-        )
+        chroma_port = args.chroma_port if args.chroma_port else DEFAULT_CHROMA_PORT
         chromadb_client = chromadb.HttpClient(host=args.chroma_host, port=chroma_port, settings=Settings(anonymized_telemetry=False))
         print(f"ChromaDB is remotely configured at {args.chroma_host}:{chroma_port}")
 
@@ -330,13 +320,13 @@ if "chromadb" in modules:
     try:
         chromadb_client.heartbeat()
         print("Successfully pinged ChromaDB! Your client is successfully connected.")
-    except:
+    except Exception:
         print("Could not ping ChromaDB! If you are running remotely, please check your host and port!")
 
 # Flask init
 app = Flask(__name__)
 CORS(app)  # allow cross-domain requests
-Compress(app) # compress responses
+Compress(app)  # compress responses
 app.config["MAX_CONTENT_LENGTH"] = 500 * 1024 * 1024
 
 max_content_length = (
@@ -345,7 +335,7 @@ max_content_length = (
     else None)
 
 if max_content_length is not None:
-    print("Setting MAX_CONTENT_LENGTH to",max_content_length,"Mb")
+    print("Setting MAX_CONTENT_LENGTH to", max_content_length, "Mb")
     app.config["MAX_CONTENT_LENGTH"] = int(max_content_length) * 1024 * 1024
 
 if "classify" in modules:
@@ -355,9 +345,9 @@ if "classify" in modules:
 if "vosk-stt" in modules:
     print("Initializing Vosk speech-recognition (from ST request file)")
     vosk_model_path = (
-    args.stt_vosk_model_path
-    if args.stt_vosk_model_path
-    else None)
+        args.stt_vosk_model_path
+        if args.stt_vosk_model_path
+        else None)
 
     import modules.speech_recognition.vosk_module as vosk_module
 
@@ -367,9 +357,9 @@ if "vosk-stt" in modules:
 if "whisper-stt" in modules:
     print("Initializing Whisper speech-recognition (from ST request file)")
     whisper_model_path = (
-    args.stt_whisper_model_path
-    if args.stt_whisper_model_path
-    else None)
+        args.stt_whisper_model_path
+        if args.stt_whisper_model_path
+        else None)
 
     import modules.speech_recognition.whisper_module as whisper_module
 
@@ -379,9 +369,9 @@ if "whisper-stt" in modules:
 if "streaming-stt" in modules:
     print("Initializing vosk/whisper speech-recognition (from extras server microphone)")
     whisper_model_path = (
-    args.stt_whisper_model_path
-    if args.stt_whisper_model_path
-    else None)
+        args.stt_whisper_model_path
+        if args.stt_whisper_model_path
+        else None)
 
     import modules.speech_recognition.streaming_module as streaming_module
 
@@ -392,15 +382,15 @@ if "rvc" in modules:
     print("Initializing RVC voice conversion (from ST request file)")
     print("Increasing server upload limit")
     rvc_save_file = (
-    args.rvc_save_file
-    if args.rvc_save_file
-    else False)
+        args.rvc_save_file
+        if args.rvc_save_file
+        else False)
 
     if rvc_save_file:
         print("RVC saving file option detected, input/output audio will be savec into data/tmp/ folder")
 
     import sys
-    sys.path.insert(0,'modules/voice_conversion')
+    sys.path.insert(0, 'modules/voice_conversion')
 
     import modules.voice_conversion.rvc_module as rvc_module
     rvc_module.save_file = rvc_save_file
@@ -423,9 +413,9 @@ if "coqui-tts" in modules:
         coqui_module.gpu_mode = True
 
     coqui_models = (
-    args.coqui_models
-    if args.coqui_models
-    else None
+        args.coqui_models
+        if args.coqui_models
+        else None
     )
 
     if coqui_models is not None:
@@ -476,7 +466,7 @@ def summarize_chunks(text: str) -> str:
         )
         return summarize_chunks(
             text[: (len(text) // 2)]
-        ) + summarize_chunks(text[(len(text) // 2) :])
+        ) + summarize_chunks(text[(len(text) // 2):])
 
 
 def summarize(text: str) -> str:
@@ -535,13 +525,13 @@ if args.secure:
     try:
         with open("api_key.txt", "r") as txt:
             api_key = txt.read().replace('\n', '')
-    except:
+    except Exception:
         api_key = secrets.token_hex(5)
         with open("api_key.txt", "w") as txt:
             txt.write(api_key)
 
     print(f"{Fore.YELLOW}{Style.BRIGHT}Your API key is {api_key}{Style.RESET_ALL}")
-elif args.share and args.secure != True:
+elif args.share and not args.secure:
     print(f"{Fore.RED}{Style.BRIGHT}WARNING: This instance is publicly exposed without an API key! It is highly recommended to restart with the \"--secure\" argument!{Style.RESET_ALL}")
 else:
     print(f"{Fore.YELLOW}{Style.BRIGHT}No API key given because you are running locally.{Style.RESET_ALL}")
@@ -564,9 +554,9 @@ def before_request():
     # Checks if an API key is present and valid, otherwise return unauthorized
     # The options check is required so CORS doesn't get angry
     try:
-        if request.method != 'OPTIONS' and args.secure and is_authorize_ignored(request) == False and getattr(request.authorization, 'token', '') != api_key:
+        if request.method != 'OPTIONS' and args.secure and not is_authorize_ignored(request) and getattr(request.authorization, 'token', '') != api_key:
             print(f"{Fore.RED}{Style.NORMAL}WARNING: Unauthorized API key access from {request.remote_addr}{Style.RESET_ALL}")
-            response = jsonify({ 'error': '401: Invalid API key' })
+            response = jsonify({'error': '401: Invalid API key'})
             response.status_code = 401
             return response
     except Exception as e:
@@ -968,7 +958,6 @@ def chromadb_query():
         print(f"Queried empty/missing collection for {repr(data['chat_id'])}.")
         return jsonify([])
 
-
     n_results = min(collection.count(), n_results)
     query_result = collection.query(
         query_texts=[data["query"]],
@@ -1113,7 +1102,6 @@ def chromadb_import():
     documents = [item['document'] for item in content]
     metadatas = [item['metadata'] for item in content]
     ids = [item['id'] for item in content]
-
 
     collection.upsert(documents=documents, metadatas=metadatas, ids=ids)
     print(f"Imported {len(ids)} (total {collection.count()}) content entries into {repr(data['chat_id'])}")
