@@ -336,12 +336,16 @@ class Animator:
         self.last_emotion = None
         self.last_emotion_change_timestamp = None
 
-        self.last_blink_timestamp = None
-        self.blink_interval = None
-
         self.last_sway_target_timestamp = None
         self.last_sway_target_pose = None
         self.sway_interval = None
+
+        self.last_blink_timestamp = None
+        self.blink_interval = None
+
+        self.last_talking_timestamp = None
+        self.last_talking_target_value = None
+        self.was_talking = False
 
         self.breathing_epoch = time.time_ns()
 
@@ -434,23 +438,63 @@ class Animator:
 
         return new_pose
 
-    def animate_talking(self, pose: List[float]) -> List[float]:
+    def animate_talking(self, pose: List[float], target_pose: List[float]) -> List[float]:
         """Talking animation driver.
 
-        Works by randomizing the mouth-open state.
+        Works by randomizing the mouth-open state in regular intervals.
+
+        When talking ends, the mouth immediately snaps to its value in the target pose
+        (to avoid a slow, unnatural closing, since most expressions have the mouth closed).
 
         Return the modified pose.
         """
         if not is_talking:
-            return pose
+            try:
+                if self.was_talking:  # snap mouth open ("aaa") to target immediately when talking ends
+                    new_pose = list(pose)  # copy
+                    idx = posedict_key_to_index["mouth_aaa_index"]
+                    new_pose[idx] = target_pose[idx]
+                    return new_pose
+                return pose  # most common case (not talking, and wasn't talking during previous frame)
+            finally:  # reset state *after* processing
+                self.last_talking_target_value = None
+                self.last_talking_timestamp = None
+                self.was_talking = False
+        assert is_talking
 
-        # TODO: improve talking animation once we get the client to actually use it
+        # With 25 FPS (or faster) output, randomizing the mouth every frame looks too fast.
+        # Determine whether enough wall time has passed to randomize a new mouth position.
+        TARGET_SEC = 1 / 12  # Early 2000s anime used ~12 FPS for the fastest actual framerate of new cels (camera panning effects and such not withstanding).
+        time_now = time.time_ns()
+        update_mouth = False
+        if self.last_talking_timestamp is None:
+            update_mouth = True
+        else:
+            time_elapsed_sec = (time_now - self.last_talking_timestamp) / 10**9
+            if time_elapsed_sec >= TARGET_SEC:
+                update_mouth = True
+
+        # Apply the mouth open ("aaa") position
         new_pose = list(pose)  # copy
         idx = posedict_key_to_index["mouth_aaa_index"]
-        x = pose[idx]
-        x = abs(1.0 - x) + random.uniform(-2.0, 2.0)
-        x = max(0.0, min(x, 1.0))  # clamp (not the manga studio)
+        if self.last_talking_target_value is None or update_mouth:
+            # Randomize new mouth position
+            x = pose[idx]
+            x = abs(1.0 - x) + random.uniform(-2.0, 2.0)
+            x = max(0.0, min(x, 1.0))  # clamp (not the manga studio)
+            self.last_talking_target_value = x
+            self.last_talking_timestamp = time_now
+        else:
+            # Keep the mouth at its latest randomized position (this overrides the interpolator that would pull the mouth toward the target emotion pose)
+            x = self.last_talking_target_value
         new_pose[idx] = x
+
+        # When talking, zero out other targets that affect mouth open/closed state.
+        for key in ["mouth_iii_index", "mouth_uuu_index", "mouth_eee_index", "mouth_ooo_index", "mouth_delta"]:
+            idx = posedict_key_to_index[key]
+            new_pose[idx] = 0.0
+
+        self.was_talking = True
         return new_pose
 
     def compute_sway_target_pose(self, original_target_pose: List[float]) -> List[float]:
@@ -605,7 +649,7 @@ class Animator:
 
         self.current_pose = self.interpolate_pose(self.current_pose, target_pose)
         self.current_pose = self.animate_blinking(self.current_pose)
-        self.current_pose = self.animate_talking(self.current_pose)
+        self.current_pose = self.animate_talking(self.current_pose, target_pose)
         self.current_pose = self.animate_breathing(self.current_pose)
 
         # Update this last so that animation drivers have access to the old emotion, too.
