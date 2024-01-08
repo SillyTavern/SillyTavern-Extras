@@ -469,12 +469,16 @@ class Animator:
 
         Return the modified pose.
         """
+        MOUTH_OPEN_MORPHS = ["mouth_aaa_index", "mouth_iii_index", "mouth_uuu_index", "mouth_eee_index", "mouth_ooo_index", "mouth_delta"]
+        TALKING_MORPH = "mouth_aaa_index"
+
         if not is_talking:
             try:
                 if self.was_talking:  # when talking ends, snap mouth to target immediately
                     new_pose = list(pose)  # copy
-                    idx = posedict_key_to_index["mouth_aaa_index"]
-                    new_pose[idx] = target_pose[idx]
+                    for key in MOUTH_OPEN_MORPHS:
+                        idx = posedict_key_to_index[key]
+                        new_pose[idx] = target_pose[idx]
                     return new_pose
                 return pose  # most common case: do nothing (not talking, and wasn't talking during previous frame)
             finally:  # reset state *after* processing
@@ -497,7 +501,7 @@ class Animator:
 
         # Apply the mouth open morph
         new_pose = list(pose)  # copy
-        idx = posedict_key_to_index["mouth_aaa_index"]
+        idx = posedict_key_to_index[TALKING_MORPH]
         if self.last_talking_target_value is None or update_mouth:
             # Randomize new mouth position
             x = pose[idx]
@@ -510,8 +514,10 @@ class Animator:
             x = self.last_talking_target_value
         new_pose[idx] = x
 
-        # When talking, zero out other targets that affect mouth open/closed state.
-        for key in ["mouth_iii_index", "mouth_uuu_index", "mouth_eee_index", "mouth_ooo_index", "mouth_delta"]:
+        # Zero out other morphs that affect mouth open/closed state.
+        for key in MOUTH_OPEN_MORPHS:
+            if key == TALKING_MORPH:
+                continue
             idx = posedict_key_to_index[key]
             new_pose[idx] = 0.0
 
