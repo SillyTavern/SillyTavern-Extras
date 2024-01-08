@@ -5,8 +5,6 @@
 - Cleanliness
   - In live mode, move model install code to `talkinghead/tha3/app/app.py` (new function `maybe_install_models`), for symmetry with the manual poser.
     - Could implement `maybe_install_models` in `talkinghead/tha3/app/util.py`, and call it from both.
-  - Separate responsibilities better in `classify` and `set_emotion`
-    - Make `set_emotion` the lower-level routine (taking in just one string), called by `classify` (which must handle a dict of results)
 - Make animation speed independent of target FPS (choppy animation is better than running slower than realtime in a realtime application)
   - Currently animation works per-frame, so it looks natural only at its design target FPS (25...30)
   - But we should also allow higher-FPS, smoother animation for users who prefer that and have the hardware to support it
@@ -23,7 +21,7 @@
   - At client end, JSON files in `SillyTavern/public/characters/characternamehere/`
   - Pass the data all the way here (from ST client, to ST server, to ST-extras server, to talkinghead module)
   - Configuration:
-    - Target FPS
+    - Target FPS (default 25.0)
     - Postprocessor effect chain (including settings)
     - Animation parameters (ideally per character)
       - Blink timing: `blink_interval` min/max (when randomizing the next blink timing)
@@ -34,12 +32,13 @@
       - Breathing cycle duration
     - Emotion templates
       - One JSON file per emotion, like for the server default templates? This format is easily produced by the manual poser GUI tool.
+      - Could be collected by the client into a single JSON for sending.
   - Need also global defaults
     - These could live at the SillyTavern-extras server end
     - Still, don't hardcode, but read from JSON file, to keep easily configurable
 - Add live-modifiable configuration for animation and postprocessor settings?
   - Add a new control panel to SillyTavern client extension settings
-  - Send new configs whenever anything changes
+  - Send new configs to backend whenever anything changes
 - Small performance optimization: see if we could use more in-place updates in the postprocessor, to reduce allocation of temporary tensors.
   - The effect on speed will be small; the compute-heaviest part is the inference of the THA3 deep-learning model.
 - Add more postprocessing filters. Possible ideas, no guarantee I'll ever get around to them:
