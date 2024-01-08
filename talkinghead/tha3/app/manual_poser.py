@@ -68,7 +68,7 @@ import wx
 from tha3.poser.modes.load_poser import load_poser
 from tha3.poser.poser import Poser, PoseParameterCategory, PoseParameterGroup
 from tha3.util import resize_PIL_image, extract_PIL_image_from_filelike, extract_pytorch_image_from_PIL_image
-from tha3.app.util import load_emotion_presets, posedict_to_pose, pose_to_posedict, torch_image_to_numpy, RunningAverage
+from tha3.app.util import load_emotion_presets, posedict_to_pose, pose_to_posedict, torch_image_to_numpy, RunningAverage, maybe_install_models
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -1027,23 +1027,7 @@ if __name__ == "__main__":
 
     # Install the THA3 models if needed
     modelsdir = os.path.join(os.getcwd(), "tha3", "models")
-    if not os.path.exists(modelsdir):
-        # API:
-        #   https://huggingface.co/docs/huggingface_hub/en/guides/download
-        try:
-            from huggingface_hub import snapshot_download
-        except ImportError:
-            raise ImportError(
-                "You need to install huggingface_hub to install talkinghead models automatically. "
-                "See https://pypi.org/project/huggingface-hub/ for installation."
-            )
-        os.makedirs(modelsdir, exist_ok=True)
-        print(f"THA3 models not yet installed. Installing from {args.talkinghead_models} into tha3/models.")
-        # Installing with symlinks would be generally better, but MS Windows support for symlinks is not optimal,
-        # so for maximal compatibility we avoid them. The drawback of installing directly as plain files is that
-        # if multiple programs need to download THA3, they will do so separately. But THA3 is rather rare, so in
-        # practice this is unlikely to be an issue.
-        snapshot_download(repo_id=args.talkinghead_models, local_dir=modelsdir, local_dir_use_symlinks=False)
+    maybe_install_models(hf_reponame=args.models, modelsdir=modelsdir)
 
     try:
         device = torch.device(args.device)

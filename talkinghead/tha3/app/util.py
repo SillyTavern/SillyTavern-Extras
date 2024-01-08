@@ -3,6 +3,7 @@
 __all__ = ["posedict_keys", "posedict_key_to_index",
            "load_emotion_presets",
            "posedict_to_pose", "pose_to_posedict",
+           "maybe_install_models",
            "torch_image_to_numpy", "to_talkinghead_image",
            "RunningAverage"]
 
@@ -135,6 +136,34 @@ def posedict_to_pose(posedict: Dict[str, float]) -> List[float]:
 def pose_to_posedict(pose: List[float]) -> Dict[str, float]:
     """Convert `pose` into a posedict for saving into an emotion JSON."""
     return dict(zip(posedict_keys, pose))
+
+# --------------------------------------------------------------------------------
+
+def maybe_install_models(hf_reponame: str, modelsdir: str) -> None:
+    """Download and install the posing engine (THA3) models into `modelsdir` if the directory does not exist yet. Else do nothing.
+
+    For maximal OS compatibility, symlinks are not used.
+
+    `hf_reponame`: HuggingFace repository to download from, e.g. "OktayAlpk/talking-head-anime-3".
+    `modelsdir`: Local path (absolute or relative) to install in.
+    """
+    if not os.path.exists(modelsdir):
+        # API:
+        #   https://huggingface.co/docs/huggingface_hub/en/guides/download
+        try:
+            from huggingface_hub import snapshot_download
+        except ImportError:
+            raise ImportError(
+                "You need to install huggingface_hub to install talkinghead models automatically. "
+                "See https://pypi.org/project/huggingface-hub/ for installation."
+            )
+        os.makedirs(modelsdir, exist_ok=True)
+        print(f"THA3 models not yet installed. Installing from {hf_reponame} into {modelsdir}.")
+        # Installing with symlinks would be generally better, but MS Windows support for symlinks is not optimal,
+        # so for maximal compatibility we avoid them. The drawback of installing directly as plain files is that
+        # if multiple programs need to download THA3, they will do so separately. But THA3 is rather rare, so in
+        # practice this is unlikely to be an issue.
+        snapshot_download(repo_id=hf_reponame, local_dir=modelsdir, local_dir_use_symlinks=False)
 
 # --------------------------------------------------------------------------------
 # TODO: move the image utils to the lower-level `tha3.util`?
