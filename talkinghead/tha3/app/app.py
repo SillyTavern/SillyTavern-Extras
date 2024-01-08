@@ -462,12 +462,14 @@ class Animator:
 
         Return the modified pose.
         """
-        # We just modify the target pose, and let the integrator (`interpolate_pose`) do the actual animation.
+        # We just modify the target pose, and let the ODE integrator (`interpolate_pose`) do the actual animation.
         # - This way we don't need to track start state, progress, etc.
         # - This also makes the animation nonlinear automatically: a saturating exponential trajectory toward the target.
-        #     - If we want to add a smooth start, we'll need a ramp-in mechanism to interpolate the target from the current pose to the actual target gradually.
-        #       The nonlinearity automatically takes care of slowing down when the target is approached.
+        #   - If we want a smooth start toward a target pose/morph, we can e.g. save the timestamp when the animation began, and then ramp the rate of change,
+        #     beginning at zero and (some time later, as measured from the timestamp) ending at the original, non-ramped value. The ODE itself takes care of
+        #     slowing down when we approach the target state.
 
+        # As documented in the original THA tech reports, on the pose axes, zero is centered, and 1.0 = 15 degrees.
         random_max = 0.6  # max sway magnitude from center position of each morph
         noise_max = 0.02  # amount of dynamic noise (re-generated every frame), added on top of the sway target
 
@@ -481,7 +483,7 @@ class Animator:
                     seconds_since_last_sway_target = (time_now - self.last_sway_target_timestamp) / 10**9
                     if seconds_since_last_sway_target < self.sway_interval:
                         should_pick_new_sway_target = False
-            # else, emotion has changed, invalidating the old sway target, because it is based on the old emotion.
+            # else, emotion has changed, invalidating the old sway target, because it is based on the old emotion (since emotions may affect the pose too).
 
             if not should_pick_new_sway_target:
                 if self.last_sway_target_pose is not None:  # When keeping the same sway target, return the cached sway pose if we have one.
