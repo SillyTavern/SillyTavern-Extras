@@ -7,11 +7,6 @@
     - Could implement `maybe_install_models` in `talkinghead/tha3/app/util.py`, and call it from both.
   - Separate responsibilities better in `classify` and `set_emotion`
     - Make `set_emotion` the lower-level routine (taking in just one string), called by `classify` (which must handle a dict of results)
-- Improve talking animation
-  - At the 25 FPS target, randomizing the mouth each frame looks too fast.
-  - Early 2000s anime used ~12 FPS as the as the fastest actual frame rate of new cels (notwithstanding camera panning effects and similar), which might look better.
-  - We could simply measure the elapsed time since the last mouth randomization?
-  - Also, the mouth should probably be set to its final position as specified by the current emotion as soon as the talking animation ends.
 - Make animation speed independent of target FPS (choppy animation is better than running slower than realtime in a realtime application)
   - Currently animation works per-frame, so it looks natural only at its design target FPS (25...30)
   - But we should also allow higher-FPS, smoother animation for users who prefer that and have the hardware to support it
@@ -31,10 +26,10 @@
     - Target FPS
     - Postprocessor effect chain (including settings)
     - Animation parameters (ideally per character)
-      - Blink timing: `blink_interval` min/max
+      - Blink timing: `blink_interval` min/max (when randomizing the next blink timing)
       - Blink probability per frame
       - "confusion" emotion initial segment duration (where blinking quickly in succession is allowed)
-      - Sway timing: `sway_interval` min/max
+      - Sway timing: `sway_interval` min/max (when randomizing the next sway timing)
      - Sway strength (`max_random`, `max_noise`)
       - Breathing cycle duration
     - Emotion templates
@@ -85,5 +80,11 @@
 - Document postprocessor filters and their settings in the README, with example pictures.
 - Merge appropriate material from old user manual into the new README.
 - Update the user manual.
-- Far future: lip-sync talking animation to TTS output (need realtime data from client)
-  - THA3 has morphs for A, I, U, E, O, and the "mouth delta" shape Δ.
+- Far future:
+  - Lip-sync talking animation to TTS output (need realtime data from client)
+    - THA3 has morphs for A, I, U, E, O, and the "mouth delta" shape Δ.
+  - Fast, high-quality scaling mechanism.
+    - On a 4k display, the character becomes rather small, which looks jarring on the default backgrounds.
+    - The algorithm should be cartoon-aware, some modern-day equivalent of waifu2x. A GAN such as 4x-AnimeSharp or Remacri would be nice, but too slow.
+    - Maybe the scaler should run at the client side to avoid the need to stream 1024x1024 PNGs.
+      - What JavaScript anime scalers are there, or which algorithms are simple enough for a small custom implementation?
