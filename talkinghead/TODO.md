@@ -14,6 +14,124 @@
       - Invert this relationship to find out how to scale step size to make the result behave linearly in time.
       - Then scale the "linear step" by `target_sec / reference_sec`, where `target_sec = 1 / target_fps`, and `reference_sec = 1 / reference_fps = 1 / 25`
         (or `1 / 30`, whichever looks better in practice).
+
+      - For an initial value `x0`, a constant final value `xf`, and constant step `dt ∈ (0, 1]`, the interpolator produces:
+
+        x1 = x0 + dt (xf - x0) = [1 - dt] x0 + dt xf
+        x2 = x1 + dt (xf - x1) = [1 - dt] x1 + dt xf
+        x3 = x2 + dt (xf - x2) = [1 - dt] x2 + dt xf
+        ...
+
+        Note that with exact arithmetic, if `dt < 1`, the final value is only reached in the limit `n → ∞`.
+        For floating point, this is not the case; eventually the increment becomes small enough that when
+        it is added, nothing happens. After sufficiently many steps, in practice `x` will stop just slightly
+        short of `xf` (on the side it approached the target from).
+
+        (For performance reasons, when approaching zero, one may need to beware of denormals, because those
+         are usually implemented in (slow!) software on modern CPUs. So if the target is zero, it is useful
+         to have some very small cutoff (inside the normal floating-point range) after which we make `x`
+         instantly jump to zero.)
+
+        Inserting the definition of `x1` to `x2`, we have:
+
+        x2 = [1 - dt] ([1 - dt] x0 + dt xf) + dt xf
+           = [1 - dt]² x0 + [1 - dt] dt xf + dt xf
+           = [1 - dt]² x0 + [[1 - dt] + 1] dt xf
+
+        Then inserting `x2` (in terms of `x0`) to `x3`:
+
+        x3 = [1 - dt] ([1 - dt]² x0 + [[1 - dt] + 1] dt xf) + dt xf
+           = [1 - dt]³ x0 + [1 - dt]² dt xf + [1 - dt] dt xf + dt xf
+
+        To simplify notation, define:
+
+        α := 1 - dt
+        β := dt xf
+
+        We have:
+
+        x1 = α  x0 + β
+        x2 = α² x0 + α β + β
+        x3 = α³ x0 + α² β + α β + β
+
+        which suggests that the general pattern is (as can be proven by induction on `n`):
+
+        xn = α**n x0 + β ∑(α**j, j, 0, n - 1)
+
+        Maybe the notation is more elegant with just α?
+
+        x1 = α  x0 + [1 - α] xf
+        x2 = α² x0 + [1 - α] [1 + α] xf
+           = α² x0 + [1 - α²] xf
+        x3 = α³ x0 + [1 - α] [1 + α + α²] xf
+           = α³ x0 + [1 - α³] xf
+        ...
+        xn = α**n x0 + [1 - α] ∑(α**j, j, 0, n - 1) xf
+           = α**n x0 + [1 - α**n] xf
+
+        This allows us to calculate `xn` as a function of `n`. Now the question of linear-in-time scaling becomes:
+        if we want to reach a given `xn` by some given step `m` (instead of the original step `n`), how must we
+        change the step size `dt` (or equivalently, `α`)?
+
+        Can we simplify this further? Yes:
+
+        x1 = α x0 + [1 - α] [[xf - x0] + x0]
+           = [α + [1 - α]] x0 + [1 - α] [xf - x0]
+           = x0 + [1 - α] [xf - x0]
+
+        Rearranging,
+
+        [x1 - x0] / [xf - x0] = 1 - α
+
+        which gives us the relative distance from `x0` to `xf` that is covered in one step. This isn't yet much
+        to write home about (it's essentially just a rearrangement of the definition of `x1`), but next, let's
+        treat `x2` the same way:
+
+        x2 = α² x0 + [1 - α] [1 + α] [[xf - x0] + x0]
+           = [α² x0 + [1 - α²] x0] + [1 - α²] [xf - x0]
+           = [α² + 1 - α²] x0 + [1 - α²] [xf - x0]
+           = x0 + [1 - α²] [xf - x0]
+
+        We obtain
+
+        [x2 - x0] / [xf - x0] = 1 - α²
+
+        which is the relative distance, from the original `x0` toward the final `xf`, that is covered in two steps
+        using the original step size `dt = 1 - α`. Next up, `x3`:
+
+        x3 = α³ x0 + [1 - α³] [[xf - x0] + x0]
+           = α³ x0 + [1 - α³] [xf - x0] + [1 - α³] x0
+           = x0 + [1 - α³] [xf - x0]
+
+        Rearranging,
+
+        [x3 - x0] / [xf - x0] = 1 - α³
+
+        which is the relative distance covered in three steps. Hence,
+
+        xrel := [xn - x0] / [xf - x0] = 1 - α**n
+
+        so that
+
+        α**n = 1 - xrel              (**)
+
+        and (taking the natural logarithm of both sides)
+
+        n log α = log [1 - xrel]
+
+        or
+
+        n = [log [1 - xrel]] / [log α]
+
+        which, given `α = 1 - dt`, analytically gives the `n` where the interpolation has covered the fraction `xrel` of the original distance.
+
+        On the other hand, we can also solve (**) for `α`:
+
+        α = (1 - xrel)**(1 / n)
+
+        which, given desired `n`, gives us the `α` that makes the interpolation cover the fraction `xrel` of the original distance in `n` steps.
+
+
 - Add optional per-character configuration
   - At client end, JSON files in `SillyTavern/public/characters/characternamehere/`
   - Pass the data all the way here (from ST client, to ST server, to ST-extras server, to talkinghead module)
