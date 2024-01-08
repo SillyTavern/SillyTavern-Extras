@@ -6,6 +6,13 @@ This module implements the live animation backend and serves the API. For usage,
 If you want to play around with THA3 expressions in a standalone app, see `manual_poser.py`.
 """
 
+__all__ = ["set_emotion_from_classification", "set_emotion",
+           "unload",
+           "start_talking", "stop_talking",
+           "result_feed",
+           "talkinghead_load_file",
+           "launch"]
+
 import atexit
 import io
 import logging
@@ -61,54 +68,68 @@ global_reload_image = None
 app = Flask(__name__)
 CORS(app)
 
-def setEmotion(_emotion: Dict[str, float]) -> None:
+def set_emotion_from_classification(emotion_scores: List[Dict[str, Union[str, float]]]) -> str:
     """Set the current emotion of the character based on sentiment analysis results.
 
     Currently, we pick the emotion with the highest confidence score.
 
-    The `set_emotion` API endpoint also uses this function to set the current emotion,
-    with a manually formatted dictionary containing just one entry.
+    `emotion_scores`: results from classify module: [{"label": emotion0, "score": confidence0}, ...]
 
-    _emotion: result of sentiment analysis: {emotion0: confidence0, ...}
+    Return a status message for passing over HTTP.
     """
-    global current_emotion
-
     highest_score = float("-inf")
     highest_label = None
-
-    for item in _emotion:
+    for item in emotion_scores:
         if item["score"] > highest_score:
             highest_score = item["score"]
             highest_label = item["label"]
+    logger.info(f"set_emotion_from_classification: winning score: {highest_label} = {highest_score}")
+    return set_emotion(highest_label)
 
-    if highest_label not in global_animator_instance.emotions:
-        logger.warning(f"setEmotion: emotion '{highest_label}' does not exist, setting to 'neutral'")
-        highest_label = "neutral"
+def set_emotion(emotion: str) -> str:
+    """Set the current emotion of the character.
 
-    logger.info(f"setEmotion: applying emotion {highest_label}")
-    current_emotion = highest_label
-    return f"emotion set to {highest_label}"
+    Return a status message for passing over HTTP.
+    """
+    global current_emotion
+
+    if emotion not in global_animator_instance.emotions:
+        logger.warning(f"set_emotion: specified emotion '{emotion}' does not exist, selecting 'neutral'")
+        emotion = "neutral"
+
+    logger.info(f"set_emotion: applying emotion {emotion}")
+    current_emotion = emotion
+    return f"emotion set to {emotion}"
 
 def unload() -> str:
-    """Stop animation."""
+    """Stop animation.
+
+    Return a status message for passing over HTTP.
+    """
     global animation_running
     animation_running = False
     logger.info("unload: animation paused")
-    return "Animation Paused"
+    return "animation paused"
 
 def start_talking() -> str:
-    """Start talking animation."""
+    """Start talking animation.
+
+    Return a status message for passing over HTTP.
+    """
     global is_talking
     is_talking = True
     logger.debug("start_talking called")
-    return "started"
+    return "talking started"
 
 def stop_talking() -> str:
-    """Stop talking animation."""
+    """Stop talking animation.
+
+    Return a status message for passing over HTTP.
+    """
     global is_talking
     is_talking = False
     logger.debug("stop_talking called")
-    return "stopped"
+    return "talking stopped"
 
 # There are three tasks we must do each frame:
 #
