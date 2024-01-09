@@ -155,7 +155,7 @@ cd SillyTavern-extras
 | `sd`          | Stable Diffusion image generation (remote A1111 server by default)  |
 | `silero-tts`  | [Silero TTS server](https://github.com/ouoertheo/silero-api-server) |
 | `chromadb`    | Vector storage server                                               |
-| `talkinghead` | Talking Head Sprites                                                |
+| `talkinghead` | Talking Head Sprites i.e. AI-powered character animation            |
 | `edge-tts`    | [Microsoft Edge TTS client](https://github.com/rany2/edge-tts)      |
 | `coqui-tts`   | [Coqui TTS server](https://github.com/coqui-ai/TTS)                 |
 | `rvc`         | Real-time voice cloning                                             |
