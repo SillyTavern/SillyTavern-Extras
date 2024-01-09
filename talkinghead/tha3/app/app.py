@@ -281,6 +281,7 @@ def launch(device: str, model: str) -> Union[None, NoReturn]:
             global_encoder_instance.exit()
             global_encoder_instance = None
 
+        logger.info("launch: loading the THA3 posing engine")
         poser = load_poser(model, device, modelsdir=os.path.join(talkinghead_basedir, "tha3", "models"))
         global_animator_instance = Animator(poser, device)
         global_encoder_instance = Encoder()
