@@ -66,3 +66,4 @@
     - The algorithm should be cartoon-aware, some modern-day equivalent of waifu2x. A GAN such as 4x-AnimeSharp or Remacri would be nice, but too slow.
     - Maybe the scaler should run at the client side to avoid the need to stream 1024x1024 PNGs.
       - What JavaScript anime scalers are there, or which algorithms are simple enough for a small custom implementation?
+  - Group chats / visual novel mode / several talkingheads running simultaneously.
