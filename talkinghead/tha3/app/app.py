@@ -452,7 +452,7 @@ class Animator:
         should_blink = (random.random() <= p_scaled)
 
         debug_fps = round(avg_render_fps, 1)
-        logger.info(f"animate_blinking: p @ {CALIBRATION_FPS} FPS = {p_orig}, scaled p @ {debug_fps:.1f} FPS = {p_scaled:0.6g}")
+        logger.debug(f"animate_blinking: p @ {CALIBRATION_FPS} FPS = {p_orig}, scaled p @ {debug_fps:.1f} FPS = {p_scaled:0.6g}")
 
         # Prevent blinking too fast in succession.
         time_now = time.time_ns()
