@@ -67,7 +67,7 @@ There are some folks in the community having success running Extras on their pho
 
 We will NOT provide any support for running this on Android. Direct all your questions to the creator of this guide.
 
-#### Talkinghead module on Linux
+### Talkinghead module on Linux
 
 The manual poser app of `talkinghead` requires the installation of an additional package because it's not installed automatically due to incompatibility with Colab. Run this after you install other requirements:
 
