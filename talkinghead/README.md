@@ -74,6 +74,7 @@ To run the manual poser:
 - `conda activate extras`
 - `python -m tha3.app.manual_poser`.
   - For systems with `bash`, a convenience wrapper `./start_manual_poser.sh` is included.
+
 Run the poser with the `--help` option for a description of its command-line options. The command-line options of the manual poser are **completely independent** from the options of *SillyTavern-extras* itself.
 
 Currently, you can choose the device to run on (GPU or CPU), and which THA3 model to use. By default, the manual poser uses GPU and the `separable_float` model.
