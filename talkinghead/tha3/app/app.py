@@ -6,6 +6,13 @@ This module implements the live animation backend and serves the API. For usage,
 If you want to play around with THA3 expressions in a standalone app, see `manual_poser.py`.
 """
 
+__all__ = ["set_emotion_from_classification", "set_emotion",
+           "unload",
+           "start_talking", "stop_talking",
+           "result_feed",
+           "talkinghead_load_file",
+           "launch"]
+
 import atexit
 import io
 import logging
@@ -54,6 +61,8 @@ current_emotion = "neutral"
 is_talking = False
 global_reload_image = None
 
+TARGET_FPS = 25
+
 # --------------------------------------------------------------------------------
 # API
 
@@ -61,57 +70,68 @@ global_reload_image = None
 app = Flask(__name__)
 CORS(app)
 
-def setEmotion(_emotion: Dict[str, float]) -> None:
+def set_emotion_from_classification(emotion_scores: List[Dict[str, Union[str, float]]]) -> str:
     """Set the current emotion of the character based on sentiment analysis results.
 
     Currently, we pick the emotion with the highest confidence score.
 
-    The `set_emotion` API endpoint also uses this function to set the current emotion,
-    with a manually formatted dictionary containing just one entry.
+    `emotion_scores`: results from classify module: [{"label": emotion0, "score": confidence0}, ...]
 
-    _emotion: result of sentiment analysis: {emotion0: confidence0, ...}
+    Return a status message for passing over HTTP.
     """
-    global current_emotion
-
     highest_score = float("-inf")
     highest_label = None
-
-    for item in _emotion:
+    for item in emotion_scores:
         if item["score"] > highest_score:
             highest_score = item["score"]
             highest_label = item["label"]
+    logger.info(f"set_emotion_from_classification: winning score: {highest_label} = {highest_score}")
+    return set_emotion(highest_label)
 
-    # Never triggered currently, because `setSpriteSlashCommand` at the client end (`SillyTavern/public/scripts/extensions/expressions/index.js`)
-    # searches for a static sprite for the given expression, and does not proceed to `sendExpressionCall` if not found.
-    # So beside `talkinghead.png`, your character also needs the static sprites for "/emote xxx" to work.
-    if highest_label not in global_animator_instance.emotions:
-        logger.warning(f"setEmotion: emotion '{highest_label}' does not exist, setting to 'neutral'")
-        highest_label = "neutral"
+def set_emotion(emotion: str) -> str:
+    """Set the current emotion of the character.
 
-    logger.info(f"setEmotion: applying emotion {highest_label}")
-    current_emotion = highest_label
-    return f"emotion set to {highest_label}"
+    Return a status message for passing over HTTP.
+    """
+    global current_emotion
+
+    if emotion not in global_animator_instance.emotions:
+        logger.warning(f"set_emotion: specified emotion '{emotion}' does not exist, selecting 'neutral'")
+        emotion = "neutral"
+
+    logger.info(f"set_emotion: applying emotion {emotion}")
+    current_emotion = emotion
+    return f"emotion set to {emotion}"
 
 def unload() -> str:
-    """Stop animation."""
+    """Stop animation.
+
+    Return a status message for passing over HTTP.
+    """
     global animation_running
     animation_running = False
     logger.info("unload: animation paused")
-    return "Animation Paused"
+    return "animation paused"
 
 def start_talking() -> str:
-    """Start talking animation."""
+    """Start talking animation.
+
+    Return a status message for passing over HTTP.
+    """
     global is_talking
     is_talking = True
     logger.debug("start_talking called")
-    return "started"
+    return "talking started"
 
 def stop_talking() -> str:
-    """Stop talking animation."""
+    """Stop talking animation.
+
+    Return a status message for passing over HTTP.
+    """
     global is_talking
     is_talking = False
     logger.debug("stop_talking called")
-    return "stopped"
+    return "talking stopped"
 
 # There are three tasks we must do each frame:
 #
@@ -178,7 +198,7 @@ def result_feed() -> Response:
                 # How often should we send?
                 #  - Excessive spamming can DoS the SillyTavern GUI, so there needs to be a rate limit.
                 #  - OTOH, we must constantly send something, or the GUI will lock up waiting.
-                TARGET_FPS = 25
+                # Therefore, send at a target FPS that yields a nice-looking animation.
                 frame_duration_target_sec = 1 / TARGET_FPS
                 if last_frame_send_complete_time is not None:
                     time_now = time.time_ns()
@@ -339,12 +359,16 @@ class Animator:
         self.last_emotion = None
         self.last_emotion_change_timestamp = None
 
-        self.last_blink_timestamp = None
-        self.blink_interval = None
-
         self.last_sway_target_timestamp = None
         self.last_sway_target_pose = None
         self.sway_interval = None
+
+        self.last_blink_timestamp = None
+        self.blink_interval = None
+
+        self.last_talking_timestamp = None
+        self.last_talking_target_value = None
+        self.was_talking = False
 
         self.breathing_epoch = time.time_ns()
 
@@ -408,7 +432,27 @@ class Animator:
 
         Return the modified pose.
         """
-        should_blink = (random.random() <= 0.03)
+        # should_blink = (random.random() <= 0.03)
+
+        # Compute FPS-corrected blink probability
+        CALIBRATION_FPS = 25
+        p_orig = 0.03  # blink probability per frame at CALIBRATION_FPS
+        avg_render_sec = self.render_duration_statistics.average()
+        if avg_render_sec > 0:
+            avg_render_fps = 1 / avg_render_sec
+            # Even if render completes faster, the `talkinghead` output is rate-limited to `target_fps` at most.
+            avg_render_fps = min(avg_render_fps, TARGET_FPS)
+        else:  # No statistics available yet; let's assume we're running at `target_fps`.
+            avg_render_fps = TARGET_FPS
+        # Note direction: rendering faster (higher FPS) means less likely to blink per frame (to obtain the same blink density per unit of wall time)
+        n = CALIBRATION_FPS / avg_render_fps
+        # We give an independent trial for each of `n` (fictitious) frames elapsed at `CALIBRATION_FPS` during one actual frame at `avg_render_fps`.
+        # Doesn't matter that `n` isn't an integer, since the power function over the reals is continuous and we just want a reasonable scaling here.
+        p_scaled = 1.0 - (1.0 - p_orig)**n
+        should_blink = (random.random() <= p_scaled)
+
+        debug_fps = round(avg_render_fps, 1)
+        logger.debug(f"animate_blinking: p @ {CALIBRATION_FPS} FPS = {p_orig}, scaled p @ {debug_fps:.1f} FPS = {p_scaled:0.6g}")
 
         # Prevent blinking too fast in succession.
         time_now = time.time_ns()
@@ -437,23 +481,69 @@ class Animator:
 
         return new_pose
 
-    def animate_talking(self, pose: List[float]) -> List[float]:
+    def animate_talking(self, pose: List[float], target_pose: List[float]) -> List[float]:
         """Talking animation driver.
 
-        Works by randomizing the mouth-open state.
+        Works by randomizing the mouth-open state in regular intervals.
+
+        When talking ends, the mouth immediately snaps to its position in the target pose
+        (to avoid a slow, unnatural closing, since most expressions have the mouth closed).
 
         Return the modified pose.
         """
-        if not is_talking:
-            return pose
+        MOUTH_OPEN_MORPHS = ["mouth_aaa_index", "mouth_iii_index", "mouth_uuu_index", "mouth_eee_index", "mouth_ooo_index", "mouth_delta"]
+        TALKING_MORPH = "mouth_aaa_index"
 
-        # TODO: improve talking animation once we get the client to actually use it
+        if not is_talking:
+            try:
+                if self.was_talking:  # when talking ends, snap mouth to target immediately
+                    new_pose = list(pose)  # copy
+                    for key in MOUTH_OPEN_MORPHS:
+                        idx = posedict_key_to_index[key]
+                        new_pose[idx] = target_pose[idx]
+                    return new_pose
+                return pose  # most common case: do nothing (not talking, and wasn't talking during previous frame)
+            finally:  # reset state *after* processing
+                self.last_talking_target_value = None
+                self.last_talking_timestamp = None
+                self.was_talking = False
+        assert is_talking
+
+        # With 25 FPS (or faster) output, randomizing the mouth every frame looks too fast.
+        # Determine whether enough wall time has passed to randomize a new mouth position.
+        TARGET_SEC = 1 / 12  # Early 2000s anime used ~12 FPS as the fastest actual framerate of new cels (not counting camera panning effects and such).
+        time_now = time.time_ns()
+        update_mouth = False
+        if self.last_talking_timestamp is None:
+            update_mouth = True
+        else:
+            time_elapsed_sec = (time_now - self.last_talking_timestamp) / 10**9
+            if time_elapsed_sec >= TARGET_SEC:
+                update_mouth = True
+
+        # Apply the mouth open morph
         new_pose = list(pose)  # copy
-        idx = posedict_key_to_index["mouth_aaa_index"]
-        x = pose[idx]
-        x = abs(1.0 - x) + random.uniform(-2.0, 2.0)
-        x = max(0.0, min(x, 1.0))  # clamp (not the manga studio)
+        idx = posedict_key_to_index[TALKING_MORPH]
+        if self.last_talking_target_value is None or update_mouth:
+            # Randomize new mouth position
+            x = pose[idx]
+            x = abs(1.0 - x) + random.uniform(-2.0, 2.0)
+            x = max(0.0, min(x, 1.0))  # clamp (not the manga studio)
+            self.last_talking_target_value = x
+            self.last_talking_timestamp = time_now
+        else:
+            # Keep the mouth at its latest randomized position (this overrides the interpolator that would pull the mouth toward the target emotion pose)
+            x = self.last_talking_target_value
         new_pose[idx] = x
+
+        # Zero out other morphs that affect mouth open/closed state.
+        for key in MOUTH_OPEN_MORPHS:
+            if key == TALKING_MORPH:
+                continue
+            idx = posedict_key_to_index[key]
+            new_pose[idx] = 0.0
+
+        self.was_talking = True
         return new_pose
 
     def compute_sway_target_pose(self, original_target_pose: List[float]) -> List[float]:
@@ -465,12 +555,14 @@ class Animator:
 
         Return the modified pose.
         """
-        # We just modify the target pose, and let the integrator (`interpolate_pose`) do the actual animation.
+        # We just modify the target pose, and let the ODE integrator (`interpolate_pose`) do the actual animation.
         # - This way we don't need to track start state, progress, etc.
         # - This also makes the animation nonlinear automatically: a saturating exponential trajectory toward the target.
-        #     - If we want to add a smooth start, we'll need a ramp-in mechanism to interpolate the target from the current pose to the actual target gradually.
-        #       The nonlinearity automatically takes care of slowing down when the target is approached.
+        #   - If we want a smooth start toward a target pose/morph, we can e.g. save the timestamp when the animation began, and then ramp the rate of change,
+        #     beginning at zero and (some time later, as measured from the timestamp) ending at the original, non-ramped value. The ODE itself takes care of
+        #     slowing down when we approach the target state.
 
+        # As documented in the original THA tech reports, on the pose axes, zero is centered, and 1.0 = 15 degrees.
         random_max = 0.6  # max sway magnitude from center position of each morph
         noise_max = 0.02  # amount of dynamic noise (re-generated every frame), added on top of the sway target
 
@@ -484,7 +576,7 @@ class Animator:
                     seconds_since_last_sway_target = (time_now - self.last_sway_target_timestamp) / 10**9
                     if seconds_since_last_sway_target < self.sway_interval:
                         should_pick_new_sway_target = False
-            # else, emotion has changed, invalidating the old sway target, because it is based on the old emotion.
+            # else, emotion has changed, invalidating the old sway target, because it is based on the old emotion (since emotions may affect the pose too).
 
             if not should_pick_new_sway_target:
                 if self.last_sway_target_pose is not None:  # When keeping the same sway target, return the cached sway pose if we have one.
@@ -543,22 +635,183 @@ class Animator:
         return new_pose
 
     def interpolate_pose(self, pose: List[float], target_pose: List[float], step: float = 0.1) -> List[float]:
-        """Rate-based pose integrator. Interpolate from `pose` toward `target_pose`.
+        """Interpolate from current `pose` toward `target_pose`.
 
         `step`: [0, 1]; how far toward `target_pose` to interpolate. 0 is fully `pose`, 1 is fully `target_pose`.
 
-        Note that looping back the output as `pose`, while keeping `target_pose` constant, causes the current pose
-        to approach `target_pose` on a saturating exponential trajectory, like `1 - exp(-lambda * t)`, for some
-        constant `lambda`.
-
-        This is because `step` is the fraction of the *current* difference between `pose` and `target_pose`,
-        which obviously becomes smaller after each repeat. This is a feature, not a bug!
-
         This is a kind of history-free rate-based formulation, which needs only the current and target poses, and
         the step size; there is no need to keep track of e.g. the initial pose or the progress along the trajectory.
+
+        Note that looping back the output as `pose`, while keeping `target_pose` constant, causes the current pose
+        to approach `target_pose` on a saturating trajectory. This is because `step` is the fraction of the *current*
+        difference between `pose` and `target_pose`, which obviously becomes smaller after each repeat.
+
+        This is a feature, not a bug!
         """
+        # The `step` parameter is calibrated against animation at 25 FPS, so we must scale it appropriately, taking
+        # into account the actual FPS.
+        #
+        # How to do this requires some explanation. Numericist hat on. Let's do a quick back-of-the-envelope calculation.
+        # This pose interpolator is essentially a solver for the first-order ODE:
+        #
+        #   u' = f(u, t)
+        #
+        # Consider the most common case, where the target pose remains constant over several animation frames.
+        # Furthermore, consider just one morph (they all behave similarly). Then our ODE is Newton's law of cooling:
+        #
+        #   u' = -β [u - u∞]
+        #
+        # where `u = u(t)` is the temperature, `u∞` is the constant temperature of the external environment,
+        # and `β > 0` is a material-dependent cooling coefficient.
+        #
+        # But instead of numerical simulation at a constant timestep size, as would be typical in computational science,
+        # we instead read off points off the analytical solution curve. The `step` parameter is *not* the timestep size;
+        # instead, it controls the relative distance along the *u* axis that should be covered in one simulation step,
+        # so it is actually related to the cooling coefficient β.
+        #
+        # (How exactly: write the left-hand side as `[unew - uold] / Δt + O([Δt]²)`, drop the error term, and decide
+        #  whether to use `uold` (forward Euler) or `unew` (backward Euler) as `u` on the right-hand side. Then compare
+        #  to our update formula. But those details don't matter here.)
+        #
+        # To match the notation in the rest of this code, let us denote the temperature (actually pose morph value) as `x`
+        # (instead of `u`). And to keep notation shorter, let `β := step` (although it's not exactly the `β` of the
+        # continuous-in-time case above).
+        #
+        # To scale the animation speed linearly with regard to FPS, we must invert the relation between simulation step
+        # number `n` and the solution value `x`. For an initial value `x0`, a constant target value `x∞`, and constant
+        # step `β ∈ (0, 1]`, the pose interpolator produces the sequence:
+        #
+        #   x1 = x0 + β [x∞ - x0] = [1 - β] x0 + β x∞
+        #   x2 = x1 + β [x∞ - x1] = [1 - β] x1 + β x∞
+        #   x3 = x2 + β [x∞ - x2] = [1 - β] x2 + β x∞
+        #   ...
+        #
+        # Note that with exact arithmetic, if `β < 1`, the final value is only reached in the limit `n → ∞`.
+        # For floating point, this is not the case. Eventually the increment becomes small enough that when
+        # it is added, nothing happens. After sufficiently many steps, in practice `x` will stop just slightly
+        # short of `x∞` (on the side it approached the target from).
+        #
+        # (For performance reasons, when approaching zero, one may need to beware of denormals, because those
+        #  are usually implemented in (slow!) software on modern CPUs. So especially if the target is zero,
+        #  it is useful to have some very small cutoff (inside the normal floating-point range) after which
+        #  we make `x` instantly jump to the target value.)
+        #
+        # Inserting the definition of `x1` to the formula for `x2`, we can express `x2` in terms of `x0` and `x∞`:
+        #
+        #   x2 = [1 - β] ([1 - β] x0 + β x∞) + β x∞
+        #      = [1 - β]² x0 + [1 - β] β x∞ + β x∞
+        #      = [1 - β]² x0 + [[1 - β] + 1] β x∞
+        #
+        # Then inserting this to the formula for `x3`:
+        #
+        #   x3 = [1 - β] ([1 - β]² x0 + [[1 - β] + 1] β x∞) + β x∞
+        #      = [1 - β]³ x0 + [1 - β]² β x∞ + [1 - β] β x∞ + β x∞
+        #
+        # To simplify notation, define:
+        #
+        #   α := 1 - β
+        #
+        # We have:
+        #
+        #   x1 = α  x0 + [1 - α] x∞
+        #   x2 = α² x0 + [1 - α] [1 + α] x∞
+        #      = α² x0 + [1 - α²] x∞
+        #   x3 = α³ x0 + [1 - α] [1 + α + α²] x∞
+        #      = α³ x0 + [1 - α³] x∞
+        #
+        # This suggests that the general pattern is (as can be proven by induction on `n`):
+        #
+        #   xn = α**n x0 + [1 - α**n] x∞
+        #
+        # This allows us to determine `x` as a function of simulation step number `n`. Now the scaling question becomes:
+        # if we want to reach a given value `xn` by some given step `n_scaled` (instead of the original step `n`),
+        # how must we change the step size `β` (or equivalently, the parameter `α`)?
+        #
+        # To simplify further, observe:
+        #
+        #   x1 = α x0 + [1 - α] [[x∞ - x0] + x0]
+        #      = [α + [1 - α]] x0 + [1 - α] [x∞ - x0]
+        #      = x0 + [1 - α] [x∞ - x0]
+        #
+        # Rearranging yields:
+        #
+        #   [x1 - x0] / [x∞ - x0] = 1 - α
+        #
+        # which gives us the relative distance from `x0` to `x∞` that is covered in one step. This isn't yet much
+        # to write home about (it's essentially just a rearrangement of the definition of `x1`), but next, let's
+        # treat `x2` the same way:
+        #
+        #   x2 = α² x0 + [1 - α] [1 + α] [[x∞ - x0] + x0]
+        #      = [α² x0 + [1 - α²] x0] + [1 - α²] [x∞ - x0]
+        #      = [α² + 1 - α²] x0 + [1 - α²] [x∞ - x0]
+        #      = x0 + [1 - α²] [x∞ - x0]
+        #
+        # We obtain
+        #
+        #   [x2 - x0] / [x∞ - x0] = 1 - α²
+        #
+        # which is the relative distance, from the original `x0` toward the final `x∞`, that is covered in two steps
+        # using the original step size `β = 1 - α`. Next up, `x3`:
+        #
+        #   x3 = α³ x0 + [1 - α³] [[x∞ - x0] + x0]
+        #      = α³ x0 + [1 - α³] [x∞ - x0] + [1 - α³] x0
+        #      = x0 + [1 - α³] [x∞ - x0]
+        #
+        # Rearranging,
+        #
+        #   [x3 - x0] / [x∞ - x0] = 1 - α³
+        #
+        # which is the relative distance covered in three steps. Hence, we have:
+        #
+        #   xrel := [xn - x0] / [x∞ - x0] = 1 - α**n
+        #
+        # so that
+        #
+        #   α**n = 1 - xrel              (**)
+        #
+        # and (taking the natural logarithm of both sides)
+        #
+        #   n log α = log [1 - xrel]
+        #
+        # Finally,
+        #
+        #   n = [log [1 - xrel]] / [log α]
+        #
+        # Given `α`, this gives the `n` where the interpolator has covered the fraction `xrel` of the original distance.
+        # On the other hand, we can also solve (**) for `α`:
+        #
+        #   α = (1 - xrel)**(1 / n)
+        #
+        # which, given desired `n`, gives us the `α` that makes the interpolator cover the fraction `xrel` of the original distance in `n` steps.
+        #
+        CALIBRATION_FPS = 25  # FPS for which the default value `step` was calibrated
+        xrel = 0.5  # just some convenient value
+        alpha_orig = 1.0 - step
+        if 0 < alpha_orig < 1:
+            avg_render_sec = self.render_duration_statistics.average()
+            if avg_render_sec > 0:
+                avg_render_fps = 1 / avg_render_sec
+                # Even if render completes faster, the `talkinghead` output is rate-limited to `TARGET_FPS` at most.
+                avg_render_fps = min(avg_render_fps, TARGET_FPS)
+            else:  # No statistics available yet; let's assume we're running at `TARGET_FPS`.
+                avg_render_fps = TARGET_FPS
+
+            # For a constant target pose and original `α`, compute the number of animation frames to cover `xrel` of distance from initial pose to final pose.
+            n_orig = math.log(1.0 - xrel) / math.log(alpha_orig)
+            # Compute the scaled `n`. Note the direction: we need a smaller `n` (fewer animation frames) if the render runs slower than the calibration FPS.
+            n_scaled = (avg_render_fps / CALIBRATION_FPS) * n_orig
+            # Then compute the `α` that reaches `xrel` distance in `n_scaled` animation frames.
+            alpha_scaled = (1.0 - xrel)**(1 / n_scaled)
+        else:  # avoid some divisions by zero at the extremes
+            alpha_scaled = alpha_orig
+        step_scaled = 1.0 - alpha_scaled
+
+        debug_fps = round(avg_render_fps, 1)
+        logger.debug(f"interpolate_pose: step @ {CALIBRATION_FPS} FPS = {step}, scaled step @ {debug_fps:.1f} FPS = {step_scaled:0.6g}")
+
         # NOTE: This overwrites blinking, talking, and breathing, but that doesn't matter, because we apply this first.
         # The other animation drivers then modify our result.
+        EPSILON = 1e-8
         new_pose = list(pose)  # copy
         for idx, key in enumerate(posedict_keys):
             # # We now animate blinking *after* interpolating the pose, so when blinking, the eyes close instantly.
@@ -569,7 +822,13 @@ class Animator:
             #     ...
 
             delta = target_pose[idx] - pose[idx]
-            new_pose[idx] = pose[idx] + step * delta
+            new_pose[idx] = pose[idx] + step_scaled * delta
+
+            # Prevent denormal floats (which are really slow); important when running on CPU and approaching zero.
+            # Our ϵ is really big compared to denormals; but there's no point in continuing to compute ever smaller
+            # differences in the animated value when it has already almost (and visually, completely) reached the target.
+            if abs(new_pose[idx] - target_pose[idx]) < EPSILON:
+                new_pose[idx] = target_pose[idx]
         return new_pose
 
     # --------------------------------------------------------------------------------
@@ -606,7 +865,7 @@ class Animator:
 
         self.current_pose = self.interpolate_pose(self.current_pose, target_pose)
         self.current_pose = self.animate_blinking(self.current_pose)
-        self.current_pose = self.animate_talking(self.current_pose)
+        self.current_pose = self.animate_talking(self.current_pose, target_pose)
         self.current_pose = self.animate_breathing(self.current_pose)
 
         # Update this last so that animation drivers have access to the old emotion, too.

@@ -13,8 +13,7 @@ from flask_cors import CORS
 from flask_compress import Compress
 import markdown
 import argparse
-from transformers import AutoTokenizer, pipeline
-from transformers import AutoModelForSeq2SeqLM
+from transformers import pipeline
 import unicodedata
 import torch
 import time
@@ -28,7 +27,13 @@ from io import BytesIO
 from random import randint
 import webuiapi
 import hashlib
-from constants import *
+from constants import (DEFAULT_SUMMARIZATION_MODEL,
+                       DEFAULT_CLASSIFICATION_MODEL,
+                       DEFAULT_CAPTIONING_MODEL,
+                       DEFAULT_EMBEDDING_MODEL,
+                       DEFAULT_SD_MODEL, DEFAULT_REMOTE_SD_HOST, DEFAULT_REMOTE_SD_PORT, PROMPT_PREFIX, NEGATIVE_PROMPT,
+                       DEFAULT_CUDA_DEVICE,
+                       DEFAULT_CHROMA_PORT)
 from colorama import Fore, Style, init as colorama_init
 
 colorama_init()
@@ -141,22 +146,10 @@ args = parser.parse_args()
 
 port = args.port if args.port else 5100
 host = "0.0.0.0" if args.listen else "localhost"
-summarization_model = (
-    args.summarization_model
-    if args.summarization_model
-    else DEFAULT_SUMMARIZATION_MODEL
-)
-classification_model = (
-    args.classification_model
-    if args.classification_model
-    else DEFAULT_CLASSIFICATION_MODEL
-)
-captioning_model = (
-    args.captioning_model if args.captioning_model else DEFAULT_CAPTIONING_MODEL
-)
-embedding_model = (
-    args.embedding_model if args.embedding_model else DEFAULT_EMBEDDING_MODEL
-)
+summarization_model = args.summarization_model if args.summarization_model else DEFAULT_SUMMARIZATION_MODEL
+classification_model = args.classification_model if args.classification_model else DEFAULT_CLASSIFICATION_MODEL
+captioning_model = args.captioning_model if args.captioning_model else DEFAULT_CAPTIONING_MODEL
+embedding_model = args.embedding_model if args.embedding_model else DEFAULT_EMBEDDING_MODEL
 
 sd_use_remote = False if args.sd_model else True
 sd_model = args.sd_model if args.sd_model else DEFAULT_SD_MODEL
@@ -179,7 +172,7 @@ if len(modules) == 0:
 cuda_device = DEFAULT_CUDA_DEVICE if not args.cuda_device else args.cuda_device
 device_string = cuda_device if torch.cuda.is_available() and not args.cpu else 'mps' if torch.backends.mps.is_available() and not args.cpu else 'cpu'
 device = torch.device(device_string)
-torch_dtype = torch.float32 if device_string != cuda_device  else torch.float16
+torch_dtype = torch.float32 if device_string != cuda_device else torch.float16
 
 if not torch.cuda.is_available() and not args.cpu:
     print(f"{Fore.YELLOW}{Style.BRIGHT}torch-cuda is not supported on this device.{Style.RESET_ALL}")
@@ -190,25 +183,8 @@ if not torch.cuda.is_available() and not args.cpu:
 print(f"{Fore.GREEN}{Style.BRIGHT}Using torch device: {device_string}{Style.RESET_ALL}")
 
 if "talkinghead" in modules:
-    # Install the THA3 models if needed
-    talkinghead_models_dir = os.path.join(os.getcwd(), "talkinghead", "tha3", "models")
-    if not os.path.exists(talkinghead_models_dir):
-        # API:
-        #   https://huggingface.co/docs/huggingface_hub/en/guides/download
-        try:
-            from huggingface_hub import snapshot_download
-        except ImportError:
-            raise ImportError(
-                "You need to install huggingface_hub to install talkinghead models automatically. "
-                "See https://pypi.org/project/huggingface-hub/ for installation."
-            )
-        os.makedirs(talkinghead_models_dir, exist_ok=True)
-        print(f"THA3 models not yet installed. Installing from {args.talkinghead_models} into talkinghead/tha3/models.")
-        # Installing with symlinks would be generally better, but MS Windows support for symlinks is not optimal,
-        # so for maximal compatibility we avoid them. The drawback of installing directly as plain files is that
-        # if multiple programs need to download THA3, they will do so separately. But THA3 is rather rare, so in
-        # practice this is unlikely to be an issue.
-        snapshot_download(repo_id=args.talkinghead_models, local_dir=talkinghead_models_dir, local_dir_use_symlinks=False)
+    talkinghead_path = os.path.abspath(os.path.join(os.getcwd(), "talkinghead"))
+    sys.path.append(talkinghead_path)  # Add the path to the 'tha3' module to the sys.path list
 
     import sys
     import threading
@@ -218,10 +194,14 @@ if "talkinghead" in modules:
         # FP16 boosts the rendering performance by ~1.5x, but is only supported on GPU.
         model = "separable_half" if args.talkinghead_gpu else "separable_float"
     print(f"Initializing talkinghead pipeline in {mode} mode with model {model}....")
-    talkinghead_path = os.path.abspath(os.path.join(os.getcwd(), "talkinghead"))
-    sys.path.append(talkinghead_path) # Add the path to the 'tha3' module to the sys.path list
 
     try:
+        from talkinghead.tha3.app.util import maybe_install_models as talkinghead_maybe_install_models
+
+        # Install the THA3 models if needed
+        talkinghead_models_dir = os.path.join(os.getcwd(), "talkinghead", "tha3", "models")
+        talkinghead_maybe_install_models(hf_reponame=args.talkinghead_models, modelsdir=talkinghead_models_dir)
+
         import talkinghead.tha3.app.app as talkinghead
         def launch_talkinghead():
             # mode: choices='The device to use for PyTorch ("cuda" for GPU, "cpu" for CPU).'
@@ -269,7 +249,7 @@ elif "sd" in modules and sd_use_remote:
             username, password = sd_remote_auth.split(":")
             sd_remote.set_auth(username, password)
         sd_remote.util_wait_for_ready()
-    except Exception as e:
+    except Exception:
         # remote sd from modules
         print(
             f"{Fore.RED}{Style.BRIGHT}Could not connect to remote SD backend at http{'s' if sd_remote_ssl else ''}://{sd_remote_host}:{sd_remote_port}! Disabling SD module...{Style.RESET_ALL}"
@@ -305,7 +285,6 @@ if "chromadb" in modules:
     import posthog
     from chromadb.config import Settings
     from chromadb.utils import embedding_functions
-    from sentence_transformers import SentenceTransformer
 
     # Assume that the user wants in-memory unless a host is specified
     # Also disable chromadb telemetry
@@ -316,11 +295,9 @@ if "chromadb" in modules:
             print(f"ChromaDB is running in-memory with persistence. Persistence is stored in {args.chroma_folder}. Can be cleared by deleting the folder or purging db.")
         else:
             chromadb_client = chromadb.EphemeralClient(Settings(anonymized_telemetry=False))
-            print(f"ChromaDB is running in-memory without persistence.")
+            print("ChromaDB is running in-memory without persistence.")
     else:
-        chroma_port=(
-            args.chroma_port if args.chroma_port else DEFAULT_CHROMA_PORT
-        )
+        chroma_port = args.chroma_port if args.chroma_port else DEFAULT_CHROMA_PORT
         chromadb_client = chromadb.HttpClient(host=args.chroma_host, port=chroma_port, settings=Settings(anonymized_telemetry=False))
         print(f"ChromaDB is remotely configured at {args.chroma_host}:{chroma_port}")
 
@@ -330,13 +307,13 @@ if "chromadb" in modules:
     try:
         chromadb_client.heartbeat()
         print("Successfully pinged ChromaDB! Your client is successfully connected.")
-    except:
+    except Exception:
         print("Could not ping ChromaDB! If you are running remotely, please check your host and port!")
 
 # Flask init
 app = Flask(__name__)
 CORS(app)  # allow cross-domain requests
-Compress(app) # compress responses
+Compress(app)  # compress responses
 app.config["MAX_CONTENT_LENGTH"] = 500 * 1024 * 1024
 
 max_content_length = (
@@ -345,7 +322,7 @@ max_content_length = (
     else None)
 
 if max_content_length is not None:
-    print("Setting MAX_CONTENT_LENGTH to",max_content_length,"Mb")
+    print("Setting MAX_CONTENT_LENGTH to", max_content_length, "Mb")
     app.config["MAX_CONTENT_LENGTH"] = int(max_content_length) * 1024 * 1024
 
 if "classify" in modules:
@@ -355,9 +332,9 @@ if "classify" in modules:
 if "vosk-stt" in modules:
     print("Initializing Vosk speech-recognition (from ST request file)")
     vosk_model_path = (
-    args.stt_vosk_model_path
-    if args.stt_vosk_model_path
-    else None)
+        args.stt_vosk_model_path
+        if args.stt_vosk_model_path
+        else None)
 
     import modules.speech_recognition.vosk_module as vosk_module
 
@@ -367,9 +344,9 @@ if "vosk-stt" in modules:
 if "whisper-stt" in modules:
     print("Initializing Whisper speech-recognition (from ST request file)")
     whisper_model_path = (
-    args.stt_whisper_model_path
-    if args.stt_whisper_model_path
-    else None)
+        args.stt_whisper_model_path
+        if args.stt_whisper_model_path
+        else None)
 
     import modules.speech_recognition.whisper_module as whisper_module
 
@@ -379,9 +356,9 @@ if "whisper-stt" in modules:
 if "streaming-stt" in modules:
     print("Initializing vosk/whisper speech-recognition (from extras server microphone)")
     whisper_model_path = (
-    args.stt_whisper_model_path
-    if args.stt_whisper_model_path
-    else None)
+        args.stt_whisper_model_path
+        if args.stt_whisper_model_path
+        else None)
 
     import modules.speech_recognition.streaming_module as streaming_module
 
@@ -392,15 +369,15 @@ if "rvc" in modules:
     print("Initializing RVC voice conversion (from ST request file)")
     print("Increasing server upload limit")
     rvc_save_file = (
-    args.rvc_save_file
-    if args.rvc_save_file
-    else False)
+        args.rvc_save_file
+        if args.rvc_save_file
+        else False)
 
     if rvc_save_file:
         print("RVC saving file option detected, input/output audio will be savec into data/tmp/ folder")
 
     import sys
-    sys.path.insert(0,'modules/voice_conversion')
+    sys.path.insert(0, 'modules/voice_conversion')
 
     import modules.voice_conversion.rvc_module as rvc_module
     rvc_module.save_file = rvc_save_file
@@ -423,9 +400,9 @@ if "coqui-tts" in modules:
         coqui_module.gpu_mode = True
 
     coqui_models = (
-    args.coqui_models
-    if args.coqui_models
-    else None
+        args.coqui_models
+        if args.coqui_models
+        else None
     )
 
     if coqui_models is not None:
@@ -476,7 +453,7 @@ def summarize_chunks(text: str) -> str:
         )
         return summarize_chunks(
             text[: (len(text) // 2)]
-        ) + summarize_chunks(text[(len(text) // 2) :])
+        ) + summarize_chunks(text[(len(text) // 2):])
 
 
 def summarize(text: str) -> str:
@@ -535,13 +512,13 @@ if args.secure:
     try:
         with open("api_key.txt", "r") as txt:
             api_key = txt.read().replace('\n', '')
-    except:
+    except Exception:
         api_key = secrets.token_hex(5)
         with open("api_key.txt", "w") as txt:
             txt.write(api_key)
 
     print(f"{Fore.YELLOW}{Style.BRIGHT}Your API key is {api_key}{Style.RESET_ALL}")
-elif args.share and args.secure != True:
+elif args.share and not args.secure:
     print(f"{Fore.RED}{Style.BRIGHT}WARNING: This instance is publicly exposed without an API key! It is highly recommended to restart with the \"--secure\" argument!{Style.RESET_ALL}")
 else:
     print(f"{Fore.YELLOW}{Style.BRIGHT}No API key given because you are running locally.{Style.RESET_ALL}")
@@ -564,9 +541,9 @@ def before_request():
     # Checks if an API key is present and valid, otherwise return unauthorized
     # The options check is required so CORS doesn't get angry
     try:
-        if request.method != 'OPTIONS' and args.secure and is_authorize_ignored(request) == False and getattr(request.authorization, 'token', '') != api_key:
+        if request.method != 'OPTIONS' and args.secure and not is_authorize_ignored(request) and getattr(request.authorization, 'token', '') != api_key:
             print(f"{Fore.RED}{Style.NORMAL}WARNING: Unauthorized API key access from {request.remote_addr}{Style.RESET_ALL}")
-            response = jsonify({ 'error': '401: Invalid API key' })
+            response = jsonify({'error': '401: Invalid API key'})
             response.status_code = 401
             return response
     except Exception as e:
@@ -628,6 +605,7 @@ def api_caption():
 @app.route("/api/summarize", methods=["POST"])
 @require_module("summarize")
 def api_summarize():
+    """Summarize the text posted in the request. Return the summary."""
     data = request.get_json()
 
     if "text" not in data or not isinstance(data["text"], str):
@@ -643,6 +621,10 @@ def api_summarize():
 @app.route("/api/classify", methods=["POST"])
 @require_module("classify")
 def api_classify():
+    """Perform sentiment analysis (classification) on the text posted in the request. Return the result.
+
+    Also, if `talkinghead` is enabled, automatically update its emotion based on the classification result.
+    """
     data = request.get_json()
 
     if "text" not in data or not isinstance(data["text"], str):
@@ -652,14 +634,18 @@ def api_classify():
     classification = classify_text(data["text"])
     print("Classification output:", classification, sep="\n")
     gc.collect()
-    if "talkinghead" in modules: #send emotion to talkinghead
-        talkinghead.setEmotion(classification)
+    # TODO: Feature orthogonality: would be better if the client called the `set_emotion` endpoint explicitly
+    #       also when it uses `classify`, if it intends to update the talkinghead state.
+    if "talkinghead" in modules:  # send emotion to talkinghead
+        print("Updating talkinghead emotion from classification results")
+        talkinghead.set_emotion_from_classification(classification)
     return jsonify({"classification": classification})
 
 
 @app.route("/api/classify/labels", methods=["GET"])
 @require_module("classify")
 def api_classify_labels():
+    """Return the available classifier labels for text sentiment (character emotion)."""
     classification = classify_text("")
     labels = [x["label"] for x in classification]
     if "talkinghead" in modules:
@@ -668,38 +654,48 @@ def api_classify_labels():
 
 @app.route("/api/talkinghead/load", methods=["POST"])
 @require_module("talkinghead")
-def live_load():
+def api_talkinghead_load():
+    """Load the talkinghead sprite posted in the request. Resume animation if paused."""
     file = request.files['file']
-    # convert stream to bytes and pass to talkinghead_load
+    # convert stream to bytes and pass to talkinghead
     return talkinghead.talkinghead_load_file(file.stream)
 
 @app.route('/api/talkinghead/unload')
 @require_module("talkinghead")
-def live_unload():
+def api_talkinghead_unload():
+    """Pause talkinghead animation. Can be enabled again via '/api/talkinghead/load'."""
     return talkinghead.unload()
 
 @app.route('/api/talkinghead/start_talking')
 @require_module("talkinghead")
-def start_talking():
+def api_talkinghead_start_talking():
+    """Start the mouth animation for talking."""
     return talkinghead.start_talking()
 
 @app.route('/api/talkinghead/stop_talking')
 @require_module("talkinghead")
-def stop_talking():
+def api_talkinghead_stop_talking():
+    """Stop the mouth animation for talking."""
     return talkinghead.stop_talking()
 
 @app.route('/api/talkinghead/set_emotion', methods=["POST"])
 @require_module("talkinghead")
-def emote():
+def api_talkinghead_set_emotion():
+    """Set talkinghead character emotion to that posted in the request.
+
+    There is no getter, because SillyTavern keeps its state in the frontend
+    and the plugins only act as slaves (in the technological sense of the word).
+    """
     data = request.get_json()
     if "emotion_name" not in data or not isinstance(data["emotion_name"], str):
         abort(400, '"emotion_name" is required')
     emotion_name = data["emotion_name"]
-    return talkinghead.setEmotion([{"label": emotion_name, "score": 1.0}])  # mimic the `classify` API result
+    return talkinghead.set_emotion(emotion_name)
 
 @app.route('/api/talkinghead/result_feed')
 @require_module("talkinghead")
-def result_feed():
+def api_talkinghead_result_feed():
+    """Live character output. Stream of video frames, each as a PNG encoded image."""
     return talkinghead.result_feed()
 
 @app.route("/api/image", methods=["POST"])
@@ -949,7 +945,6 @@ def chromadb_query():
         print(f"Queried empty/missing collection for {repr(data['chat_id'])}.")
         return jsonify([])
 
-
     n_results = min(collection.count(), n_results)
     query_result = collection.query(
         query_texts=[data["query"]],
@@ -1095,7 +1090,6 @@ def chromadb_import():
     metadatas = [item['metadata'] for item in content]
     ids = [item['id'] for item in content]
 
-
     collection.upsert(documents=documents, metadatas=metadatas, ids=ids)
     print(f"Imported {len(ids)} (total {collection.count()}) content entries into {repr(data['chat_id'])}")
 
@@ -1139,5 +1133,5 @@ if args.share:
     print(f"{Fore.GREEN}{Style.NORMAL}Running on: {cloudflare}{Style.RESET_ALL}")
 
 ignore_auth.append(tts_play_sample)
-ignore_auth.append(result_feed)
+ignore_auth.append(api_talkinghead_result_feed)
 app.run(host=host, port=port)

@@ -3,6 +3,7 @@
 __all__ = ["posedict_keys", "posedict_key_to_index",
            "load_emotion_presets",
            "posedict_to_pose", "pose_to_posedict",
+           "maybe_install_models",
            "torch_image_to_numpy", "to_talkinghead_image",
            "RunningAverage"]
 
@@ -24,10 +25,6 @@ logger = logging.getLogger(__name__)
 
 
 # The keys for a pose in the emotion JSON files.
-#
-# TODO: "eye_unimpressed" is arity-2, but has only one entry in the JSON. The current implementation smashes both into one,
-#       letting the second one (right slider) win. Maybe the two values should be saved separately, but we have to avoid
-#       breaking the live mode served by `app.py`.
 posedict_keys = ["eyebrow_troubled_left_index", "eyebrow_troubled_right_index",
                  "eyebrow_angry_left_index", "eyebrow_angry_right_index",
                  "eyebrow_lowered_left_index", "eyebrow_lowered_right_index",
@@ -38,7 +35,7 @@ posedict_keys = ["eyebrow_troubled_left_index", "eyebrow_troubled_right_index",
                  "eye_happy_wink_left_index", "eye_happy_wink_right_index",
                  "eye_surprised_left_index", "eye_surprised_right_index",
                  "eye_relaxed_left_index", "eye_relaxed_right_index",
-                 "eye_unimpressed", "eye_unimpressed",
+                 "eye_unimpressed_left_index", "eye_unimpressed_right_index",
                  "eye_raised_lower_eyelid_left_index", "eye_raised_lower_eyelid_right_index",
                  "iris_small_left_index", "iris_small_right_index",
                  "mouth_aaa_index",
@@ -58,7 +55,6 @@ posedict_keys = ["eyebrow_troubled_left_index", "eyebrow_troubled_right_index",
 assert len(posedict_keys) == 45
 
 # posedict_keys gives us index->key; make an inverse mapping.
-# Note this doesn't work for "eye_unimpressed", because it's not unique. (All the more reason to fix that.)
 posedict_key_to_index = {key: idx for idx, key in enumerate(posedict_keys)}
 
 
@@ -135,6 +131,34 @@ def posedict_to_pose(posedict: Dict[str, float]) -> List[float]:
 def pose_to_posedict(pose: List[float]) -> Dict[str, float]:
     """Convert `pose` into a posedict for saving into an emotion JSON."""
     return dict(zip(posedict_keys, pose))
+
+# --------------------------------------------------------------------------------
+
+def maybe_install_models(hf_reponame: str, modelsdir: str) -> None:
+    """Download and install the posing engine (THA3) models into `modelsdir` if the directory does not exist yet. Else do nothing.
+
+    For maximal OS compatibility, symlinks are not used.
+
+    `hf_reponame`: HuggingFace repository to download from, e.g. "OktayAlpk/talking-head-anime-3".
+    `modelsdir`: Local path (absolute or relative) to install in.
+    """
+    if not os.path.exists(modelsdir):
+        # API:
+        #   https://huggingface.co/docs/huggingface_hub/en/guides/download
+        try:
+            from huggingface_hub import snapshot_download
+        except ImportError:
+            raise ImportError(
+                "You need to install huggingface_hub to install talkinghead models automatically. "
+                "See https://pypi.org/project/huggingface-hub/ for installation."
+            )
+        os.makedirs(modelsdir, exist_ok=True)
+        print(f"THA3 models not yet installed. Installing from {hf_reponame} into {modelsdir}.")
+        # Installing with symlinks would be generally better, but MS Windows support for symlinks is not optimal,
+        # so for maximal compatibility we avoid them. The drawback of installing directly as plain files is that
+        # if multiple programs need to download THA3, they will do so separately. But THA3 is rather rare, so in
+        # practice this is unlikely to be an issue.
+        snapshot_download(repo_id=hf_reponame, local_dir=modelsdir, local_dir_use_symlinks=False)
 
 # --------------------------------------------------------------------------------
 # TODO: move the image utils to the lower-level `tha3.util`?
