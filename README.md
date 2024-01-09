@@ -75,6 +75,8 @@ The manual poser app of `talkinghead` requires the installation of an additional
 
 If you only run `talkinghead` in the live mode (i.e. as a SillyTavern-extras module), `wxpython` is no longer required.
 
+The manual poser has two uses. First, it is a GUI editor for the `talkinghead` emotion templates. Secondly, it can batch-generate static emotion sprites from a single talkinghead image (if you want the convenience of AI-powered posing, but don't want to run the live mode).
+
 A fast GPU is heavily recommended. For more information, see the [`talkinghead` README](talkinghead/README.md).
 
 ### 💻 Locally
