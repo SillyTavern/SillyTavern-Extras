@@ -192,7 +192,7 @@ if "talkinghead" in modules:
     if model == "auto":  # default
         # FP16 boosts the rendering performance by ~1.5x, but is only supported on GPU.
         model = "separable_half" if args.talkinghead_gpu else "separable_float"
-    print(f"Initializing talkinghead pipeline in {mode} mode with model {model}....")
+    print(f"Initializing talkinghead pipeline in {Fore.GREEN}{Style.BRIGHT}{mode}{Style.RESET_ALL} mode with model {Fore.GREEN}{Style.BRIGHT}{model}{Style.RESET_ALL}...")
 
     try:
         from talkinghead.tha3.app.util import maybe_install_models as talkinghead_maybe_install_models
