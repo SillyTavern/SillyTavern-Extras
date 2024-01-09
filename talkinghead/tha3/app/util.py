@@ -25,10 +25,6 @@ logger = logging.getLogger(__name__)
 
 
 # The keys for a pose in the emotion JSON files.
-#
-# TODO: "eye_unimpressed" is arity-2, but has only one entry in the JSON. The current implementation smashes both into one,
-#       letting the second one (right slider) win. Maybe the two values should be saved separately, but we have to avoid
-#       breaking the live mode served by `app.py`.
 posedict_keys = ["eyebrow_troubled_left_index", "eyebrow_troubled_right_index",
                  "eyebrow_angry_left_index", "eyebrow_angry_right_index",
                  "eyebrow_lowered_left_index", "eyebrow_lowered_right_index",
@@ -39,7 +35,7 @@ posedict_keys = ["eyebrow_troubled_left_index", "eyebrow_troubled_right_index",
                  "eye_happy_wink_left_index", "eye_happy_wink_right_index",
                  "eye_surprised_left_index", "eye_surprised_right_index",
                  "eye_relaxed_left_index", "eye_relaxed_right_index",
-                 "eye_unimpressed", "eye_unimpressed",
+                 "eye_unimpressed_left_index", "eye_unimpressed_right_index",
                  "eye_raised_lower_eyelid_left_index", "eye_raised_lower_eyelid_right_index",
                  "iris_small_left_index", "iris_small_right_index",
                  "mouth_aaa_index",
@@ -59,7 +55,6 @@ posedict_keys = ["eyebrow_troubled_left_index", "eyebrow_troubled_right_index",
 assert len(posedict_keys) == 45
 
 # posedict_keys gives us index->key; make an inverse mapping.
-# Note this doesn't work for "eye_unimpressed", because it's not unique. (All the more reason to fix that.)
 posedict_key_to_index = {key: idx for idx, key in enumerate(posedict_keys)}
 
 

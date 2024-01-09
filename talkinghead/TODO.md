@@ -40,12 +40,6 @@
       - Zigzag deformation
 - Investigate if some particular emotions could use a small random per-frame oscillation applied to "iris_small",
   for that anime "intense emotion" effect (since THA3 doesn't have a morph specifically for the specular reflections in the eyes).
-- The "eye_unimpressed" morph has just one key in the emotion JSON, although the model has two morphs (left and right) for this.
-  - We should fix this, but it will break backward compatibility for old emotion JSON files.
-  - OTOH, maybe not much of an issue, because in all versions prior to this one being developed, the emotion JSON system
-    was underutilized anyway (only a bunch of pre-made presets, only used by the live plugin).
-  - All the more important to fix this now, before the next release, because the improved manual poser makes it easy to
-    generate new emotion JSON files, so from the next release on we can assume those to exist in the wild.
 
 ### Client-side bugs / missing features:
 
