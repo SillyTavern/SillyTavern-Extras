@@ -432,7 +432,27 @@ class Animator:
 
         Return the modified pose.
         """
-        should_blink = (random.random() <= 0.03)
+        # should_blink = (random.random() <= 0.03)
+
+        # Compute FPS-corrected blink probability
+        CALIBRATION_FPS = 25
+        p_orig = 0.03  # blink probability per frame at CALIBRATION_FPS
+        avg_render_sec = self.render_duration_statistics.average()
+        if avg_render_sec > 0:
+            avg_render_fps = 1 / avg_render_sec
+            # Even if render completes faster, the `talkinghead` output is rate-limited to `target_fps` at most.
+            avg_render_fps = min(avg_render_fps, TARGET_FPS)
+        else:  # No statistics available yet; let's assume we're running at `target_fps`.
+            avg_render_fps = TARGET_FPS
+        # Note direction: rendering faster (higher FPS) means less likely to blink per frame (to obtain the same blink density per unit of wall time)
+        n = CALIBRATION_FPS / avg_render_fps
+        # We give an independent trial for each of `n` (fictitious) frames elapsed at `CALIBRATION_FPS` during one actual frame at `avg_render_fps`.
+        # Doesn't matter that `n` isn't an integer, since the power function over the reals is continuous and we just want a reasonable scaling here.
+        p_scaled = 1.0 - (1.0 - p_orig)**n
+        should_blink = (random.random() <= p_scaled)
+
+        debug_fps = round(avg_render_fps, 1)
+        logger.info(f"animate_blinking: p @ {CALIBRATION_FPS} FPS = {p_orig}, scaled p @ {debug_fps:.1f} FPS = {p_scaled:0.6g}")
 
         # Prevent blinking too fast in succession.
         time_now = time.time_ns()
@@ -764,7 +784,7 @@ class Animator:
         #
         # which, given desired `n`, gives us the `α` that makes the interpolator cover the fraction `xrel` of the original distance in `n` steps.
         #
-        POSE_INTERPOLATOR_CALIBRATION_FPS = 25  # FPS for which the default value `step` was calibrated
+        CALIBRATION_FPS = 25  # FPS for which the default value `step` was calibrated
         xrel = 0.5  # just some convenient value
         alpha_orig = 1.0 - step
         if 0 < alpha_orig < 1:
@@ -779,7 +799,7 @@ class Animator:
             # For a constant target pose and original `α`, compute the number of animation frames to cover `xrel` of distance from initial pose to final pose.
             n_orig = math.log(1.0 - xrel) / math.log(alpha_orig)
             # Compute the scaled `n`. Note the direction: we need a smaller `n` (fewer animation frames) if the render runs slower than the calibration FPS.
-            n_scaled = (avg_render_fps / POSE_INTERPOLATOR_CALIBRATION_FPS) * n_orig
+            n_scaled = (avg_render_fps / CALIBRATION_FPS) * n_orig
             # Then compute the `α` that reaches `xrel` distance in `n_scaled` animation frames.
             alpha_scaled = (1.0 - xrel)**(1 / n_scaled)
         else:  # avoid some divisions by zero at the extremes
@@ -787,7 +807,7 @@ class Animator:
         step_scaled = 1.0 - alpha_scaled
 
         debug_fps = round(avg_render_fps, 1)
-        logger.debug(f"interpolate_pose: step @ {POSE_INTERPOLATOR_CALIBRATION_FPS} FPS = {step}, scaled step @ {debug_fps:.1f} FPS = {step_scaled:0.6g}")
+        logger.debug(f"interpolate_pose: step @ {CALIBRATION_FPS} FPS = {step}, scaled step @ {debug_fps:.1f} FPS = {step_scaled:0.6g}")
 
         # NOTE: This overwrites blinking, talking, and breathing, but that doesn't matter, because we apply this first.
         # The other animation drivers then modify our result.
