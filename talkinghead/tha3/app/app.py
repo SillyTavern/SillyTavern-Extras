@@ -61,7 +61,7 @@ current_emotion = "neutral"
 is_talking = False
 global_reload_image = None
 
-TARGET_FPS = 25
+target_fps = 25  # value overridden by `load_animator_settings` at animator startup
 
 # --------------------------------------------------------------------------------
 # API
@@ -199,7 +199,7 @@ def result_feed() -> Response:
                 #  - Excessive spamming can DoS the SillyTavern GUI, so there needs to be a rate limit.
                 #  - OTOH, we must constantly send something, or the GUI will lock up waiting.
                 # Therefore, send at a target FPS that yields a nice-looking animation.
-                frame_duration_target_sec = 1 / TARGET_FPS
+                frame_duration_target_sec = 1 / target_fps
                 if last_frame_send_complete_time is not None:
                     time_now = time.time_ns()
                     this_frame_elapsed_sec = (time_now - last_frame_send_complete_time) / 10**9
@@ -232,7 +232,7 @@ def result_feed() -> Response:
                     msec = round(1000 * avg_send_sec, 1)
                     target_msec = round(1000 * frame_duration_target_sec, 1)
                     fps = round(1 / avg_send_sec, 1) if avg_send_sec > 0.0 else 0.0
-                    logger.info(f"output: {msec:.1f}ms [{fps:.1f} FPS]; target {target_msec:.1f}ms [{TARGET_FPS:.1f} FPS]")
+                    logger.info(f"output: {msec:.1f}ms [{fps:.1f} FPS]; target {target_msec:.1f}ms [{target_fps:.1f} FPS]")
                     last_report_time = time_now
 
             else:  # first frame not yet available
@@ -439,9 +439,9 @@ class Animator:
         if avg_render_sec > 0:
             avg_render_fps = 1 / avg_render_sec
             # Even if render completes faster, the `talkinghead` output is rate-limited to `target_fps` at most.
-            avg_render_fps = min(avg_render_fps, TARGET_FPS)
+            avg_render_fps = min(avg_render_fps, target_fps)
         else:  # No statistics available yet; let's assume we're running at `target_fps`.
-            avg_render_fps = TARGET_FPS
+            avg_render_fps = target_fps
         # Note direction: rendering faster (higher FPS) means less likely to blink per frame (to obtain the same blink density per unit of wall time)
         n = CALIBRATION_FPS / avg_render_fps
         # We give an independent trial for each of `n` (fictitious) frames elapsed at `CALIBRATION_FPS` during one actual frame at `avg_render_fps`.
@@ -789,10 +789,10 @@ class Animator:
             avg_render_sec = self.render_duration_statistics.average()
             if avg_render_sec > 0:
                 avg_render_fps = 1 / avg_render_sec
-                # Even if render completes faster, the `talkinghead` output is rate-limited to `TARGET_FPS` at most.
-                avg_render_fps = min(avg_render_fps, TARGET_FPS)
-            else:  # No statistics available yet; let's assume we're running at `TARGET_FPS`.
-                avg_render_fps = TARGET_FPS
+                # Even if render completes faster, the `talkinghead` output is rate-limited to `target_fps` at most.
+                avg_render_fps = min(avg_render_fps, target_fps)
+            else:  # No statistics available yet; let's assume we're running at `target_fps`.
+                avg_render_fps = target_fps
 
             # For a constant target pose and original `α`, compute the number of animation frames to cover `xrel` of distance from initial pose to final pose.
             n_orig = math.log(1.0 - xrel) / math.log(alpha_orig)
