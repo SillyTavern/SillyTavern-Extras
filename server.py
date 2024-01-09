@@ -187,7 +187,6 @@ if "talkinghead" in modules:
     sys.path.append(talkinghead_path)  # Add the path to the 'tha3' module to the sys.path list
 
     import sys
-    import threading
     mode = "cuda" if args.talkinghead_gpu else "cpu"
     model = args.talkinghead_model
     if model == "auto":  # default
@@ -203,13 +202,9 @@ if "talkinghead" in modules:
         talkinghead_maybe_install_models(hf_reponame=args.talkinghead_models, modelsdir=talkinghead_models_dir)
 
         import talkinghead.tha3.app.app as talkinghead
-        def launch_talkinghead():
-            # mode: choices='The device to use for PyTorch ("cuda" for GPU, "cpu" for CPU).'
-            # model: choices=['standard_float', 'separable_float', 'standard_half', 'separable_half'],
-            talkinghead.launch(mode, model)
-        talkinghead_thread = threading.Thread(target=launch_talkinghead)
-        talkinghead_thread.daemon = True  # Set the thread as a daemon thread
-        talkinghead_thread.start()
+        # mode: choices='The device to use for PyTorch ("cuda" for GPU, "cpu" for CPU).'
+        # model: choices=['standard_float', 'separable_float', 'standard_half', 'separable_half'],
+        talkinghead.launch(mode, model)
 
     except ModuleNotFoundError:
         print("Error: Could not import the 'talkinghead' module.")
