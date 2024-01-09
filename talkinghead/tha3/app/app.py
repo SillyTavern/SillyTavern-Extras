@@ -432,8 +432,6 @@ class Animator:
 
         Return the modified pose.
         """
-        # should_blink = (random.random() <= 0.03)
-
         # Compute FPS-corrected blink probability
         CALIBRATION_FPS = 25
         p_orig = 0.03  # blink probability per frame at CALIBRATION_FPS
