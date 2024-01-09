@@ -175,7 +175,7 @@ cd SillyTavern-extras
 | `--cuda-device`          | Specifies a CUDA device to use. Defaults to `cuda:0` (first available GPU). |
 | `--talkinghead-gpu`      | Uses GPU for talkinghead (10x FPS increase in animation). |
 | `--talkinghead-model`    | Load a specific THA3 model variant for talkinghead.<br>Default: `auto` (which is `separable_half` on GPU, `separable_float` on CPU). |
-| `--talkinghead-models`   | If THA3 models are not yet installed, downloads and installs them. Expects a HuggingFace model ID.<br>Default: [OktayAlpk/talking-head-anime-3](https://huggingface.co/OktayAlpk/talking-head-anime-3). |
+| `--talkinghead-models`   | If THA3 models are not yet installed, downloads and installs them.<br>Expects a HuggingFace model ID.<br>Default: [OktayAlpk/talking-head-anime-3](https://huggingface.co/OktayAlpk/talking-head-anime-3). |
 | `--coqui-gpu`            | Uses GPU for coqui TTS (if available). |
 | `--coqui-model`          | If provided, downloads and preloads a coqui TTS model. Default: none.<br>Example: `tts_models/multilingual/multi-dataset/bark` |
 | `--summarization-model`  | Load a custom summarization model.<br>Expects a HuggingFace model ID.<br>Default: [Qiliang/bart-large-cnn-samsum-ChatGPT_v3](https://huggingface.co/Qiliang/bart-large-cnn-samsum-ChatGPT_v3) |
