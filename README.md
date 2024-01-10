@@ -537,7 +537,7 @@ _progress (string, Optional): Show progress bar in terminal.
 #### **Output**
 MP3 audio file.
 
-### Load a talkinghead character.
+### Load a talkinghead character
 `POST /api/talkinghead/load`
 #### **Input**
 A `FormData` with a field `"file"`. The posted file should be a PNG image in RGBA format. Optimal resolution 512x512. See the [`talkinghead` README](talkinghead/README.md) for details.
@@ -546,21 +546,21 @@ A `FormData` with a field `"file"`. The posted file should be a PNG image in RGB
 #### **Output**
 'OK'
 
-### Animate the talkinghead character to start talking.
+### Animate the talkinghead character to start talking
 `GET /api/talkinghead/start_talking`
 #### **Example**
 'http://localhost:5100/api/talkinghead/start_talking'
 #### **Output**
 "talking started"
 
-### Animate the talkinghead character to stop talking.
+### Animate the talkinghead character to stop talking
 `GET /api/talkinghead/stop_talking`
 #### **Example**
 'http://localhost:5100/api/talkinghead/stop_talking'
 #### **Output**
 "talking stopped"
 
-### Set the talkinghead character's emotion.
+### Set the talkinghead character's emotion
 `POST /api/talkinghead/set_emotion`
 Available emotions: see `talkinghead/emotions/*.json`. An emotion must be specified, but if it is not available, this operation defaults to `"neutral"`, which must always be available. This endpoint is the backend behind the `/emote` slash command in talkinghead mode.
 #### **Input**
