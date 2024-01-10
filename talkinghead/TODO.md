@@ -20,6 +20,8 @@
       - The manual poser currently produces individual emotion `.json` files only.
       - When batch-exporting from the manual poser, also automatically produce a combined `_emotions.json`.
         - This also makes it easier to maintain `talkinghead/emotions/_defaults.json`, because the batch export then generates all necessary files.
+        - Optimize the JSON export to drop zeroes, since that is the default - at least in `_emotions.json_`.
+          The individual emotion files could retain the zeros, to help discoverability.
 - Add live-modifiable configuration for animation and postprocessor settings?
   - Add a new control panel to SillyTavern client extension settings
   - Send new configs to backend whenever anything changes
