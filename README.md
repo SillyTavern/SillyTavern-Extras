@@ -546,6 +546,47 @@ A `FormData` with files, with an image file in a field named `"file"`. The poste
 #### **Output**
 'OK'
 
+### Load talkinghead emotion templates (or reset them to defaults)
+`POST /api/talkinghead/load_emotion_templates`
+#### **Input**
+```
+{"anger": {"eyebrow_angry_left_index": 1.0,
+           ...}
+ "curiosity": {"eyebrow_lowered_left_index": 0.5895,
+               ...}
+ ...}
+```
+For details, see `Animator.load_emotion_templates` in [`talkinghead/tha3/app/app.py`](talkinghead/tha3/app/app.py). This is essentially the format used by [`talkinghead/emotions/_defaults.json`](talkinghead/emotions/_defaults.json).
+
+Any emotions NOT supplied in the posted JSON will revert to server defaults. In any supplied emotion, any morph NOT supplied will default to zero. This allows making the templates shorter.
+
+To reset all emotion templates to their server defaults, send a blank JSON.
+#### **Output**
+"OK"
+
+### Load talkinghead animator/postprocessor settings (or reset them to defaults)
+`POST /api/talkinghead/load_animator_settings`
+#### **Input**
+```
+{"target_fps": 25,
+ "breathing_cycle_duration": 4.0,
+ "postprocessor_chain": [["bloom", {}],
+                         ["chromatic_aberration", {}],
+                         ["vignetting", {}],
+                         ["translucency", {"alpha": 0.9}],
+                         ["alphanoise", {"magnitude": 0.1, "sigma": 0.0}],
+                         ["banding", {}],
+                         ["scanlines", {}]]
+ ...}
+```
+For a full list of supported settings, see `animator_defaults` and `Animator.load_animator_settings`, both in [`talkinghead/tha3/app/app.py`](talkinghead/tha3/app/app.py).
+
+Particularly for `"postprocess_chain"`, see [`talkinghead/tha3/app/postprocessor.py`](talkinghead/tha3/app/postprocessor.py). The postprocessor applies pixel-space glitch artistry, which can e.g. make your talkinghead look like a scifi hologram (the above example does this). The postprocessing filters are applied in the order they appear in the list.
+
+To reset all animator/postprocessor settings to their server defaults, send a blank JSON.
+#### **Output**
+"OK"
+
 ### Animate the talkinghead character to start talking
 `GET /api/talkinghead/start_talking`
 #### **Example**
