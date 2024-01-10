@@ -247,7 +247,7 @@ talkinghead = None  # populated when the module is loaded
 @app.route("/api/talkinghead/load", methods=["POST"])
 @require_module("talkinghead")
 def api_talkinghead_load():
-    """Load the talkinghead sprite posted in the request. Resume animation if paused."""
+    """Load the talkinghead sprite posted in the request. Resume animation if the talkinghead module was paused."""
     file = request.files['file']
     # convert stream to bytes and pass to talkinghead
     return talkinghead.talkinghead_load_file(file.stream)
@@ -255,7 +255,7 @@ def api_talkinghead_load():
 @app.route('/api/talkinghead/unload')
 @require_module("talkinghead")
 def api_talkinghead_unload():
-    """Pause talkinghead animation. Can be enabled again via '/api/talkinghead/load'."""
+    """Pause the talkinghead module. To resume, load a character via '/api/talkinghead/load'."""
     return talkinghead.unload()
 
 @app.route('/api/talkinghead/start_talking')
@@ -274,6 +274,12 @@ def api_talkinghead_stop_talking():
 @require_module("talkinghead")
 def api_talkinghead_set_emotion():
     """Set talkinghead character emotion to that posted in the request.
+
+    Input format is JSON::
+
+        {"emotion_name": "curiosity"}
+
+    where the key "emotion_name" is literal, and the value is the emotion to set.
 
     There is no getter, because SillyTavern keeps its state in the frontend
     and the plugins only act as slaves (in the technological sense of the word).
