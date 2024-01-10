@@ -5,10 +5,10 @@
 - Add optional per-character configuration
   - At client end, JSON files in `SillyTavern/public/characters/characternamehere/`
   - Pass the data all the way here (from ST client, to ST server, to ST-extras server, to talkinghead module)
-  - Configuration:
+  - Configuration (per-character):
     - Target FPS (default 25.0)
     - Postprocessor effect chain (including settings)
-    - Animation parameters (ideally per character)
+    - Animation parameters
       - Blink timing: `blink_interval` min/max (when randomizing the next blink timing)
       - Blink probability per frame
       - "confusion" emotion initial segment duration (where blinking quickly in succession is allowed)
@@ -16,11 +16,10 @@
      - Sway strength (`max_random`, `max_noise`)
       - Breathing cycle duration
     - Emotion templates
-      - One JSON file per emotion, like for the server default templates? This format is easily produced by the manual poser GUI tool.
-      - Could be collected by the client into a single JSON for sending.
-  - Need also global defaults
-    - These could live at the SillyTavern-extras server end
-    - Still, don't hardcode, but read from JSON file, to keep easily configurable
+      - One JSON with all emotions, easier for sending from the client.
+      - The manual poser currently produces individual emotion `.json` files only.
+      - When batch-exporting from the manual poser, also automatically produce a combined `_emotions.json`.
+        - This also makes it easier to maintain `talkinghead/emotions/_defaults.json`, because the batch export then generates all necessary files.
 - Add live-modifiable configuration for animation and postprocessor settings?
   - Add a new control panel to SillyTavern client extension settings
   - Send new configs to backend whenever anything changes
@@ -41,7 +40,7 @@
 - Investigate if some particular emotions could use a small random per-frame oscillation applied to "iris_small",
   for that anime "intense emotion" effect (since THA3 doesn't have a morph specifically for the specular reflections in the eyes).
 
-### Client-side bugs / missing features:
+### Client side
 
 - If `classify` is enabled, emotion state should be updated from the latest AI-generated text
   when switching chat files, to resume in the same emotion state where the chat left off.
@@ -49,6 +48,7 @@
     then the "set_emotion" endpoint.
 - When a new talkinghead sprite is uploaded:
   - The preview thumbnail in the client doesn't update.
+- Other places in *Character Expressions* where we need to check whether the `talkinghead` module is enabled?
 
 ### Common
 
