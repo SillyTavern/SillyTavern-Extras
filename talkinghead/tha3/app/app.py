@@ -45,6 +45,35 @@ logger = logging.getLogger(__name__)
 # --------------------------------------------------------------------------------
 # Global variables
 
+# This is the authoritative documentation of the animator settings (beside the animation driver docstrings and the actual source code).
+animator_defaults = {"target_fps": 25,  # Desired output frames per second. Note this only affects smoothness of the output (if hardware allows).
+                                        # The speed at which the animation evolves is based on wall time. Snapshots are rendered at the target FPS,
+                                        # or if the hardware is too slow to reach the target FPS, then as often as hardware allows.
+                                        # For smooth animation, make the FPS lower than what your hardware could produce, so that some compute
+                                        # remains untapped, available to smooth over the occasional hiccup from other running programs.
+                     "pose_interpolator_step": 0.1,  # 0 < this <= 1; at each frame at a reference of 25 FPS; FPS-corrected automatically; see `interpolate_pose`.
+
+                     "blink_interval_min": 2.0,  # seconds, lower limit for random minimum time until next blink is allowed.
+                     "blink_interval_max": 5.0,  # seconds, upper limit for random minimum time until next blink is allowed.
+                     "blink_probability": 0.03,  # At each frame at a reference of 25 FPS; FPS-corrected automatically.
+                     "blink_confusion_duration": 10.0,  # seconds, upon entering "confusion" emotion, during which blinking quickly in succession is allowed.
+
+                     "talking_fps": 12,  # How often to re-randomize mouth during talking animation.
+                                         # Early 2000s anime used ~12 FPS as the fastest actual framerate of new cels (not counting camera panning effects and such).
+                     "talking_morph": "mouth_aaa_index",  # which mouth-open morph to use for talking; for available values, see `posedict_keys`
+
+                     "sway_morphs": ["head_x_index", "head_y_index", "neck_z_index", "body_y_index", "body_z_index"],  # which morphs to sway; see `posedict_keys`
+                     "sway_interval_min": 5.0,  # seconds, lower limit for random time interval until randomizing new sway pose.
+                     "sway_interval_max": 10.0,  # seconds, upper limit for random time interval until randomizing new sway pose.
+                     "sway_macro_strength": 0.6,  # [0, 1], in sway pose, max abs deviation from emotion pose target morph value for each sway morph,
+                                                  # but also max deviation from center. The emotion pose itself may use higher values; in such cases,
+                                                  # sway will only occur toward the center. See `compute_sway_target_pose` for details.
+                     "sway_micro_strength": 0.02,  # [0, 1], max abs random noise added each frame. No limiting other than a clamp of final pose to [-1, 1].
+
+                     "breathing_cycle_duration": 4.0,  # seconds, for a full breathing cycle.
+
+                     "postprocessor_chain": []}  # Pixel-space glitch artistry settings; see `postprocessor.py`.
+
 talkinghead_basedir = "talkinghead"
 
 global_animator_instance = None
@@ -411,34 +440,8 @@ class Animator:
 
         logger.info(f"load_animator_settings: user-provided settings: {settings}")
 
-        # This is the authoritative documentation of the animator settings (beside the animation driver docstrings and the actual source code).
-        defaults = {"target_fps": 25,  # desired output frames per second. Note this only affects smoothness of the output (if hardware allows).
-                                       # The speed at which the animation evolves is based on wall time. Snapshots are rendered at the target FPS.
-                    "pose_interpolator_step": 0.1,  # 0 < this <= 1; at each frame at a reference of 25 FPS; FPS-corrected automatically; see `interpolate_pose`.
-
-                    "blink_interval_min": 2.0,  # seconds, lower limit for random minimum time until next blink is allowed
-                    "blink_interval_max": 5.0,  # seconds, upper limit for random minimum time until next blink is allowed
-                    "blink_probability": 0.03,  # at each frame at a reference of 25 FPS; FPS-corrected automatically
-                    "blink_confusion_duration": 10.0,  # seconds, upon entering "confusion" emotion, during which blinking quickly in succession is allowed
-
-                    "talking_fps": 12,  # how often to re-randomize mouth during talking animation
-                                        # Early 2000s anime used ~12 FPS as the fastest actual framerate of new cels (not counting camera panning effects and such).
-                    "talking_morph": "mouth_aaa_index",  # which mouth-open morph to use for talking; for available values, see `posedict_keys`
-
-                    "sway_morphs": ["head_x_index", "head_y_index", "neck_z_index", "body_y_index", "body_z_index"],  # which morphs to sway; see `posedict_keys`
-                    "sway_interval_min": 5.0,  # seconds, lower limit for random time interval until randomizing new sway pose
-                    "sway_interval_max": 10.0,  # seconds, upper limit for random time interval until randomizing new sway pose
-                    "sway_macro_strength": 0.6,  # [0, 1], in sway pose, max abs deviation from emotion pose target morph value for each sway morph,
-                                                 # but also max deviation from center. The emotion pose itself may use higher values; in such cases,
-                                                 # sway will only occur toward the center. See `compute_sway_target_pose` for details.
-                    "sway_micro_strength": 0.02,  # [0, 1], max abs random noise added each frame. No limiting other than a clamp of final pose to [-1, 1].
-
-                    "breathing_cycle_duration": 4.0,  # seconds, for a full breathing cycle.
-
-                    "postprocessor_chain": []}  # pixel-space glitch artistry settings; see `postprocessor.py`
-
         # Set default values for any settings not provided
-        for field, default_value in defaults.items():
+        for field, default_value in animator_defaults.items():
             type_match = (int, float) if isinstance(default_value, (int, float)) else type(default_value)
             if field in settings and not isinstance(settings[field], type_match):
                 logger.warning(f"Ignoring invalid setting for '{field}': got {type(settings[field])} with value '{settings[field]}', expected {type_match}")
