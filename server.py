@@ -252,6 +252,59 @@ def api_talkinghead_load():
     # convert stream to bytes and pass to talkinghead
     return talkinghead.talkinghead_load_file(file.stream)
 
+@app.route('/api/talkinghead/load_emotion_templates', methods=["POST"])
+@require_module("talkinghead")
+def api_talkinghead_load_emotion_templates():
+    """Load custom emotion templates for talkinghead, or reset to defaults.
+
+    Input format is JSON::
+
+        {"emotion0": {"morph0": value0,
+                      ...}}
+         ...}
+
+    For details, see `Animator.load_emotion_templates` in `talkinghead/tha3/app/app.py`.
+
+    To reload server defaults, use::
+
+        {"reset": true}
+
+    This API endpoint becomes available after the talkinghead has been launched.
+    """
+    if talkinghead.global_animator_instance is None:
+        abort(400, 'talkinghead not launched')
+    data = request.get_json()
+    if "reset" in data:
+        data = None  # sending `None` to talkinghead will reset to defaults
+    talkinghead.global_animator_instance.load_emotion_templates(data)
+    return "OK"
+
+@app.route('/api/talkinghead/load_animator_settings', methods=["POST"])
+@require_module("talkinghead")
+def api_talkinghead_load_animator_settings():
+    """Load custom settings for talkinghead animator and postprocessor, or reset to defaults.
+
+    Input format is JSON::
+
+        {"name0": value0,
+         ...}
+
+    For details, see `Animator.load_animator_settings` in `talkinghead/tha3/app/app.py`.
+
+    To reload server defaults, use::
+
+        {"reset": true}
+
+    This API endpoint becomes available after the talkinghead has been launched.
+    """
+    if talkinghead.global_animator_instance is None:
+        abort(400, 'talkinghead not launched')
+    data = request.get_json()
+    if "reset" in data:
+        data = None  # sending `None` to talkinghead will reset to defaults
+    talkinghead.global_animator_instance.load_animator_settings(data)
+    return "OK"
+
 @app.route('/api/talkinghead/unload')
 @require_module("talkinghead")
 def api_talkinghead_unload():
