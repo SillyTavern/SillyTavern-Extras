@@ -576,7 +576,7 @@ To reset all emotion templates to their server defaults, send a blank JSON.
                          ["translucency", {"alpha": 0.9}],
                          ["alphanoise", {"magnitude": 0.1, "sigma": 0.0}],
                          ["banding", {}],
-                         ["scanlines", {}]]
+                         ["scanlines", {"dynamic": true}]]
  ...}
 ```
 For a full list of supported settings, see `animator_defaults` and `Animator.load_animator_settings`, both in [`talkinghead/tha3/app/app.py`](talkinghead/tha3/app/app.py).
