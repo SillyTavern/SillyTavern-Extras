@@ -45,7 +45,8 @@ logger = logging.getLogger(__name__)
 # --------------------------------------------------------------------------------
 # Global variables
 
-# This is the authoritative documentation of the animator settings (beside the animation driver docstrings and the actual source code).
+# Default configuration for the animator, loaded when the plugin is launched.
+# Doubles as the authoritative documentation of the animator settings (beside the animation driver docstrings and the actual source code).
 animator_defaults = {"target_fps": 25,  # Desired output frames per second. Note this only affects smoothness of the output (if hardware allows).
                                         # The speed at which the animation evolves is based on wall time. Snapshots are rendered at the target FPS,
                                         # or if the hardware is too slow to reach the target FPS, then as often as hardware allows.
