@@ -260,21 +260,19 @@ def api_talkinghead_load_emotion_templates():
     Input format is JSON::
 
         {"emotion0": {"morph0": value0,
-                      ...}}
+                      ...}
          ...}
 
     For details, see `Animator.load_emotion_templates` in `talkinghead/tha3/app/app.py`.
 
-    To reload server defaults, use::
-
-        {"reset": true}
+    To reload server defaults, send a blank JSON.
 
     This API endpoint becomes available after the talkinghead has been launched.
     """
     if talkinghead.global_animator_instance is None:
         abort(400, 'talkinghead not launched')
     data = request.get_json()
-    if "reset" in data:
+    if not len(data):
         data = None  # sending `None` to talkinghead will reset to defaults
     talkinghead.global_animator_instance.load_emotion_templates(data)
     return "OK"
@@ -291,16 +289,14 @@ def api_talkinghead_load_animator_settings():
 
     For details, see `Animator.load_animator_settings` in `talkinghead/tha3/app/app.py`.
 
-    To reload server defaults, use::
-
-        {"reset": true}
+    To reload server defaults, send a blank JSON.
 
     This API endpoint becomes available after the talkinghead has been launched.
     """
     if talkinghead.global_animator_instance is None:
         abort(400, 'talkinghead not launched')
     data = request.get_json()
-    if "reset" in data:
+    if not len(data):
         data = None  # sending `None` to talkinghead will reset to defaults
     talkinghead.global_animator_instance.load_animator_settings(data)
     return "OK"
