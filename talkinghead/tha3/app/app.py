@@ -411,6 +411,20 @@ class Animator:
 
                     If not given, this loads the templates from the emotion JSON files
                     in `talkinghead/emotions/`.
+
+                    If given:
+                      - Each emotion NOT supplied is populated from the defaults.
+                      - In each emotion that IS supplied, each morph that is NOT mentioned
+                        is implicitly set to zero (due to how `apply_emotion_to_pose` works).
+
+                    For an example JSON file containing a suitable dictionary, see `talkinghead/emotions/_defaults.json`.
+
+                    For available morph names, see `posedict_keys` in `talkinghead/tha3/app/util.py`.
+
+                    For some more detail, see `talkinghead/tha3/poser/modes/pose_parameters.py`.
+                    "Arity 2" means `posedict_keys` has separate left/right morphs.
+
+                    If still in doubt, see the GUI panel implementations in `talkinghead/tha3/app/manual_poser.py`.
         """
         # Load defaults as a base
         self.emotions, self.emotion_names = load_emotion_presets(os.path.join("talkinghead", "emotions"))
@@ -432,7 +446,12 @@ class Animator:
 
         `settings`: `{setting0: value0, ...}`
                     Optional dict of settings. The type and semantics of each value depends on each
-                    particular setting. See the source code of this function for details.
+                    particular setting.
+
+        For available settings, see `animator_defaults` in `talkinghead/tha3/app/app.py`.
+
+        Particularly for the setting `"postprocessor_chain"` (pixel-space glitch artistry),
+        see `talkinghead/tha3/app/postprocessor.py`.
         """
         global target_fps
 
