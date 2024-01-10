@@ -540,7 +540,7 @@ MP3 audio file.
 ### Load a talkinghead character
 `POST /api/talkinghead/load`
 #### **Input**
-A `FormData` with a field `"file"`. The posted file should be a PNG image in RGBA format. Optimal resolution 512x512. See the [`talkinghead` README](talkinghead/README.md) for details.
+A `FormData` with files, with an image file in a field named `"file"`. The posted file should be a PNG image in RGBA format. Optimal resolution 512x512. See the [`talkinghead` README](talkinghead/README.md) for details.
 #### **Example**
 'http://localhost:5100/api/talkinghead/load'
 #### **Output**
