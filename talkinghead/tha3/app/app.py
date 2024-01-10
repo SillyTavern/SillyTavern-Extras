@@ -460,6 +460,12 @@ class Animator:
 
         logger.info(f"load_animator_settings: user-provided settings: {settings}")
 
+        # Warn about unknown settings (not an error, to allow running a newer client on an older server that might support only a subset of the keys the client knows about)
+        if settings:
+            unknown_fields = [field for field in settings if field not in animator_defaults]
+            if unknown_fields:
+                logger.warning(f"load_animator_settings: unknown keys in user-provided settings; maybe client is newer than server? List follows: {unknown_fields}")
+
         # Set default values for any settings not provided
         for field, default_value in animator_defaults.items():
             type_match = (int, float) if isinstance(default_value, (int, float)) else type(default_value)
