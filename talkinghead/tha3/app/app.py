@@ -477,12 +477,14 @@ class Animator:
 
         logger.info(f"load_animator_settings: final settings (filled in from defaults as necessary): {settings}")
 
-        # Some settings must be applied explicitly:
-        settings = dict(settings)  # copy to avoid modifying the original
+        # Some settings must be applied explicitly.
+        settings = dict(settings)  # copy to avoid modifying the original, since we'll pop some stuff.
+
         logger.debug(f"load_animator_settings: Setting new target FPS = {settings['target_fps']}")
-        target_fps = settings.pop("target_fps")
+        target_fps = settings.pop("target_fps")  # global variable, controls the network send rate.
+
         logger.debug("load_animator_settings: Sending new effect chain to postprocessor")
-        self.postprocessor.chain = settings.pop("postprocessor_chain")
+        self.postprocessor.chain = settings.pop("postprocessor_chain")  # ...and that's where the postprocessor reads its filter settings from.
 
         # The rest of the settings we can just store in an attribute, and let the animation drivers read them from there.
         self._settings = settings
