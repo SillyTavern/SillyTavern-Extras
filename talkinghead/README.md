@@ -93,7 +93,9 @@ Any morph that is not mentioned for a particular emotion defaults to zero. Thus 
 
 *The available settings keys and examples are kept up-to-date on a best-effort basis, but there is a risk of this documentation being out of date. When in doubt, refer to the actual source code, which comes with extensive docstrings and comments. The final authoritative source is the implementation itself.*
 
-The file `SillyTavern/public/characters/yourcharacternamehere/_animator.json` contains the animator and postprocessor settings. It is always per-character, and optional. If the file is missing, the default settings are used. For any setting not specified in the file, the default value is used.
+The file `SillyTavern/public/characters/yourcharacternamehere/_animator.json` contains the animator and postprocessor settings. It is always per-character, and optional. If the file does not exist, the default settings are used. For any setting not specified in the file, the default value is used.
+
+The idea is that this allows giving some personality to different characters; for example, they may sway by different amounts, the breathing cycle duration may be different, and importantly, the postprocessor settings may be different - which allows e.g. making a specific character into a scifi hologram, while others render normally.
 
 Here is a complete example of `_animator.json`, showing the default values:
 
