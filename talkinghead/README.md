@@ -7,6 +7,7 @@
     - [Introduction](#introduction)
     - [Live mode](#live-mode)
         - [Configuration](#configuration)
+        - [Emotion templates](#emotion-templates)
         - [Animator configuration](#animator-configuration)
         - [Postprocessor configuration](#postprocessor-configuration)
         - [Postprocessor example: HDR, scifi hologram](#postprocessor-example-hdr-scifi-hologram)
@@ -59,20 +60,42 @@ If the directory `talkinghead/tha3/models/` (under the top level of *SillyTavern
 
 The live mode is optionally configurable per-character. This is currently done via JSON files in `SillyTavern/public/characters/yourcharacternamehere/`. Specifically:
 
+- `_animator.json`: animator and postprocessor settings.
 - `_emotions.json`: custom emotion templates. (Note the leading underscore in the filename.)
-- `talkinghead.json`: animator and postprocessor settings.
+
+#### Emotion templates
+
+Emotion templates use the same format as the factory settings in `SillyTavern-extras/talkinghead/emotions/_defaults.json`. The manual poser app included with `talkinghead` can be used as a GUI editor for these templates. Especially, the batch export produces `_emotions.json` in your chosen output folder.
 
 Emotion template lookup order is:
 
 - The set of custom templates sent by the ST client, read from `SillyTavern/public/characters/yourcharacternamehere/_emotions.json` if it exists.
-- Server defaults, from `SillyTavern-extras/talkinghead/emotions/emotionnamehere.json`.
+  - This is completely optional - if you think the defaults are fine, there's no need to create this file.
+- Server defaults, from the individual files `SillyTavern-extras/talkinghead/emotions/emotionnamehere.json`.
+  - These are technically customizable. You can e.g. overwrite `curiosity.json` to change the default template for the *"curiosity"* emotion.
+  - **IMPORTANT**: *However, updating SillyTavern-extras from git may overwrite your changes to the default emotion templates.*
 - Factory settings, from `SillyTavern-extras/talkinghead/emotions/_defaults.json`.
+  - **IMPORTANT**: Never overwrite or remove this file.
+
+Any emotion that is missing from a particular level in the lookup order falls through to be looked up at the next level.
+
+If you want to edit the emotion templates manually for some reason, the following may be useful sources of information:
+
+- `posedict_keys` in [`talkinghead/tha3/app/util.py`](tha3/app/util.py) lists the morphs available in THA3.
+- [`talkinghead/tha3/poser/modes/pose_parameters.py`](tha3/poser/modes/pose_parameters.py) contains some more detail.
+  - *"Arity 2"* means `posedict_keys` has separate left/right morphs.
+- The GUI panel implementations in [`talkinghead/tha3/app/manual_poser.py`](tha3/app/manual_poser.py).
+
+Any morph that is not mentioned for a particular emotion defaults to zero. Thus only those morphs that have nonzero values need to be mentioned.
+
 
 #### Animator configuration
 
 *The available settings keys and examples are kept up-to-date on a best-effort basis, but there is a risk of this documentation being out of date. When in doubt, refer to the actual source code, which comes with extensive docstrings and comments. The final authoritative source is the implementation itself.*
 
-Here is a complete example of `talkinghead.json` to configure the animator:
+The file `SillyTavern/public/characters/yourcharacternamehere/_animator.json` contains the animator and postprocessor settings. It is always per-character, and optional. If the file is missing, the default settings are used. For any setting not specified in the file, the default value is used.
+
+Here is a complete example of `_animator.json`, showing the default values:
 
 ```
 {"target_fps": 25,
@@ -92,7 +115,7 @@ Here is a complete example of `talkinghead.json` to configure the animator:
  "postprocessor_chain": []}
 ```
 
-Meaning of the settings:
+where:
 
 - `target_fps`: Desired output frames per second. Note this only affects smoothness of the output (if hardware allows). The speed at which the animation evolves is based on wall time. Snapshots are rendered at the target FPS, or if the hardware is too slow to reach the target FPS, then as often as hardware allows. *Recommendation*: For smooth animation, make the FPS lower than what your hardware could produce, so that some compute remains untapped, available to smooth over the occasional hiccup from other running programs.
 - `pose_interpolator_step`: A value such that `0 < step <= 1`. Applied at each frame at a reference of 25 FPS (to standardize the meaning of the setting), with automatic internal FPS-correction to the actual output FPS. Note that the animation is nonlinear. The step controls how much of the *remaining distance* to the current target pose is covered in 1/25 seconds.
@@ -114,7 +137,9 @@ Meaning of the settings:
 
 *The available settings keys and examples are kept up-to-date on a best-effort basis, but there is a risk of this documentation being out of date. When in doubt, refer to the actual source code, which comes with extensive docstrings and comments. The final authoritative source is the implementation itself.*
 
-The filters in the postprocessor chain are applied to the image in the order in which they appear in the `postprocessor_chain` list in the user-provided configuration. That is, the filters themselves support rendering in any order. However, for best results, it is useful to keep in mind the process a real physical signal would travel through:
+The postprocessor configuration is part of `_animator.json`, stored under the key `"postprocessor_chain"`.
+
+The filters in the postprocessor chain are applied to the image in the order in which they appear in the list. That is, the filters themselves support rendering in any order. However, for best results, it is useful to keep in mind the process a real physical signal would travel through:
 
 *Light* ⊳ *Camera* ⊳ *Transport* ⊳ *Display*
 
