@@ -6,6 +6,12 @@
 - [Talkinghead](#talkinghead)
     - [Introduction](#introduction)
     - [Live mode](#live-mode)
+        - [Configuration](#configuration)
+        - [Animator configuration](#animator-configuration)
+        - [Postprocessor configuration](#postprocessor-configuration)
+        - [Postprocessor example: HDR, scifi hologram](#postprocessor-example-hdr-scifi-hologram)
+        - [Postprocessor example: cheap video camera, amber monochrome computer monitor](#postprocessor-example-cheap-video-camera-amber-monochrome-computer-monitor)
+        - [Postprocessor example: HDR, cheap video camera, 1980s VHS tape](#postprocessor-example-hdr-cheap-video-camera-1980s-vhs-tape)
     - [Manual poser](#manual-poser)
     - [Troubleshooting](#troubleshooting)
         - [Missing model at startup](#missing-model-at-startup)
@@ -48,6 +54,152 @@ We rate-limit the output to 25 FPS (maximum) to avoid DoSing the SillyTavern GUI
 To customize which THA3 model to use, and where to install the THA3 models from, see the `--talkinghead-model=...` and `--talkinghead-models=...` options, respectively.
 
 If the directory `talkinghead/tha3/models/` (under the top level of *SillyTavern-extras*) does not exist, the model files are automatically downloaded from HuggingFace and installed there.
+
+#### Configuration
+
+The live mode is optionally configurable per-character. This is currently done via JSON files in `SillyTavern/public/characters/yourcharacternamehere/`. Specifically:
+
+- `_emotions.json`: custom emotion templates. (Note the leading underscore in the filename.)
+- `talkinghead.json`: animator and postprocessor settings.
+
+Emotion template lookup order is:
+
+- The set of custom templates sent by the ST client, read from `SillyTavern/public/characters/yourcharacternamehere/_emotions.json` if it exists.
+- Server defaults, from `SillyTavern-extras/talkinghead/emotions/emotionnamehere.json`.
+- Factory settings, from `SillyTavern-extras/talkinghead/emotions/_defaults.json`.
+
+#### Animator configuration
+
+*The available settings keys and examples are kept up-to-date on a best-effort basis, but there is a risk of this documentation being out of date. When in doubt, refer to the actual source code, which comes with extensive docstrings and comments. The final authoritative source is the implementation itself.*
+
+Here is a complete example of `talkinghead.json` to configure the animator:
+
+```
+{"target_fps": 25,
+ "pose_interpolator_step": 0.1,
+ "blink_interval_min": 2.0,
+ "blink_interval_max": 5.0,
+ "blink_probability": 0.03,
+ "blink_confusion_duration": 10.0,
+ "talking_fps": 12,
+ "talking_morph": "mouth_aaa_index",
+ "sway_morphs": ["head_x_index", "head_y_index", "neck_z_index", "body_y_index", "body_z_index"],
+ "sway_interval_min": 5.0,
+ "sway_interval_max": 10.0,
+ "sway_macro_strength": 0.6,
+ "sway_micro_strength": 0.02,
+ "breathing_cycle_duration": 4.0,
+ "postprocessor_chain": []}
+```
+
+Meaning of the settings:
+
+- `target_fps`: Desired output frames per second. Note this only affects smoothness of the output (if hardware allows). The speed at which the animation evolves is based on wall time. Snapshots are rendered at the target FPS, or if the hardware is too slow to reach the target FPS, then as often as hardware allows. *Recommendation*: For smooth animation, make the FPS lower than what your hardware could produce, so that some compute remains untapped, available to smooth over the occasional hiccup from other running programs.
+- `pose_interpolator_step`: A value such that `0 < step <= 1`. Applied at each frame at a reference of 25 FPS (to standardize the meaning of the setting), with automatic internal FPS-correction to the actual output FPS. Note that the animation is nonlinear. The step controls how much of the *remaining distance* to the current target pose is covered in 1/25 seconds.
+- `blink_interval_min`: seconds. After blinking, lower limit for random minimum time until next blink is allowed.
+- `blink_interval_max`: seconds. After blinking, upper limit for random minimum time until next blink is allowed.
+- `blink_probability`: Applied at each frame at a reference of 25 FPS, with automatic internal FPS-correction to the actual output FPS. This is the probability of initiating a blink in each 1/25 second interval.
+- `blink_confusion_duration`: seconds. Upon entering the `"confusion"` emotion, the character may blink quickly in succession, temporarily disregarding the blink interval settings. This sets how long that state lasts.
+- `talking_fps`: How often to re-randomize the mouth during the talking animation. The default value is based on the fact that early 2000s anime used ~12 FPS as the fastest actual framerate of new cels, not counting camera panning effects and such.
+- `talking_morph`: Which mouth-open morph to use for talking. For available values, see `posedict_keys` in [`talkinghead/tha3/app/util.py`](tha3/app/util.py).
+- `sway_morphs`: Which morphs participate in the sway (fidgeting) animation. This setting is mainly useful for disabling some or all of them, e.g. for a robot character. For available values, see `posedict_keys` in [`talkinghead/tha3/app/util.py`](tha3/app/util.py).
+- `sway_interval_min`: seconds. Lower limit for random time interval until randomizing a new target pose for the sway animation.
+- `sway_interval_max`: seconds. Upper limit for random time interval until randomizing a new target pose for the sway animation.
+- `sway_macro_strength`: A value such that `0 < strength <= 1`. In the sway target pose, this sets the maximum absolute deviation from the target pose specified by the current emotion, but also the maximum deviation from the center position. The setting is applied to each sway morph separately. The emotion pose itself may use higher values for the morphs; in such cases, sway will only occur toward the center. For details, see `compute_sway_target_pose` in [`talkinghead/tha3/app/app.py`](tha3/app/app.py).
+- `sway_micro_strength`: A value such that `0 < strength <= 1`. This is the maximum absolute value of random noise added to the sway target pose at each frame. To this, no limiting is applied, other than a clamp of the final randomized value of each sway morph to the valid range [-1, 1]. A small amount of random jitter makes the character look less robotic.
+- `breathing_cycle_duration`: seconds. The duration of a full cycle of the breathing animation.
+- `postprocessor_chain`: Pixel-space glitch artistry settings. The default is empty (no postprocessing); see below for examples of what can be done with this. For details, see [`talkinghead/tha3/app/postprocessor.py`](tha3/app/postprocessor.py).
+
+#### Postprocessor configuration
+
+*The available settings keys and examples are kept up-to-date on a best-effort basis, but there is a risk of this documentation being out of date. When in doubt, refer to the actual source code, which comes with extensive docstrings and comments. The final authoritative source is the implementation itself.*
+
+The filters in the postprocessor chain are applied to the image in the order in which they appear in the `postprocessor_chain` list in the user-provided configuration. That is, the filters themselves support rendering in any order. However, for best results, it is useful to keep in mind the process a real physical signal would travel through:
+
+*Light* ⊳ *Camera* ⊳ *Transport* ⊳ *Display*
+
+and set the order for the filters based on that. However, this does not mean that there is just one correct ordering. Some filters are *general-use*, and may make sense at several points in the chain, depending on what you wish to simulate. Feel free to improvise, but make sure to understand why your filter chain makes sense.
+
+The following postprocessing filters are available. Options for each filter are documented in the docstrings in [`talkinghead/tha3/app/postprocessor.py`](tha3/app/postprocessor.py).
+
+**Light**:
+
+- `bloom`: Bloom effect (fake HDR). Popular in early 2000s anime. Makes bright parts of the image bleed light into their surroundings, enhancing perceived contrast. Only makes sense when the talkinghead is rendered on a relatively dark background (such as the cyberpunk bedroom in the ST default backgrounds).
+
+**Camera**:
+
+- `chromatic_aberration`: Simulates the two types of chromatic aberration in a camera lens, axial (index of refraction varying w.r.t. wavelength) and transverse (focal distance varying w.r.t. wavelength).
+- `vignetting`: Simulates vignetting, i.e. less light hitting the corners of a film frame or CCD sensor, causing the corners to be slightly darker than the center.
+
+**Transport**:
+
+Currently, we provide some filters that simulate a lo-fi analog video look.
+
+- `analog_lowres`: Simulates a low-resolution analog video signal by blurring the image.
+- `analog_badhsync`: Simulates bad horizontal synchronization (hsync) of an analog video signal, causing a wavy effect that causes the outline of the character to ripple.
+- `analog_vhsglitches`: Simulates a damaged 1980s VHS tape. In each frame, causes random lines to glitch with VHS noise.
+- `analog_vhstracking`: Simulates a 1980s VHS tape with bad tracking. The image floats up and down, and a band of VHS noise appears at the bottom.
+
+**Display**:
+
+- `translucency`: Makes the character translucent, as if a scifi hologram.
+- `banding`: Simulates the look of a CRT display as it looks when filmed on video without syncing. Brighter and darker bands travel through the image.
+- `scanlines`: Simulates CRT TV like scanlines. Optionally dynamic (flipping the dimmed field at each frame).
+
+**General use**:
+
+- `alphanoise`: Adds noise to the alpha channel (translucency).
+- `desaturate`: A desaturation filter with bells and whistles. Beside converting the image to grayscale, can optionally pass through colors that match the hue of a given RGB color (e.g. keep red things, while desaturating the rest), and tint the final result (e.g. for an amber monochrome computer monitor look).
+
+The `alphanoise` filter could represent the display of a lo-fi scifi hologram, as well as noise in an analog video tape (which in this scheme belongs to "transport").
+
+The `desaturate` filter could represent either a black and white video camera, or a monochrome display.
+
+#### Postprocessor example: HDR, scifi hologram
+
+The bloom works best on a dark background. We use `alphanoise` to add an imperfection to the simulated display device, causing individual pixels to dynamically vary in their alpha. The `banding` and `scanlines` filters complete the look of how holograms are often depicted in scifi video games and movies. The `"dynamic": true` makes the dimmed field (top or bottom) flip each frame, like on a CRT television.
+
+```
+"postprocessor_chain": [["bloom", {}],
+                        ["translucency", {"alpha": 0.9}],
+                        ["alphanoise", {"magnitude": 0.1, "sigma": 0.0}],
+                        ["banding", {}],
+                        ["scanlines", {"dynamic": true}]]
+```
+
+#### Postprocessor example: cheap video camera, amber monochrome computer monitor
+
+By using the filters from the "camera" group, we can simulate distortions to the signal before it reaches the display. We simulate a cheap video camera with low-quality optics via the `chromatic_aberration` and `vignetting` filters.
+
+We then use `desaturate` with the tint option to produce the amber monochrome look.
+
+The `banding` and `scanlines` filters suit this look, so we apply them here, too. They could be left out to simulate a higher-quality display device.
+
+```
+"postprocessor_chain": [["chromatic_aberration", {}],
+                        ["vignetting", {}],
+                        ["desaturate", {"tint_rgb": [1.0, 0.5, 0.2]}],
+                        ["banding", {}],
+                        ["scanlines", {"dynamic": true}]]
+```
+
+#### Postprocessor example: HDR, cheap video camera, 1980s VHS tape
+
+After capturing the light with a cheap video camera (just like in the previous example), we simulate the effects of transporting the signal on a 1980s VHS tape. First, we blur the image with `analog_lowres`. Then we apply `alphanoise` with a nonzero `sigma` to make the noise blobs larger than a single pixel. This simulates the brightness noise on a VHS tape. Then we make the image ripple horizontally with `analog_badhsync`, and finally add a bad VHS tracking effect to complete the look.
+
+Then we again render the output on a simulated CRT TV, as appropriate for the 1980s time period.
+
+```
+"postprocessor_chain": [["bloom", {}],
+                        ["chromatic_aberration", {}],
+                        ["vignetting", {}],
+                        ["analog_lowres", {}],
+                        ["alphanoise", {"magnitude": 0.2, "sigma": 2.0}],
+                        ["analog_badhsync", {}],
+                        ["analog_vhstracking", {}],
+                        ["banding", {}],
+                        ["scanlines", {"dynamic": true}]]
+```
 
 
 ### Manual poser

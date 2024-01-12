@@ -2,7 +2,8 @@
 
 ### Live mode
 
-- Fix timing of microsway based on 25 FPS reference
+- Fix timing of microsway based on 25 FPS reference.
+- Fix timing of dynamic postprocessor effects, these should also use a 25 FPS reference.
 - Add optional per-character configuration
   - At client end, JSON files in `SillyTavern/public/characters/characternamehere/`
   - Pass the data all the way here (from ST client, to ST-extras server, to talkinghead module)
