@@ -5,7 +5,8 @@
 - Fix timing of microsway based on 25 FPS reference
 - Add optional per-character configuration
   - At client end, JSON files in `SillyTavern/public/characters/characternamehere/`
-  - Pass the data all the way here (from ST client, to ST server, to ST-extras server, to talkinghead module)
+  - Pass the data all the way here (from ST client, to ST-extras server, to talkinghead module)
+    - New API endpoints: `/api/talkinghead/load_emotion_templates`, `/api/talkinghead/load_animator_settings`
   - Configuration (per-character):
     - Target FPS (default 25.0)
     - Postprocessor effect chain (including settings)
@@ -52,6 +53,7 @@
 - When a new talkinghead sprite is uploaded:
   - The preview thumbnail in the client doesn't update.
 - Other places in *Character Expressions* where we need to check whether the `talkinghead` module is enabled?
+- Check zip upload whether it refreshes the talkinghead character.
 
 ### Common
 
