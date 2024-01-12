@@ -169,18 +169,18 @@ The bloom works best on a dark background. We use `alphanoise` to add an imperfe
 
 #### Postprocessor example: cheap video camera, amber monochrome computer monitor
 
-By using the filters from the "camera" group, we can simulate distortions to the signal before it reaches the display. We simulate a cheap video camera with low-quality optics via the `chromatic_aberration` and `vignetting` filters.
+We first simulate a cheap video camera with low-quality optics via the `chromatic_aberration` and `vignetting` filters.
 
 We then use `desaturate` with the tint option to produce the amber monochrome look.
 
-The `banding` and `scanlines` filters suit this look, so we apply them here, too. They could be left out to simulate a higher-quality display device.
+The `banding` and `scanlines` filters suit this look, so we apply them here, too. They could be left out to simulate a higher-quality display device. Setting `"dynamic": false` makes the scanlines stay stationary.
 
 ```
 "postprocessor_chain": [["chromatic_aberration", {}],
                         ["vignetting", {}],
                         ["desaturate", {"tint_rgb": [1.0, 0.5, 0.2]}],
                         ["banding", {}],
-                        ["scanlines", {"dynamic": true}]]
+                        ["scanlines", {"dynamic": false}]]
 ```
 
 #### Postprocessor example: HDR, cheap video camera, 1980s VHS tape
