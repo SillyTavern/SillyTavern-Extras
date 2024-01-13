@@ -13,6 +13,7 @@
         - [Postprocessor example: HDR, scifi hologram](#postprocessor-example-hdr-scifi-hologram)
         - [Postprocessor example: cheap video camera, amber monochrome computer monitor](#postprocessor-example-cheap-video-camera-amber-monochrome-computer-monitor)
         - [Postprocessor example: HDR, cheap video camera, 1980s VHS tape](#postprocessor-example-hdr-cheap-video-camera-1980s-vhs-tape)
+        - [Complete example: animator and postprocessor settings](#complete-example-animator-and-postprocessor-settings)
     - [Manual poser](#manual-poser)
     - [Troubleshooting](#troubleshooting)
         - [Missing model at startup](#missing-model-at-startup)
@@ -191,7 +192,8 @@ The bloom works best on a dark background. We use `alphanoise` to add an imperfe
                         ["translucency", {"alpha": 0.9}],
                         ["alphanoise", {"magnitude": 0.1, "sigma": 0.0}],
                         ["banding", {}],
-                        ["scanlines", {"dynamic": true}]]
+                        ["scanlines", {"dynamic": true}]
+                       ]
 ```
 
 #### Postprocessor example: cheap video camera, amber monochrome computer monitor
@@ -207,7 +209,8 @@ The `banding` and `scanlines` filters suit this look, so we apply them here, too
                         ["vignetting", {}],
                         ["desaturate", {"tint_rgb": [1.0, 0.5, 0.2]}],
                         ["banding", {}],
-                        ["scanlines", {"dynamic": false}]]
+                        ["scanlines", {"dynamic": false}]
+                       ]
 ```
 
 #### Postprocessor example: HDR, cheap video camera, 1980s VHS tape
@@ -225,7 +228,38 @@ Then we again render the output on a simulated CRT TV, as appropriate for the 19
                         ["analog_badhsync", {}],
                         ["analog_vhstracking", {}],
                         ["banding", {}],
-                        ["scanlines", {"dynamic": true}]]
+                        ["scanlines", {"dynamic": true}]
+                       ]
+```
+
+#### Complete example: animator and postprocessor settings
+
+This example uses the default values for the animator (to give a template that is easy to tune), but sets up the postprocessor as in the "scifi hologram" example above.
+
+To use this, save this **at the client end** as `SillyTavern/public/characters/yourcharacternamehere/_animator.json` (i.e. as `_animator.json`, in the same folder where the sprites for your character are), and make `talkinghead` reload your character (for example, by toggling `talkinghead` off and back on in the SillyTavern settings).
+
+```json
+{"target_fps": 25,
+ "pose_interpolator_step": 0.1,
+ "blink_interval_min": 2.0,
+ "blink_interval_max": 5.0,
+ "blink_probability": 0.03,
+ "blink_confusion_duration": 10.0,
+ "talking_fps": 12,
+ "talking_morph": "mouth_aaa_index",
+ "sway_morphs": ["head_x_index", "head_y_index", "neck_z_index", "body_y_index", "body_z_index"],
+ "sway_interval_min": 5.0,
+ "sway_interval_max": 10.0,
+ "sway_macro_strength": 0.6,
+ "sway_micro_strength": 0.02,
+ "breathing_cycle_duration": 4.0,
+ "postprocessor_chain": [["bloom", {}],
+                         ["translucency", {"alpha": 0.9}],
+                         ["alphanoise", {"magnitude": 0.1, "sigma": 0.0}],
+                         ["banding", {}],
+                         ["scanlines", {"dynamic": true}]
+                        ]
+}
 ```
 
 
