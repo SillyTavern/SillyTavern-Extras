@@ -23,7 +23,7 @@ import sys
 import time
 import numpy as np
 import threading
-from typing import Dict, List, NoReturn, Optional, Union
+from typing import Any, Dict, List, NoReturn, Optional, Union
 
 import PIL
 
@@ -45,6 +45,36 @@ logger = logging.getLogger(__name__)
 # --------------------------------------------------------------------------------
 # Global variables
 
+# Default configuration for the animator, loaded when the plugin is launched.
+# Doubles as the authoritative documentation of the animator settings (beside the animation driver docstrings and the actual source code).
+animator_defaults = {"target_fps": 25,  # Desired output frames per second. Note this only affects smoothness of the output (if hardware allows).
+                                        # The speed at which the animation evolves is based on wall time. Snapshots are rendered at the target FPS,
+                                        # or if the hardware is too slow to reach the target FPS, then as often as hardware allows.
+                                        # For smooth animation, make the FPS lower than what your hardware could produce, so that some compute
+                                        # remains untapped, available to smooth over the occasional hiccup from other running programs.
+                     "pose_interpolator_step": 0.1,  # 0 < this <= 1; at each frame at a reference of 25 FPS; FPS-corrected automatically; see `interpolate_pose`.
+
+                     "blink_interval_min": 2.0,  # seconds, lower limit for random minimum time until next blink is allowed.
+                     "blink_interval_max": 5.0,  # seconds, upper limit for random minimum time until next blink is allowed.
+                     "blink_probability": 0.03,  # At each frame at a reference of 25 FPS; FPS-corrected automatically.
+                     "blink_confusion_duration": 10.0,  # seconds, upon entering "confusion" emotion, during which blinking quickly in succession is allowed.
+
+                     "talking_fps": 12,  # How often to re-randomize mouth during talking animation.
+                                         # Early 2000s anime used ~12 FPS as the fastest actual framerate of new cels (not counting camera panning effects and such).
+                     "talking_morph": "mouth_aaa_index",  # which mouth-open morph to use for talking; for available values, see `posedict_keys`
+
+                     "sway_morphs": ["head_x_index", "head_y_index", "neck_z_index", "body_y_index", "body_z_index"],  # which morphs to sway; see `posedict_keys`
+                     "sway_interval_min": 5.0,  # seconds, lower limit for random time interval until randomizing new sway pose.
+                     "sway_interval_max": 10.0,  # seconds, upper limit for random time interval until randomizing new sway pose.
+                     "sway_macro_strength": 0.6,  # [0, 1], in sway pose, max abs deviation from emotion pose target morph value for each sway morph,
+                                                  # but also max deviation from center. The emotion pose itself may use higher values; in such cases,
+                                                  # sway will only occur toward the center. See `compute_sway_target_pose` for details.
+                     "sway_micro_strength": 0.02,  # [0, 1], max abs random noise added each frame. No limiting other than a clamp of final pose to [-1, 1].
+
+                     "breathing_cycle_duration": 4.0,  # seconds, for a full breathing cycle.
+
+                     "postprocessor_chain": []}  # Pixel-space glitch artistry settings; see `postprocessor.py`.
+
 talkinghead_basedir = "talkinghead"
 
 global_animator_instance = None
@@ -61,7 +91,7 @@ current_emotion = "neutral"
 is_talking = False
 global_reload_image = None
 
-TARGET_FPS = 25
+target_fps = 25  # value overridden by `load_animator_settings` at animator startup
 
 # --------------------------------------------------------------------------------
 # API
@@ -199,7 +229,7 @@ def result_feed() -> Response:
                 #  - Excessive spamming can DoS the SillyTavern GUI, so there needs to be a rate limit.
                 #  - OTOH, we must constantly send something, or the GUI will lock up waiting.
                 # Therefore, send at a target FPS that yields a nice-looking animation.
-                frame_duration_target_sec = 1 / TARGET_FPS
+                frame_duration_target_sec = 1 / target_fps
                 if last_frame_send_complete_time is not None:
                     time_now = time.time_ns()
                     this_frame_elapsed_sec = (time_now - last_frame_send_complete_time) / 10**9
@@ -232,7 +262,7 @@ def result_feed() -> Response:
                     msec = round(1000 * avg_send_sec, 1)
                     target_msec = round(1000 * frame_duration_target_sec, 1)
                     fps = round(1 / avg_send_sec, 1) if avg_send_sec > 0.0 else 0.0
-                    logger.info(f"output: {msec:.1f}ms [{fps:.1f} FPS]; target {target_msec:.1f}ms [{TARGET_FPS:.1f} FPS]")
+                    logger.info(f"output: {msec:.1f}ms [{fps:.1f} FPS]; target {target_msec:.1f}ms [{target_fps:.1f} FPS]")
                     last_report_time = time_now
 
             else:  # first frame not yet available
@@ -281,6 +311,7 @@ def launch(device: str, model: str) -> Union[None, NoReturn]:
             global_encoder_instance.exit()
             global_encoder_instance = None
 
+        logger.info("launch: loading the THA3 posing engine")
         poser = load_poser(model, device, modelsdir=os.path.join(talkinghead_basedir, "tha3", "models"))
         global_animator_instance = Animator(poser, device)
         global_encoder_instance = Encoder()
@@ -312,8 +343,6 @@ class Animator:
         self.poser = poser
         self.device = device
 
-        self.reset_animation_state()
-
         self.postprocessor = Postprocessor(device)
         self.render_duration_statistics = RunningAverage()
         self.animator_thread = None
@@ -323,7 +352,9 @@ class Animator:
         self.new_frame_available = False
         self.last_report_time = None
 
-        self.emotions, self.emotion_names = load_emotion_presets(os.path.join("talkinghead", "emotions"))
+        self.reset_animation_state()
+        self.load_emotion_templates()
+        self.load_animator_settings()
 
     # --------------------------------------------------------------------------------
     # Management
@@ -371,6 +402,92 @@ class Animator:
         self.was_talking = False
 
         self.breathing_epoch = time.time_ns()
+
+    def load_emotion_templates(self, emotions: Optional[Dict[str, Dict[str, float]]] = None) -> None:
+        """Load emotion templates.
+
+        `emotions`: `{emotion0: {morph0: value0, ...}, ...}`
+                    Optional dict of custom emotion templates.
+
+                    If not given, this loads the templates from the emotion JSON files
+                    in `talkinghead/emotions/`.
+
+                    If given:
+                      - Each emotion NOT supplied is populated from the defaults.
+                      - In each emotion that IS supplied, each morph that is NOT mentioned
+                        is implicitly set to zero (due to how `apply_emotion_to_pose` works).
+
+                    For an example JSON file containing a suitable dictionary, see `talkinghead/emotions/_defaults.json`.
+
+                    For available morph names, see `posedict_keys` in `talkinghead/tha3/app/util.py`.
+
+                    For some more detail, see `talkinghead/tha3/poser/modes/pose_parameters.py`.
+                    "Arity 2" means `posedict_keys` has separate left/right morphs.
+
+                    If still in doubt, see the GUI panel implementations in `talkinghead/tha3/app/manual_poser.py`.
+        """
+        # Load defaults as a base
+        self.emotions, self.emotion_names = load_emotion_presets(os.path.join("talkinghead", "emotions"))
+
+        # Then override defaults, and add any new custom emotions
+        if emotions is not None:
+            logger.info(f"load_emotion_templates: loading user-specified templates for emotions {list(sorted(emotions.keys()))}")
+
+            self.emotions.update(emotions)
+
+            emotion_names = set(self.emotion_names)
+            emotion_names.update(emotions.keys())
+            self.emotion_names = list(sorted(emotion_names))
+        else:
+            logger.info("load_emotion_templates: loaded default emotion templates")
+
+    def load_animator_settings(self, settings: Optional[Dict[str, Any]] = None) -> None:
+        """Load animator settings.
+
+        `settings`: `{setting0: value0, ...}`
+                    Optional dict of settings. The type and semantics of each value depends on each
+                    particular setting.
+
+        For available settings, see `animator_defaults` in `talkinghead/tha3/app/app.py`.
+
+        Particularly for the setting `"postprocessor_chain"` (pixel-space glitch artistry),
+        see `talkinghead/tha3/app/postprocessor.py`.
+        """
+        global target_fps
+
+        if settings is None:
+            settings = {}
+
+        logger.info(f"load_animator_settings: user-provided settings: {settings}")
+
+        # Warn about unknown settings (not an error, to allow running a newer client on an older server that might support only a subset of the keys the client knows about)
+        if settings:
+            unknown_fields = [field for field in settings if field not in animator_defaults]
+            if unknown_fields:
+                logger.warning(f"load_animator_settings: unknown keys in user-provided settings; maybe client is newer than server? List follows: {unknown_fields}")
+
+        # Set default values for any settings not provided
+        for field, default_value in animator_defaults.items():
+            type_match = (int, float) if isinstance(default_value, (int, float)) else type(default_value)
+            if field in settings and not isinstance(settings[field], type_match):
+                logger.warning(f"Ignoring invalid setting for '{field}': got {type(settings[field])} with value '{settings[field]}', expected {type_match}")
+                continue
+            if field not in settings:
+                settings[field] = default_value
+
+        logger.info(f"load_animator_settings: final settings (filled in from defaults as necessary): {settings}")
+
+        # Some settings must be applied explicitly.
+        settings = dict(settings)  # copy to avoid modifying the original, since we'll pop some stuff.
+
+        logger.debug(f"load_animator_settings: Setting new target FPS = {settings['target_fps']}")
+        target_fps = settings.pop("target_fps")  # global variable, controls the network send rate.
+
+        logger.debug("load_animator_settings: Sending new effect chain to postprocessor")
+        self.postprocessor.chain = settings.pop("postprocessor_chain")  # ...and that's where the postprocessor reads its filter settings from.
+
+        # The rest of the settings we can just store in an attribute, and let the animation drivers read them from there.
+        self._settings = settings
 
     def load_image(self, file_path=None) -> None:
         """Load the image file at `file_path`, and replace the current character with it.
@@ -430,20 +547,26 @@ class Animator:
     def animate_blinking(self, pose: List[float]) -> List[float]:
         """Eye blinking animation driver.
 
+        Relevant `self._settings` keys:
+
+        `"blink_interval_min"`: float, seconds, lower limit for random minimum time until next blink is allowed.
+        `"blink_interval_max"`: float, seconds, upper limit for random minimum time until next blink is allowed.
+        `"blink_probability"`: float, at each frame at a reference of 25 FPS. FPS-corrected automatically.
+        `"blink_confusion_duration"`: float, seconds, upon entering "confusion" emotion, during which blinking
+                                      quickly in succession is allowed.
+
         Return the modified pose.
         """
-        # should_blink = (random.random() <= 0.03)
-
         # Compute FPS-corrected blink probability
         CALIBRATION_FPS = 25
-        p_orig = 0.03  # blink probability per frame at CALIBRATION_FPS
+        p_orig = self._settings["blink_probability"]  # blink probability per frame at CALIBRATION_FPS
         avg_render_sec = self.render_duration_statistics.average()
         if avg_render_sec > 0:
             avg_render_fps = 1 / avg_render_sec
             # Even if render completes faster, the `talkinghead` output is rate-limited to `target_fps` at most.
-            avg_render_fps = min(avg_render_fps, TARGET_FPS)
+            avg_render_fps = min(avg_render_fps, target_fps)
         else:  # No statistics available yet; let's assume we're running at `target_fps`.
-            avg_render_fps = TARGET_FPS
+            avg_render_fps = target_fps
         # Note direction: rendering faster (higher FPS) means less likely to blink per frame (to obtain the same blink density per unit of wall time)
         n = CALIBRATION_FPS / avg_render_fps
         # We give an independent trial for each of `n` (fictitious) frames elapsed at `CALIBRATION_FPS` during one actual frame at `avg_render_fps`.
@@ -459,7 +582,7 @@ class Animator:
         if self.blink_interval is not None:
             # ...except when the "confusion" emotion has been entered recently.
             seconds_since_last_emotion_change = (time_now - self.last_emotion_change_timestamp) / 10**9
-            if current_emotion == "confusion" and seconds_since_last_emotion_change < 10.0:
+            if current_emotion == "confusion" and seconds_since_last_emotion_change < self._settings["blink_confusion_duration"]:
                 pass
             else:
                 seconds_since_last_blink = (time_now - self.last_blink_timestamp) / 10**9
@@ -477,12 +600,23 @@ class Animator:
 
         # Typical for humans is 12...20 times per minute, i.e. 5...3 seconds interval.
         self.last_blink_timestamp = time_now
-        self.blink_interval = random.uniform(2.0, 5.0)  # seconds; duration of this blink before the next one can begin
+        self.blink_interval = random.uniform(self._settings["blink_interval_min"],
+                                             self._settings["blink_interval_max"])  # seconds; duration of this blink before the next one can begin
 
         return new_pose
 
     def animate_talking(self, pose: List[float], target_pose: List[float]) -> List[float]:
         """Talking animation driver.
+
+        Relevant `self._settings` keys:
+
+        `"talking_fps"`: float, how often to re-randomize mouth during talking animation.
+                         Early 2000s anime used ~12 FPS as the fastest actual framerate of
+                         new cels (not counting camera panning effects and such).
+        `"talking_morph"`: str, see `posedict_keys` for available values.
+                           Which morph to use for opening and closing the mouth during talking.
+                           Any other morphs in the mouth-open group are set to zero while
+                           talking is in progress.
 
         Works by randomizing the mouth-open state in regular intervals.
 
@@ -492,7 +626,7 @@ class Animator:
         Return the modified pose.
         """
         MOUTH_OPEN_MORPHS = ["mouth_aaa_index", "mouth_iii_index", "mouth_uuu_index", "mouth_eee_index", "mouth_ooo_index", "mouth_delta"]
-        TALKING_MORPH = "mouth_aaa_index"
+        talking_morph = self._settings["talking_morph"]
 
         if not is_talking:
             try:
@@ -511,7 +645,7 @@ class Animator:
 
         # With 25 FPS (or faster) output, randomizing the mouth every frame looks too fast.
         # Determine whether enough wall time has passed to randomize a new mouth position.
-        TARGET_SEC = 1 / 12  # Early 2000s anime used ~12 FPS as the fastest actual framerate of new cels (not counting camera panning effects and such).
+        TARGET_SEC = 1 / self._settings["talking_fps"]  # rate of "actual new cels" in talking animation
         time_now = time.time_ns()
         update_mouth = False
         if self.last_talking_timestamp is None:
@@ -523,7 +657,7 @@ class Animator:
 
         # Apply the mouth open morph
         new_pose = list(pose)  # copy
-        idx = posedict_key_to_index[TALKING_MORPH]
+        idx = posedict_key_to_index[talking_morph]
         if self.last_talking_target_value is None or update_mouth:
             # Randomize new mouth position
             x = pose[idx]
@@ -538,7 +672,7 @@ class Animator:
 
         # Zero out other morphs that affect mouth open/closed state.
         for key in MOUTH_OPEN_MORPHS:
-            if key == TALKING_MORPH:
+            if key == talking_morph:
                 continue
             idx = posedict_key_to_index[key]
             new_pose[idx] = 0.0
@@ -549,9 +683,25 @@ class Animator:
     def compute_sway_target_pose(self, original_target_pose: List[float]) -> List[float]:
         """History-free sway animation driver.
 
-        original_target_pose: emotion pose to modify with a randomized sway target
+        `original_target_pose`: emotion pose to modify with a randomized sway target
 
-        The target is randomized again when necessary; this takes care of caching internally.
+        Relevant `self._settings` keys:
+
+        `"sway_morphs"`: List[str], which morphs can sway. By default, this is all geometric transformations,
+                         but disabling some can be useful for some characters (such as robots).
+                         For available values, see `posedict_keys`.
+        `"sway_interval_min"`: float, seconds, lower limit for random time interval until randomizing new sway pose.
+        `"sway_interval_max"`: float, seconds, upper limit for random time interval until randomizing new sway pose.
+                               Note the limits are ignored when `original_target_pose` changes (then immediately refreshing
+                               the sway pose), because an emotion pose may affect the geometric transformations, too.
+        `"sway_macro_strength"`: float, [0, 1]. In sway pose, max abs deviation from emotion pose target morph value
+                                 for each sway morph, but also max deviation from center. The `original_target_pose`
+                                 itself may use higher values; in such cases, sway will only occur toward the center.
+                                 See the source code of this function for the exact details.
+        `"sway_micro_strength"`: float, [0, 1]. Max abs random noise to sway target pose, added each frame, to make
+                                 the animation look less robotic. No limiting other than a clamp of final pose to [-1, 1].
+
+        The sway target pose is randomized again when necessary; this takes care of caching internally.
 
         Return the modified pose.
         """
@@ -563,10 +713,9 @@ class Animator:
         #     slowing down when we approach the target state.
 
         # As documented in the original THA tech reports, on the pose axes, zero is centered, and 1.0 = 15 degrees.
-        random_max = 0.6  # max sway magnitude from center position of each morph
-        noise_max = 0.02  # amount of dynamic noise (re-generated every frame), added on top of the sway target
-
-        SWAYPARTS = ["head_x_index", "head_y_index", "neck_z_index", "body_y_index", "body_z_index"]
+        random_max = self._settings["sway_macro_strength"]  # max sway magnitude from center position of each morph
+        noise_max = self._settings["sway_micro_strength"]  # amount of dynamic noise (re-generated every frame), added on top of the sway target, no clamping except to [-1, 1]
+        SWAYPARTS = self._settings["sway_morphs"]  # some characters might not sway on all axes (e.g. a robot)
 
         def macrosway() -> List[float]:  # this handles caching and everything
             time_now = time.time_ns()
@@ -600,7 +749,8 @@ class Animator:
 
             self.last_sway_target_pose = new_target_pose
             self.last_sway_target_timestamp = time_now
-            self.sway_interval = random.uniform(5.0, 10.0)  # seconds; duration of this sway target before randomizing new one
+            self.sway_interval = random.uniform(self._settings["sway_interval_min"],
+                                                self._settings["sway_interval_max"])  # seconds; duration of this sway target before randomizing new one
             return new_target_pose
 
         # Add dynamic noise (re-generated every frame) to the target to make the animation look less robotic, especially once we are near the target pose.
@@ -618,9 +768,13 @@ class Animator:
     def animate_breathing(self, pose: List[float]) -> List[float]:
         """Breathing animation driver.
 
+        Relevant `self._settings` keys:
+
+        `"breathing_cycle_duration"`: seconds. Duration of one full breathing cycle.
+
         Return the modified pose.
         """
-        breathing_cycle_duration = 4.0  # seconds
+        breathing_cycle_duration = self._settings["breathing_cycle_duration"]  # seconds
 
         time_now = time.time_ns()
         t = (time_now - self.breathing_epoch) / 10**9  # seconds since breathing-epoch
@@ -634,10 +788,14 @@ class Animator:
         new_pose[idx] = math.sin(cycle_pos * math.pi)**2  # 0 ... 1 ... 0, smoothly, with slow start and end, fast middle
         return new_pose
 
-    def interpolate_pose(self, pose: List[float], target_pose: List[float], step: float = 0.1) -> List[float]:
+    def interpolate_pose(self, pose: List[float], target_pose: List[float]) -> List[float]:
         """Interpolate from current `pose` toward `target_pose`.
 
-        `step`: [0, 1]; how far toward `target_pose` to interpolate. 0 is fully `pose`, 1 is fully `target_pose`.
+        Relevant `self._settings` keys:
+
+        `"pose_interpolator_step"`: [0, 1]; how far toward `target_pose` to interpolate in one frame,
+                                            assuming a reference of 25 FPS. This is FPS-corrected automatically.
+                                            0 is fully `pose`, 1 is fully `target_pose`.
 
         This is a kind of history-free rate-based formulation, which needs only the current and target poses, and
         the step size; there is no need to keep track of e.g. the initial pose or the progress along the trajectory.
@@ -786,15 +944,16 @@ class Animator:
         #
         CALIBRATION_FPS = 25  # FPS for which the default value `step` was calibrated
         xrel = 0.5  # just some convenient value
+        step = self._settings["pose_interpolator_step"]
         alpha_orig = 1.0 - step
         if 0 < alpha_orig < 1:
             avg_render_sec = self.render_duration_statistics.average()
             if avg_render_sec > 0:
                 avg_render_fps = 1 / avg_render_sec
-                # Even if render completes faster, the `talkinghead` output is rate-limited to `TARGET_FPS` at most.
-                avg_render_fps = min(avg_render_fps, TARGET_FPS)
-            else:  # No statistics available yet; let's assume we're running at `TARGET_FPS`.
-                avg_render_fps = TARGET_FPS
+                # Even if render completes faster, the `talkinghead` output is rate-limited to `target_fps` at most.
+                avg_render_fps = min(avg_render_fps, target_fps)
+            else:  # No statistics available yet; let's assume we're running at `target_fps`.
+                avg_render_fps = target_fps
 
             # For a constant target pose and original `α`, compute the number of animation frames to cover `xrel` of distance from initial pose to final pose.
             n_orig = math.log(1.0 - xrel) / math.log(alpha_orig)

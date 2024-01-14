@@ -67,13 +67,15 @@ There are some folks in the community having success running Extras on their pho
 
 We will NOT provide any support for running this on Android. Direct all your questions to the creator of this guide.
 
-#### Talkinghead module on Linux
+### Talkinghead module on Linux
 
 The manual poser app of `talkinghead` requires the installation of an additional package because it's not installed automatically due to incompatibility with Colab. Run this after you install other requirements:
 
 `pip install wxpython==4.2.1`
 
 If you only run `talkinghead` in the live mode (i.e. as a SillyTavern-extras module), `wxpython` is no longer required.
+
+The manual poser has two uses. First, it is a GUI editor for the `talkinghead` emotion templates. Secondly, it can batch-generate static emotion sprites from a single talkinghead image (if you want the convenience of AI-powered posing, but don't want to run the live mode).
 
 A fast GPU is heavily recommended. For more information, see the [`talkinghead` README](talkinghead/README.md).
 
@@ -155,7 +157,7 @@ cd SillyTavern-extras
 | `sd`          | Stable Diffusion image generation (remote A1111 server by default)  |
 | `silero-tts`  | [Silero TTS server](https://github.com/ouoertheo/silero-api-server) |
 | `chromadb`    | Vector storage server                                               |
-| `talkinghead` | Talking Head Sprites                                                |
+| `talkinghead` | AI-powered character animation                                      |
 | `edge-tts`    | [Microsoft Edge TTS client](https://github.com/rany2/edge-tts)      |
 | `coqui-tts`   | [Coqui TTS server](https://github.com/coqui-ai/TTS)                 |
 | `rvc`         | Real-time voice cloning                                             |
@@ -173,7 +175,9 @@ cd SillyTavern-extras
 | `--mps` or `--m1`        | Run the models on Apple Silicon. Only for M1 and M2 processors. |
 | `--cuda`                 | Uses CUDA (GPU+VRAM) to run modules if it is available. Otherwise, falls back to using CPU. |
 | `--cuda-device`          | Specifies a CUDA device to use. Defaults to `cuda:0` (first available GPU). |
-| `--talkinghead-gpu`           | Uses GPU for talkinghead (10x FPS increase in animation). |
+| `--talkinghead-gpu`      | Uses GPU for talkinghead (10x FPS increase in animation). |
+| `--talkinghead-model`    | Load a specific THA3 model variant for talkinghead.<br>Default: `auto` (which is `separable_half` on GPU, `separable_float` on CPU). |
+| `--talkinghead-models`   | If THA3 models are not yet installed, downloads and installs them.<br>Expects a HuggingFace model ID.<br>Default: [OktayAlpk/talking-head-anime-3](https://huggingface.co/OktayAlpk/talking-head-anime-3) |
 | `--coqui-gpu`            | Uses GPU for coqui TTS (if available). |
 | `--coqui-model`          | If provided, downloads and preloads a coqui TTS model. Default: none.<br>Example: `tts_models/multilingual/multi-dataset/bark` |
 | `--summarization-model`  | Load a custom summarization model.<br>Expects a HuggingFace model ID.<br>Default: [Qiliang/bart-large-cnn-samsum-ChatGPT_v3](https://huggingface.co/Qiliang/bart-large-cnn-samsum-ChatGPT_v3) |
@@ -533,34 +537,86 @@ _progress (string, Optional): Show progress bar in terminal.
 #### **Output**
 MP3 audio file.
 
-### Loads a talkinghead character by specifying the character's image URL.
-`GET /api/talkinghead/load`
-#### **Parameters**
-loadchar (string, required): The URL of the character's image. The URL should point to a PNG image.
-{ "loadchar": "http://localhost:8000/characters/Aqua.png" }
+### Load a talkinghead character
+`POST /api/talkinghead/load`
+#### **Input**
+A `FormData` with files, with an image file in a field named `"file"`. The posted file should be a PNG image in RGBA format. Optimal resolution is 512x512. See the [`talkinghead` README](talkinghead/README.md) for details.
 #### **Example**
-'http://localhost:5100/api/talkinghead/load?loadchar=http://localhost:8000/characters/Aqua.png'
+'http://localhost:5100/api/talkinghead/load'
 #### **Output**
 'OK'
 
-### Animates the talkinghead sprite to start talking.
+### Load talkinghead emotion templates (or reset them to defaults)
+`POST /api/talkinghead/load_emotion_templates`
+#### **Input**
+```
+{"anger": {"eyebrow_angry_left_index": 1.0,
+           ...}
+ "curiosity": {"eyebrow_lowered_left_index": 0.5895,
+               ...}
+ ...}
+```
+For details, see `Animator.load_emotion_templates` in [`talkinghead/tha3/app/app.py`](talkinghead/tha3/app/app.py). This is essentially the format used by [`talkinghead/emotions/_defaults.json`](talkinghead/emotions/_defaults.json).
+
+Any emotions NOT supplied in the posted JSON will revert to server defaults. In any supplied emotion, any morph NOT supplied will default to zero. This allows making the templates shorter.
+
+To reset all emotion templates to their server defaults, send a blank JSON.
+#### **Output**
+"OK"
+
+### Load talkinghead animator/postprocessor settings (or reset them to defaults)
+`POST /api/talkinghead/load_animator_settings`
+#### **Input**
+```
+{"target_fps": 25,
+ "breathing_cycle_duration": 4.0,
+ "postprocessor_chain": [["bloom", {}],
+                         ["chromatic_aberration", {}],
+                         ["vignetting", {}],
+                         ["translucency", {"alpha": 0.9}],
+                         ["alphanoise", {"magnitude": 0.1, "sigma": 0.0}],
+                         ["banding", {}],
+                         ["scanlines", {"dynamic": true}]]
+ ...}
+```
+For a full list of supported settings, see `animator_defaults` and `Animator.load_animator_settings`, both in [`talkinghead/tha3/app/app.py`](talkinghead/tha3/app/app.py).
+
+Particularly for `"postprocess_chain"`, see [`talkinghead/tha3/app/postprocessor.py`](talkinghead/tha3/app/postprocessor.py). The postprocessor applies pixel-space glitch artistry, which can e.g. make your talkinghead look like a scifi hologram (the above example does this). The postprocessing filters are applied in the order they appear in the list.
+
+To reset all animator/postprocessor settings to their server defaults, send a blank JSON.
+#### **Output**
+"OK"
+
+### Animate the talkinghead character to start talking
 `GET /api/talkinghead/start_talking`
 #### **Example**
 'http://localhost:5100/api/talkinghead/start_talking'
 #### **Output**
-"started"
+"talking started"
 
-### Animates the talkinghead sprite to stop talking.
+### Animate the talkinghead character to stop talking
 `GET /api/talkinghead/stop_talking`
 #### **Example**
 'http://localhost:5100/api/talkinghead/stop_talking'
 #### **Output**
-"stopped"
+"talking stopped"
 
-### Outputs the animated talkinghead sprite.
+### Set the talkinghead character's emotion
+`POST /api/talkinghead/set_emotion`
+Available emotions: see `talkinghead/emotions/*.json`. An emotion must be specified, but if it is not available, this operation defaults to `"neutral"`, which must always be available. This endpoint is the backend behind the `/emote` slash command in talkinghead mode.
+#### **Input**
+```
+{"emotion_name": "curiosity"}
+```
+#### **Example**
+'http://localhost:5100/api/talkinghead/set_emotion'
+#### **Output**
+"emotion set to curiosity"
+
+### Output the animated talkinghead sprite.
 `GET /api/talkinghead/result_feed`
 #### **Output**
-Animated transparent image
+Animated transparent image, each frame a 512x512 PNG image in RGBA format.
 
 ### Perform web search
 `POST /api/websearch`

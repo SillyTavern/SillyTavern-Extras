@@ -939,6 +939,35 @@ class MainFrame(wx.Frame):
                         logger.info(f"Saved image {image_file_name}")
                     except Exception as exc:
                         logger.error(f"Could not save {image_file_name}, reason: {exc}")
+
+                # Save `_emotions.json`, for use as customized emotion templates.
+                #
+                # There are three possibilities what we could do here:
+                #
+                #   - Trim away any morphs that have a zero value, because zero is the default,
+                #     optimizing for file size. But this is just a small amount of text anyway.
+                #   - Add any zero morphs that are missing. Because `self.emotions` came from files,
+                #     it might not have all keys. This yields an easily editable file that explicitly
+                #     lists what is possible.
+                #   - Just dump the data from `self.emotions` as-is. This way the content for each
+                #     emotion  matches the emotion templates in `talkinghead/emotions/*.json`.
+                #     This approach is the most transparent.
+                #
+                # At least for now, we opt for transparency. It is also the simplest to implement.
+                #
+                # Note that what we produce here is not a copy of `_defaults.json`, but instead, the result
+                # of the loading logic with fallback. That is, the content of the individual emotion files
+                # overrides the factory presets as far as `self.emotions` is concerned.
+                #
+                # We just trim away the [custom] and [reset] "emotions", which have no meaning outside the manual poser.
+                # The result will be stored in alphabetically sorted order automatically, because `dict` preserves
+                # insertion order, and `self.emotions` itself is stored alphabetically.
+                logger.info(f"Saving {dir_name}/_emotions.json...")
+                trimmed_emotions = {k: v for k, v in self.emotions.items() if not (k.startswith("[") and k.endswith("]"))}
+                emotions_json_file_name = os.path.join(dir_name, "_emotions.json")
+                with open(emotions_json_file_name, "w") as file:
+                    json.dump(trimmed_emotions, file, indent=4)
+
                 logger.info("Batch save finished.")
         finally:
             dir_dialog.Destroy()

@@ -31,7 +31,7 @@ import torchvision
 #                  ("banding", {}),
 #                  ("scanlines", {})
 #                 ]
-default_chain = []  # TODO: disabled temporarily to get a PR in early, since we are still missing config support in client
+default_chain = []  # Overridden by the animator, which sends us the chain.
 
 T = TypeVar("T")
 Atom = Union[str, bool, int, float]
