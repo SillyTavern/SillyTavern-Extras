@@ -2,6 +2,9 @@
 
 ### Live mode
 
+- Add a server-side config for animator and postprocessor settings.
+  - For symmetry with emotion handling; but also foreseeable that target FPS is an installation-wide thing instead of a character-wide thing.
+    Currently we don't have a way to set it installation-wide.
 - Fix timing of microsway based on 25 FPS reference.
 - Fix timing of dynamic postprocessor effects, these should also use a 25 FPS reference.
 - Add live-modifiable configuration for animation and postprocessor settings?
@@ -32,6 +35,9 @@
     then the "set_emotion" endpoint.
 - When a new talkinghead sprite is uploaded:
   - The preview thumbnail in the client doesn't update.
+- Not related to talkinghead, but client bug, came up during testing: in *Manage chat files*, when using the search feature,
+  clicking on a search result either does nothing, or opens the wrong chat. When not searching, clicking on a previous chat
+  correctly opens that specific chat.
 - Are there other places in *Character Expressions* (`SillyTavern/public/scripts/extensions/expressions/index.js`)
   where we need to check whether the `talkinghead` module is enabled? `(!isTalkingHeadEnabled() || !modules.includes('talkinghead'))`
 - Check zip upload whether it refreshes the talkinghead character (it should).
@@ -41,18 +47,13 @@
 - Add pictures to the talkinghead README.
   - Screenshot of the manual poser. Anything else the user needs to know about it?
   - Examples of generated poses, highlighting both success and failure cases. How the live talking head looks in the actual SillyTavern GUI.
-- Document the per-character configuration in the README:
-  - Animator settings,
-  - Emotion templates,
-  - Postprocessor filters (with example pictures).
+  - Examples of postprocessor filter results.
 - Merge appropriate material from old user manual into the new README.
-- Update the user manual.
-  - This extension really has nothing to do with VTubing, except that this uses a (different!) character animation technology that produces
-    output similar to VTubing software such as Live2D.
-  - Emphasize that `talkinghead` is an AI-powered character animation technology that animates *the AI character's* avatar
-    (cf. VTubing where the idea is to animate the *user's* avatar). Current focus is on 1-on-1 interactions. Group chats
-    and visual novel mode are not supported.
+- Update/rewrite the user manual, based on the new README.
 - Far future:
+  - To save GPU resources, automatically pause animation when the web browser window with SillyTavern is not in focus. Resume when it regains focus.
+    - Needs a new API endpoint for pause/resume. Note the current `/api/talkinghead/unload` is actually a pause function (the client pauses, and
+      then just hides the live image), but there is currently no resume function (except `/api/talkinghead/load`, which requires sending an image file).
   - Fast, high-quality scaling mechanism.
     - On a 4k display, the character becomes rather small, which looks jarring on the default backgrounds.
     - The algorithm should be cartoon-aware, some modern-day equivalent of waifu2x. A GAN such as 4x-AnimeSharp or Remacri would be nice, but too slow.
