@@ -29,15 +29,15 @@
 
 ### Client side
 
-- If `classify` is enabled, emotion state should be updated from the latest AI-generated text
-  when switching chat files, to resume in the same emotion state where the chat left off.
-  - Either call the "classify" endpoint (which will re-analyze), or if the client stores the emotion,
-    then the "set_emotion" endpoint.
+- Switching `talkinghead` mode on/off in Character Expressions should set the expression to the current emotion.
   - The client *does* store the emotion, as evidenced by this quick reply STScript:
       /lastsprite {{char}} | /echo Current sprite of {{char}}: {{pipe}}
-    So we should find what implements the slash command `/lastsprite`.
-  - Investigate what calls `/api/classify` (other than the expression setting code in Character Expressions); that updates the talkinghead state.
-    We should make the same code also update the sprite if Character Expressions is enabled, and call that code after switching to a different chat.
+    So we should find what implements the slash command `/lastsprite`, to find where the emotion is stored.
+- If `classify` is enabled, emotion state should be updated from the latest AI-generated text
+  when switching chat files, to resume in the same emotion state where the chat left off.
+  - Use the expression setting mechanism to set the emotion.
+  - Investigate what calls `/api/classify` (other than the expression setting code in Character Expressions); classifying updates the talkinghead state.
+    We should make the same code (at the client end) also update the sprite if Character Expressions is enabled, and call that code after switching to a different chat.
 - When a new talkinghead sprite is uploaded:
   - The preview thumbnail in the client doesn't update.
 - Not related to talkinghead, but client bug, came up during testing: in *Manage chat files*, when using the search feature,
