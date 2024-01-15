@@ -7,6 +7,12 @@
     Currently we don't have a way to set it installation-wide.
 - Fix timing of microsway based on 25 FPS reference.
 - Fix timing of dynamic postprocessor effects, these should also use a 25 FPS reference.
+- Postprocessor for static character expression sprites.
+  - This would need reimplementing the static sprite system at the `talkinghead` end (so that we can apply per-frame dynamic postprocessing),
+    and then serving that as `result_feed`.
+  - Easier solution is to fake it: just invoke the poser once for the target pose of each expression (lazily, as each expression is first seen),
+    and cache the results. The engine should actually already do this, it seems to use some sort of cached policy. Disable just the animation parts.
+    This would still use THA3, but without animation, and would likely be usable in CPU mode, possibly even with some light postprocessing.
 - Add live-modifiable configuration for animation and postprocessor settings?
   - Add a new control panel to SillyTavern client extension settings
   - Send new configs to backend whenever anything changes
@@ -70,7 +76,4 @@
       - Realtime data from client
       - Or if ST-extras generates the TTS output, then at least a start timestamp for the playback of a given TTS output audio file,
         and a possibility to stop animating if the user stops the audio.
-  - Postprocessor for static character expression sprites.
-    - This would need reimplementing the static sprite system at the `talkinghead` end (so that we can apply per-frame dynamic postprocessing),
-      and then serving that as `result_feed`.
   - Group chats / visual novel mode / several talkingheads running simultaneously.
