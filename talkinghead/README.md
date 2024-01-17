@@ -6,6 +6,7 @@
 - [Talkinghead](#talkinghead)
     - [Introduction](#introduction)
     - [Live mode](#live-mode)
+        - [Testing your installation](#testing-your-installation)
         - [Configuration](#configuration)
         - [Emotion templates](#emotion-templates)
         - [Animator configuration](#animator-configuration)
@@ -16,9 +17,12 @@
         - [Complete example: animator and postprocessor settings](#complete-example-animator-and-postprocessor-settings)
     - [Manual poser](#manual-poser)
     - [Troubleshooting](#troubleshooting)
+        - [It's not working! Help!](#its-not-working-help)
         - [Low framerate](#low-framerate)
         - [Low VRAM - what to do?](#low-vram---what-to-do)
-        - [Missing model at startup](#missing-model-at-startup)
+        - [Missing THA3 model at startup](#missing-tha3-model-at-startup)
+        - [Known missing features](#known-missing-features)
+        - [Known bugs](#known-bugs)
     - [Creating a character](#creating-a-character)
         - [Tips for Stable Diffusion](#tips-for-stable-diffusion)
     - [Acknowledgements](#acknowledgements)
@@ -46,30 +50,54 @@ Currently, `talkinghead` is focused on providing 1-on-1 interactions with your A
 
 To activate the live mode:
 
-- Configure your *SillyTavern-extras* installation so that it loads the `talkinghead` module. This makes the backend available.
+- Configure your *SillyTavern-extras* installation so that it loads the `talkinghead` module. See example below. This makes the backend available.
 - Ensure that your character has a `SillyTavern/public/characters/yourcharacternamehere/talkinghead.png`. This is the input image for the animator.
   - You can upload one in the *SillyTavern* settings, in *Extensions ⊳ Character Expressions*.
 - To enable **talkinghead mode** in *Character Expressions*, check the checkbox *Extensions ⊳ Character Expressions ⊳ Image Type - talkinghead (extras)*.
+  - **IMPORTANT**: Automatic expression changes for the AI character are powered by **classification**, which detects the AI character's emotional state from the latest message written (or in streaming mode, currently being written) by the character.
+  - However, `talkinghead` **cannot be used with local classification**. If you have local classification enabled, the option to enable `talkinghead` is disabled **and hidden**.
+  - Therefore, to show the option to enable `talkinghead`, **uncheck** the checkbox *Character Expressions ⊳ Local server classification*.
+  - Then, to use classification, enable the `classify` module in your *SillyTavern-extras* installation. See example below.
 
 CUDA (*SillyTavern-extras* option `--talkinghead-gpu`) is very highly recommended. As of late 2023, a recent GPU is also recommended. For example, on a laptop with an RTX 3070 Ti mobile GPU, and the `separable_half` THA3 poser model (fastest and smallest; default when running on GPU), you can expect ≈40-50 FPS render performance. VRAM usage in this case is about 520 MB. CPU mode exists, but is very slow, about ≈2 FPS on an i7-12700H.
 
-We rate-limit the output to 25 FPS (maximum) to avoid DoSing the SillyTavern GUI, and attempt to reach a constant 25 FPS. If the renderer runs faster, the average GPU usage will be lower, because the animation engine only generates as many frames as are actually consumed. If the renderer runs slower, the latest available frame will be re-sent as many times as needed, to isolate the client side from any render hiccups.
+Here is an example *SillyTavern-extras* config that enables `talkinghead` and `classify`. The `talkinghead` model runs on GPU, while `classify` runs on CPU:
+
+```
+--enable-modules=classify,talkinghead --classification-model=joeddav/distilbert-base-uncased-go-emotions-student --talkinghead-gpu
+```
 
 To customize which model variant of the THA3 poser to use, and where to install the models from, see the `--talkinghead-model=...` and `--talkinghead-models=...` options, respectively.
 
 If the directory `talkinghead/tha3/models/` (under the top level of *SillyTavern-extras*) does not exist, the model files are automatically downloaded from HuggingFace and installed there.
 
+#### Testing your installation
+
+To check that the `talkinghead` software works, you can use the example character. Just copy `SillyTavern-extras/talkinghead/tha3/images/example.png` to `SillyTavern/public/characters/yourcharacternamehere/talkinghead.png`.
+
+To check that changing the character's expression works, use `/emote xxx`, where `xxx` is name of one of the 28 emotions. See e.g. the filenames of the emotion templates in `SillyTavern-extras/talkinghead/emotions`.
+
+The *Character Expressions* control panel also has a full list of emotions. In fact, instead of using the `/emote xxx` command, clicking one of the sprite slots in that control panel should apply that expression to the character.
+
+If manually changing the character's expression works, then changing it automatically with `classify` will also work, provided that `classify` itself works.
+
 #### Configuration
 
 The live mode is configured per-character, via files **at the client end**:
 
-- `SillyTavern/public/characters/yourcharacternamehere/talkinghead.png`: required. The input image for the animator.
+- `SillyTavern/public/characters/yourcharacternamehere/talkinghead.png`: required. The **input image** for the animator.
   - The `talkinghead` extension does not use or even see the other `.png` files. They are used by *Character Expressions* when *talkinghead mode* is disabled.
-- `SillyTavern/public/characters/yourcharacternamehere/_animator.json`: optional. Animator and postprocessor settings.
+- `SillyTavern/public/characters/yourcharacternamehere/_animator.json`: optional. **Animator and postprocessor settings**.
   - If a character does not have this file, default settings are used.
-- `SillyTavern/public/characters/yourcharacternamehere/_emotions.json`: optional. Custom emotion templates.
+- `SillyTavern/public/characters/yourcharacternamehere/_emotions.json`: optional. **Custom emotion templates**.
   - If a character does not have this file, default settings are used. Most of the time, there is no need to customize the emotion templates per-character.
-  - At the client end, only this one file is needed (or even supported) to customize the emotion templates.
+  - *At the client end*, only this one file is needed (or even supported) to customize the emotion templates.
+
+The **sprite position** on the screen is static. Due to the base pose used by the posing engine, the character's legs are always cut off at the bottom of the image, so the sprite needs to be placed at the bottom. You may need to create a custom background image that works with this placement. Of the default backgrounds, at least the cyberpunk bedroom works fine.
+
+**IMPORTANT**: Changing your web browser's zoom level will change the size of the character, too, because doing so rescales all images.
+
+We rate-limit the output to 25 FPS (maximum) to avoid DoSing the SillyTavern GUI, and we attempt to reach a constant 25 FPS. If the renderer runs faster, the average GPU usage will be lower, because the animation engine only generates as many frames as are actually consumed. If the renderer runs slower, the latest available frame will be re-sent as many times as needed, to isolate the client side from any render hiccups. While the maximum FPS defaults to 25, it is actually configurable; see *Animator configuration*.
 
 #### Emotion templates
 
@@ -292,6 +320,7 @@ With this app, you can:
 - **Batch-generate the 28 static expression sprites** for a character.
   - Input is the same single static image format as used by the live mode.
   - You can then use the generated images as the static expression sprites for your AI character. No need to run the live mode.
+  - You may also want to do this even if you mostly use the live mode, in the rare case you want to save compute and VRAM.
 
 To run the manual poser:
 
@@ -311,6 +340,14 @@ To load a PNG image or emotion JSON, you can either use the buttons, their hotke
 
 ### Troubleshooting
 
+#### It's not working! Help!
+
+If you just installed and enabled `talkinghead`, and nothing happens, try restarting **both** *SillyTavern* and *SillyTavern-extras*. That usually fixes it. Try restarting both also if you have changed something between sessions, and it fails to load. This happens rarely, so I haven't been able to figure out the cause.
+
+Secondly, is your *SillyTavern* **frontend** up to date? The implementation of some new `talkinghead` features needed changes to the *Character Expressions* builtin extension at the frontend side. These features include the postprocessor, the talking animation (while the LLM is streaming text), and `/emote` support.
+
+As of January 2024, these frontend changes have been merged into the `staging` branch of *SillyTavern*. So if you already have `staging` installed, just pull the latest changes from git, and restart *SillyTavern*. If you have `release` installed, you'll need to switch to `staging` for now to get these features working.
+
 #### Low framerate
 
 The poser is a deep-learning model. Each animation frame requires an inference pass. This requires lots of compute.
@@ -325,9 +362,9 @@ Observe that the `--talkinghead-gpu` setting is independent of the CUDA device s
 
 So in a low-VRAM environment such as a gaming laptop, you can run just `talkinghead` on the GPU (VRAM usage about 520 MB) to get acceptable animation performance, while running all other extras modules on the CPU. The `classify` or `summarize` AI modules do not require realtime performance, whereas `talkinghead` does.
 
-#### Missing model at startup
+#### Missing THA3 model at startup
 
-The `separable_float` variant of the THA3 models was previously included in the *SillyTavern-extras* repository. However, `talkinghead` was recently (December 2023) changed to download these models from HuggingFace if necessary, so a local copy of the model is no longer provided in the repository.
+The `separable_float` variant of the THA3 poser models was previously included in the *SillyTavern-extras* repository. However, `talkinghead` was recently (December 2023) changed to download these models from HuggingFace if necessary, so a local copy of the model is no longer provided in the repository.
 
 Therefore, if you updated your *SillyTavern-extras* installation from *git*, it is likely that *git* deleted your local copy of that particular model, leading to an error message like:
 
@@ -335,9 +372,23 @@ Therefore, if you updated your *SillyTavern-extras* installation from *git*, it 
 FileNotFoundError: Model file /home/xxx/SillyTavern-extras/talkinghead/tha3/models/separable_float/eyebrow_decomposer.pt not found, please check the path.
 ```
 
-The solution is to remove (or rename) your `SillyTavern-extras/talkinghead/tha3/models` directory, and restart *SillyTavern-extras*. If the model directory does not exist, `talkinghead` will download the models at the first run.
+The solution is to remove (or rename) your `SillyTavern-extras/talkinghead/tha3/models/` directory, and restart *SillyTavern-extras*. If the model directory does not exist, `talkinghead` will download the models at the first run.
 
 The models are actually shared between the live mode and the manual poser, so it doesn't matter which one you run first.
+
+#### Known missing features
+
+**Visual novel mode** and **group chats** are not supported by `talkinghead`.
+
+The `/emote` command only works with `talkinghead` when *visual novel mode* is **off**.
+
+Also, the live mode is not compatible with the popular VTuber software Live2D. Rather, `talkinghead` is an independent exploration of somewhat similar functionality in the context of providing a live anime avatar for AI characters.
+
+#### Known bugs
+
+During development, known bugs are collected into [TODO](TODO.md).
+
+As `talkinghead` is a part of SillyTavern-extras, you may also want to check the [SillyTavern-extras issue tracker](https://github.com/SillyTavern/SillyTavern-Extras/issues/).
 
 
 ### Creating a character
@@ -367,10 +418,12 @@ To create an AI avatar that `talkinghead` understands:
 
 #### Tips for Stable Diffusion
 
-It is possible to create a suitable character render with Stable Diffusion. We assume that you already have a local installation of the [Automatic1111](https://github.com/AUTOMATIC1111/stable-diffusion-webui-rembg) webui.
+**Time needed**: about 1.5h. Most of that time will be spent rendering lots of gens to get a suitable one, but you should set aside 20-30 minutes to cut your final character cleanly from the background, using image editing software such as GIMP or Photoshop.
 
-- Don't initially worry about the alpha channel. You can add that after you have generated the image.
-- Try the various VTuber checkpoints floating around the Internet.
+It is possible to create a `talkinghead` character render with Stable Diffusion. We assume that you already have a local installation of the [Automatic1111](https://github.com/AUTOMATIC1111/stable-diffusion-webui-rembg) webui.
+
+- Don't initially worry about the alpha channel. You can add the alpha channel after you have generated the image.
+- Try the various **VTuber checkpoints** floating around the Internet.
   - These are trained on talking anime heads in particular, so it's much easier getting a pose that works as input for THA3.
   - Many human-focused SD checkpoints render best quality at 512x768 (portrait). You can always crop the image later.
 - I've had good results with `meina-pro-mistoon-hll3`.
@@ -380,13 +433,13 @@ It is possible to create a suitable character render with Stable Diffusion. We a
   - Settings: *512x768, 20 steps, DPM++ 2M Karras, CFG scale 7*.
   - Optionally, you can use the [Dynamic Thresholding (CFG Scale Fix)](https://github.com/mcmonkeyprojects/sd-dynamic-thresholding) extension for Automatic1111 to render the image at CFG 15 (to increase the chances of SD following the prompt correctly), but make the result look like as if it was rendered at CFG 7.
     - Recommended settings: *Half Cosine Up, minimum CFG scale 3, mimic CFG scale 7*, all else at default values.
-- Expect to render **upwards of a hundred** *txt2img* gens to get **one** result good enough for further refinement. (At least you can produce and triage them quickly.)
+- Expect to render **upwards of a hundred** *txt2img* gens to get **one** result good enough for further refinement. At least you can produce and triage them quickly.
 - **Make it easy for yourself to find and fix the edges.**
-  - If your character's outline consists mainly of dark colors, ask for a light background, and vice versa.
+  - If your character's outline consists mainly of dark colors, prompt for a light background, and vice versa.
 - As always with SD, some unexpected words may generate undesirable elements that are impossible to get rid of.
   - For example, I wanted an AI character wearing a *"futuristic track suit"*, but SD interpreted the *"futuristic"* to mean that the character should be posed on a background containing unrelated scifi tech greebles, or worse, that the result should look something like the female lead of [*Saikano* (2002)](https://en.wikipedia.org/wiki/Saikano). Removing that word solved it, but did change the outfit style, too.
 
-**Prompt**:
+**Prompt** for `meina-pro-mistoon-hll3`:
 
 ```
 (front view, symmetry:1.2), ...character description here..., standing, arms at sides, open mouth, smiling,
@@ -408,7 +461,9 @@ Then just test it, and equip the negative prompt with NSFW terms if needed.
 
 The camera angle terms in the prompt may need some experimentation. Above, we put `full body shot` in the negative prompt, because in SD 1.5, at least with many anime models, full body shots often get a garbled face. However, a full body shot can actually be useful here, because it has the legs available so you can crop them at whatever point they need to be cropped to align the character's face with the template.
 
-One possible solution is to ask for a `full body shot`, and *txt2img* for a good pose and composition only, no matter the face. Then *img2img* the result, using the [ADetailer](https://github.com/Bing-su/adetailer) extension for Automatic1111 (0.75 denoise, with [ControlNet inpaint](https://stable-diffusion-art.com/controlnet/#ControlNet_Inpainting) enabled) to fix the face.
+One possible solution is to ask for a `full body shot`, and *txt2img* for a good pose and composition only, no matter the face. Then *img2img* the result, using the [ADetailer](https://github.com/Bing-su/adetailer) extension for Automatic1111 (0.75 denoise, with [ControlNet inpaint](https://stable-diffusion-art.com/controlnet/#ControlNet_Inpainting) enabled) to fix the face. You can also use *ADetailer* in *txt2img* mode, but that wastes compute (and wall time) on fixing the face in the large majority of gens that do not have the perfect composition and/or outfit.
+
+Finally, you may want to upscale, to have enough pixels available to align and crop a good-looking result. Beside latent upscaling with `ControlNet Tile` [[1]](https://github.com/Mikubill/sd-webui-controlnet/issues/1033) [[2]](https://civitai.com/models/59811/4k-resolution-upscale-8x-controlnet-tile-resample-in-depth-with-resources) [[3]](https://stable-diffusion-art.com/controlnet/#Tile_resample), you could try especially the `Remacri` or `AnimeSharp` GANs (in the *Extras* tab of Automatic1111). Many AI upscalers can be downloaded at [OpenModelDB](https://openmodeldb.info/).
 
 **ADetailer notes**
 
@@ -422,4 +477,4 @@ One possible solution is to ask for a `full body shot`, and *txt2img* for a good
 
 This software incorporates the [THA3](https://github.com/pkhungurn/talking-head-anime-3-demo) AI-based anime posing engine developed by Pramook Khungurn. The THA3 code is used under the MIT license, and the THA3 AI models are used under the Creative Commons Attribution 4.0 International license. The THA3 example character is used under the Creative Commons Attribution-NonCommercial 4.0 International license. The trained models are currently mirrored [on HuggingFace](https://huggingface.co/OktayAlpk/talking-head-anime-3).
 
-In this software, the manual poser code has been mostly rewritten, and the live mode code is original to `talkinghead`.
+In this software, the manual poser code has been mostly rewritten, and the live mode code (the animation driver) is original to `talkinghead`.

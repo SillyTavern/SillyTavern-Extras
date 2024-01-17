@@ -27,6 +27,9 @@
   - Merge appropriate material from old user manual into the new README.
   - Update/rewrite the user manual, based on the new README.
     - This should replace the old manual at https://docs.sillytavern.app/extras/extensions/talkinghead/
+- EXAMPLES: Add some example characters created in Stable Diffusion.
+  - Original characters only, as per ST content policy.
+  - Maybe we should do Seraphina, since she's part of a default SillyTavern install?
 
 ### Medium priority
 
