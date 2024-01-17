@@ -392,6 +392,7 @@ class Animator:
 
         self.last_sway_target_timestamp = None
         self.last_sway_target_pose = None
+        self.last_microsway_timestamp = None
         self.sway_interval = None
 
         self.last_blink_timestamp = None
@@ -754,13 +755,23 @@ class Animator:
                                                 self._settings["sway_interval_max"])  # seconds; duration of this sway target before randomizing new one
             return new_target_pose
 
-        # Add dynamic noise (re-generated every frame) to the target to make the animation look less robotic, especially once we are near the target pose.
+        # Add dynamic noise (re-generated at 25 FPS) to the target to make the animation look less robotic, especially once we are near the target pose.
         def add_microsway() -> None:  # DANGER: MUTATING FUNCTION
-            for key in SWAYPARTS:
-                idx = posedict_key_to_index[key]
-                x = new_target_pose[idx] + random.uniform(-noise_max, noise_max)
-                x = max(-1.0, min(x, 1.0))
-                new_target_pose[idx] = x
+            CALIBRATION_FPS = 25  # FPS at which randomizing a new microsway target looks good
+            time_now = time.time_ns()
+            should_microsway = True
+            if self.last_microsway_timestamp is not None:
+                seconds_since_last_microsway = (time_now - self.last_microsway_timestamp) / 10**9
+                if seconds_since_last_microsway < 1 / CALIBRATION_FPS:
+                    should_microsway = False
+
+            if should_microsway:
+                for key in SWAYPARTS:
+                    idx = posedict_key_to_index[key]
+                    x = new_target_pose[idx] + random.uniform(-noise_max, noise_max)
+                    x = max(-1.0, min(x, 1.0))
+                    new_target_pose[idx] = x
+                self.last_microsway_timestamp = time_now
 
         new_target_pose = macrosway()
         add_microsway()
