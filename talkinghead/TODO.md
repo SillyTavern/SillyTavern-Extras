@@ -5,7 +5,6 @@
 - BACKEND: Add a server-side config for animator and postprocessor settings.
   - For symmetry with emotion handling; but also foreseeable that target FPS is an installation-wide thing instead of a character-wide thing.
     Currently we don't have a way to set it installation-wide.
-- BACKEND: Fix timing of microsway based on 25 FPS reference (currently the character may jitter too much at high FPS).
 - BACKEND: Fix timing of dynamic postprocessor effects, these should also use a 25 FPS reference.
 - FRONTEND: Check zip upload whether it refreshes the talkinghead character (it should).
 - FRONTEND: Switching `talkinghead` mode on/off in Character Expressions should set the expression to the current emotion.
