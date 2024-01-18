@@ -15,6 +15,7 @@ __all__ = ["set_emotion_from_classification", "set_emotion",
 
 import atexit
 import io
+import json
 import logging
 import math
 import os
@@ -465,26 +466,52 @@ class Animator:
 
         logger.info(f"load_animator_settings: user-provided settings: {settings}")
 
-        # Warn about unknown settings (not an error, to allow running a newer client on an older server that might support only a subset of the keys the client knows about)
-        if settings:
+        # Load server-side settings (`talkinghead/animator.json`)
+        try:
+            animator_config_path = os.path.join(talkinghead_basedir, "animator.json")
+            with open(animator_config_path, "r") as json_file:
+                server_settings = json.load(json_file)
+        except Exception as exc:
+            logger.info(f"load_animator_settings: skipping server settings, reason: {exc}")
+            server_settings = {}
+
+        # Let's define some helpers:
+        def reject_unrecognized(settings: Dict[str, Any], context: str) -> None:  # DANGER: MUTATING FUNCTION
             unknown_fields = [field for field in settings if field not in animator_defaults]
             if unknown_fields:
-                logger.warning(f"load_animator_settings: unknown keys in user-provided settings; maybe client is newer than server? List follows: {unknown_fields}")
+                logger.warning(f"load_animator_settings: in {context}: this server did not recognize the following settings, ignoring them: {unknown_fields}")
+            for field in unknown_fields:
+                settings.pop(field)
+            assert all(field in animator_defaults for field in settings)  # contract: only known settings remaining
 
-        # Set default values for any settings not provided
-        for field, default_value in animator_defaults.items():
-            type_match = (int, float) if isinstance(default_value, (int, float)) else type(default_value)
-            if field in settings and not isinstance(settings[field], type_match):
-                logger.warning(f"Ignoring invalid setting for '{field}': got {type(settings[field])} with value '{settings[field]}', expected {type_match}")
-                continue
-            if field not in settings:
-                settings[field] = default_value
+        def typecheck(settings: Dict[str, Any], context: str) -> None:  # DANGER: MUTATING FUNCTION
+            for field, default_value in animator_defaults.items():
+                type_match = (int, float) if isinstance(default_value, (int, float)) else type(default_value)
+                if field in settings and not isinstance(settings[field], type_match):
+                    logger.warning(f"load_animator_settings: in {context}: incorrect type for '{field}': got {type(settings[field])} with value '{settings[field]}', expected {type_match}")
+                    settings.pop(field)  # (safe; this is not the collection we are iterating over)
 
-        logger.info(f"load_animator_settings: final settings (filled in from defaults as necessary): {settings}")
+        def aggregate(settings: Dict[str, Any], fallback: Dict[str, Any], context: str) -> None:  # DANGER: MUTATING FUNCTION
+            for field, default_value in fallback.items():
+                if field not in settings:
+                    logger.info(f"load_animator_settings: filling in '{field}' from {context}")
+                    settings[field] = default_value
+
+        # Now our settings loading strategy is as simple as:
+        settings = dict(settings)  # copy to avoid modifying the original, since we'll pop some stuff.
+        if settings:
+            reject_unrecognized(settings, context="user settings")
+            typecheck(settings, context="user settings")
+        if server_settings:
+            reject_unrecognized(server_settings, context="server settings")
+            typecheck(server_settings, context="server settings")
+        # both `settings` and `server_settings` are fully valid at this point
+        aggregate(settings, fallback=server_settings, context="server settings")  # first fill in from server-side settings
+        aggregate(settings, fallback=animator_defaults, context="built-in defaults")  # then fill in from hardcoded defaults
+
+        logger.info(f"load_animator_settings: final settings (filled in as necessary): {settings}")
 
         # Some settings must be applied explicitly.
-        settings = dict(settings)  # copy to avoid modifying the original, since we'll pop some stuff.
-
         logger.debug(f"load_animator_settings: Setting new target FPS = {settings['target_fps']}")
         target_fps = settings.pop("target_fps")  # global variable, controls the network send rate.
 
