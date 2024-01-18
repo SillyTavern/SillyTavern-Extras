@@ -289,7 +289,7 @@ def talkinghead_load_file(stream) -> str:
         global_reload_image = PIL.Image.open(io.BytesIO(img_data.getvalue()))  # Set the global_reload_image to a copy of the image data
     except PIL.Image.UnidentifiedImageError:
         logger.warning("Could not load input image from stream, loading blank")
-        full_path = os.path.join(os.getcwd(), os.path.normpath(os.path.join(talkinghead_basedir, "tha3", "images", "inital.png")))
+        full_path = os.path.join(os.getcwd(), os.path.join(talkinghead_basedir, "tha3", "images", "inital.png"))
         global_reload_image = PIL.Image.open(full_path)
     finally:
         animation_running = True
@@ -321,7 +321,7 @@ def launch(device: str, model: str) -> Union[None, NoReturn]:
         global_encoder_instance = Encoder()
 
         # Load initial blank character image
-        full_path = os.path.join(os.getcwd(), os.path.normpath(os.path.join(talkinghead_basedir, "tha3", "images", "inital.png")))
+        full_path = os.path.join(os.getcwd(), os.path.join(talkinghead_basedir, "tha3", "images", "inital.png"))
         global_animator_instance.load_image(full_path)
 
         global_animator_instance.start()
