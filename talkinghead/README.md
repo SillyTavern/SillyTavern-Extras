@@ -315,7 +315,7 @@ With this app, you can:
   - They are JSON files, found in `talkinghead/emotions/` under your *SillyTavern-extras* folder.
     - The GUI also has a dropdown to quickload any preset.
   - **NEVER** delete or modify `_defaults.json`. That file stores the factory settings, and the app will not run without it.
-  - For blunder recovery: to reset an emotion back to its factory setting, see the `--factory-reset=EMOTION` option, which will use the factory settings to overwrite the corresponding emotion preset JSON. To reset **all** emotion presets to factory settings, see `--factory-reset-all`. Careful, these operations **cannot** be undone!
+  - For blunder recovery: to reset an emotion back to its factory setting, see the `--factory-reset=EMOTION` command-line option, which will use the factory settings to overwrite the corresponding emotion preset JSON. To reset **all** emotion presets to factory settings, see `--factory-reset-all`. Careful, these operations **cannot** be undone!
     - Currently, these options do **NOT** regenerate the example images also provided in `talkinghead/emotions/`.
 - **Batch-generate the 28 static expression sprites** for a character.
   - Input is the same single static image format as used by the live mode.
