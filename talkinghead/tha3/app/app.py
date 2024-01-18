@@ -568,10 +568,10 @@ class Animator:
             avg_render_fps = min(avg_render_fps, target_fps)
         else:  # No statistics available yet; let's assume we're running at `target_fps`.
             avg_render_fps = target_fps
-        # We give an independent trial for each of `n` (fictitious) frames elapsed at `CALIBRATION_FPS` during one actual frame at `avg_render_fps`.
-        # Note direction: rendering faster (higher FPS) means less likely to blink per frame (to obtain the same blink density per unit of wall time)
+        # We give an independent trial for each of `n` "normalized frames" elapsed at `CALIBRATION_FPS` during one actual frame at `avg_render_fps`.
+        # Note direction: rendering faster (higher FPS) means less likely to blink per frame, to obtain the same blink density per unit of wall time.
         n = CALIBRATION_FPS / avg_render_fps
-        # If at least one of the fictitious frames wants to blink, then we should blink.
+        # If at least one of the normalized frames wants to blink, then the actual frame should blink.
         # Doesn't matter that `n` isn't an integer, since the power function over the reals is continuous and we just want a reasonable scaling here.
         p_scaled = 1.0 - (1.0 - p_orig)**n
         should_blink = (random.random() <= p_scaled)
