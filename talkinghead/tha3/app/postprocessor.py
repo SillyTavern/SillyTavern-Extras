@@ -47,7 +47,7 @@ T = TypeVar("T")
 Atom = Union[str, bool, int, float]
 MaybeContained = Union[T, List[T], Dict[str, T]]
 
-VHS_GLITCH_BLANK = object()  # nonce value meaning the dynamic VHS glitch effect already decided that no glitches should appear during the current frame
+VHS_GLITCH_BLANK = object()  # nonce value, see `analog_vhsglitches`
 
 class Postprocessor:
     """
@@ -119,6 +119,8 @@ class Postprocessor:
 
         # Caches for individual dynamic effects
         self.alphanoise_last_image = defaultdict(lambda: None)
+        self.vhs_glitch_interval = defaultdict(lambda: 0.0)
+        self.vhs_glitch_last_frame_no = defaultdict(lambda: 0.0)
         self.vhs_glitch_last_image = defaultdict(lambda: None)
         self.vhs_glitch_last_mask = defaultdict(lambda: None)
 
@@ -464,6 +466,7 @@ class Postprocessor:
                            unboost: float = 4.0,
                            max_glitches: int = 3,
                            min_glitch_height: int = 3, max_glitch_height: int = 6,
+                           hold_min: int = 1, hold_max: int = 3,
                            name: str = "analog_vhsglitches0") -> None:
         """[dynamic] Damaged 1980s VHS video tape, with transient (per-frame) glitching lines.
 
@@ -476,19 +479,19 @@ class Postprocessor:
                    and there will be fewer of them (in the same video frame) when they do appear.
         `max_glitches`: Maximum number of glitches in the video frame.
         `min_glitch_height`, `max_glitch_height`: in pixels. The height is randomized separately for each glitch.
+        `hold_min`, `hold_max`: in frames (at a reference of 25 FPS). Limits for the random time that the
+                                filter holds one glitch pattern before randomizing the next one.
 
         `name`: Optional name for this filter instance in the chain. Used as cache key.
                 If you have more than one `analog_vhsglitches` in the chain, they should have
                 different names so that each one gets its own cache.
         """
-        # Re-randomize the glitch noise image whenever the normalized frame changes
-        # TODO: Add `hold_min`, `hold_max` parameters (similarly to how blink and sway work) to set how long a set of glitches persists.
-        # TODO: Especially useful if we add support for multiple copies of the same kind of effect, since then they could have different settings.
-        if self.vhs_glitch_last_image[name] is None or int(self.frame_no) > int(self.last_frame_no):
+        # Re-randomize the glitch noise image whenever enough frames have elapsed after last randomization
+        if self.vhs_glitch_last_image[name] is None or (int(self.frame_no) - int(self.vhs_glitch_last_frame_no[name])) >= self.vhs_glitch_interval[name]:
             n_glitches = torch.rand(1, device="cpu")**unboost  # unboost: increase probability of having none or few glitching lines
             n_glitches = int(max_glitches * n_glitches[0])
             if not n_glitches:
-                vhs_glitch_image = VHS_GLITCH_BLANK  # use a nonce value instead of None to distinguish between "uninitialized" and "no glitches during current frame"
+                vhs_glitch_image = VHS_GLITCH_BLANK  # use a nonce value instead of None to distinguish between "uninitialized" and "no glitches during current glitch interval"
                 vhs_glitch_mask = None
             else:
                 c, h, w = image.shape
@@ -500,9 +503,12 @@ class Postprocessor:
                     glitch_height = torch.rand(1, device="cpu")
                     glitch_height = int(min_glitch_height + (max_glitch_height - min_glitch_height) * glitch_height[0])
                     vhs_glitch_image[0, line:(line + glitch_height), :] = self._vhs_noise(image, height=glitch_height)  # [1, h, w]
-                    vhs_glitch_mask[0, line:(line + glitch_height), :] = 1.0
+                    vhs_glitch_mask[0, line:(line + glitch_height), :] = 1.0  # mark the glitching lines for blending
             self.vhs_glitch_last_image[name] = vhs_glitch_image
             self.vhs_glitch_last_mask[name] = vhs_glitch_mask
+            # Randomize time until next change of glitch pattern
+            self.vhs_glitch_interval[name] = round(hold_min + float(torch.rand(1, device="cpu")[0]) * (hold_max - hold_min))
+            self.vhs_glitch_last_frame_no[name] = self.frame_no
         else:
             vhs_glitch_image = self.vhs_glitch_last_image[name]
             vhs_glitch_mask = self.vhs_glitch_last_mask[name]
