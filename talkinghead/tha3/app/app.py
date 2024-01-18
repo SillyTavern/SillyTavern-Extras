@@ -476,7 +476,7 @@ class Animator:
             server_settings = {}
 
         # Let's define some helpers:
-        def reject_unrecognized(settings: Dict[str, Any], context: str) -> None:  # DANGER: MUTATING FUNCTION
+        def drop_unrecognized(settings: Dict[str, Any], context: str) -> None:  # DANGER: MUTATING FUNCTION
             unknown_fields = [field for field in settings if field not in animator_defaults]
             if unknown_fields:
                 logger.warning(f"load_animator_settings: in {context}: this server did not recognize the following settings, ignoring them: {unknown_fields}")
@@ -491,23 +491,23 @@ class Animator:
                     logger.warning(f"load_animator_settings: in {context}: incorrect type for '{field}': got {type(settings[field])} with value '{settings[field]}', expected {type_match}")
                     settings.pop(field)  # (safe; this is not the collection we are iterating over)
 
-        def aggregate(settings: Dict[str, Any], fallback: Dict[str, Any], context: str) -> None:  # DANGER: MUTATING FUNCTION
-            for field, default_value in fallback.items():
+        def aggregate(settings: Dict[str, Any], fallback_settings: Dict[str, Any], fallback_context: str) -> None:  # DANGER: MUTATING FUNCTION
+            for field, default_value in fallback_settings.items():
                 if field not in settings:
-                    logger.info(f"load_animator_settings: filling in '{field}' from {context}")
+                    logger.info(f"load_animator_settings: filling in '{field}' from {fallback_context}")
                     settings[field] = default_value
 
         # Now our settings loading strategy is as simple as:
         settings = dict(settings)  # copy to avoid modifying the original, since we'll pop some stuff.
         if settings:
-            reject_unrecognized(settings, context="user settings")
+            drop_unrecognized(settings, context="user settings")
             typecheck(settings, context="user settings")
         if server_settings:
-            reject_unrecognized(server_settings, context="server settings")
+            drop_unrecognized(server_settings, context="server settings")
             typecheck(server_settings, context="server settings")
         # both `settings` and `server_settings` are fully valid at this point
-        aggregate(settings, fallback=server_settings, context="server settings")  # first fill in from server-side settings
-        aggregate(settings, fallback=animator_defaults, context="built-in defaults")  # then fill in from hardcoded defaults
+        aggregate(settings, fallback_settings=server_settings, fallback_context="server settings")  # first fill in from server-side settings
+        aggregate(settings, fallback_settings=animator_defaults, fallback_context="built-in defaults")  # then fill in from hardcoded defaults
 
         logger.info(f"load_animator_settings: final settings (filled in as necessary): {settings}")
 
