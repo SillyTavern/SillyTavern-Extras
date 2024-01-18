@@ -197,7 +197,7 @@ The following postprocessing filters are available. Options for each filter are 
 **Camera**:
 
 - `chromatic_aberration`: Simulates the two types of [chromatic aberration](https://en.wikipedia.org/wiki/Chromatic_aberration) in a camera lens, axial (index of refraction varying w.r.t. wavelength) and transverse (focal distance varying w.r.t. wavelength).
-- `vignetting`: Simulates vignetting, i.e. less light hitting the corners of a film frame or CCD sensor, causing the corners to be slightly darker than the center.
+- `vignetting`: Simulates [vignetting](https://en.wikipedia.org/wiki/Vignetting), i.e. less light hitting the corners of a film frame or CCD sensor, causing the corners to be slightly darker than the center.
 
 **Transport**:
 
