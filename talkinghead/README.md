@@ -107,7 +107,7 @@ The batch export of the manual poser produces a set of static expression images 
 
 Emotion template lookup order is:
 
-- The set of custom templates sent by the ST client, read from `SillyTavern/public/characters/yourcharacternamehere/_emotions.json` if it exists.
+- The set of per-character custom templates sent by the ST client, read from `SillyTavern/public/characters/yourcharacternamehere/_emotions.json` if it exists.
 - Server defaults, from the individual files `SillyTavern-extras/talkinghead/emotions/emotionnamehere.json`.
   - These are customizable. You can e.g. overwrite `curiosity.json` to change the default template for the *"curiosity"* emotion.
   - **IMPORTANT**: *However, updating SillyTavern-extras from git may overwrite your changes to the server-side default emotion templates.*
@@ -130,17 +130,23 @@ Any morph that is not mentioned for a particular emotion defaults to zero. Thus 
 
 *The available settings keys and examples are kept up-to-date on a best-effort basis, but there is a risk of this documentation being out of date. When in doubt, refer to the actual source code, which comes with extensive docstrings and comments. The final authoritative source is the implementation itself.*
 
-The file `SillyTavern/public/characters/yourcharacternamehere/_animator.json` contains the animator and postprocessor settings. For any setting not specified in the file, the default value is used.
+Animator and postprocessor settings lookup order is:
 
-The idea is that this allows giving some personality to different characters; for example, they may sway by different amounts, the breathing cycle duration may be different, and importantly, the postprocessor settings may be different - which allows e.g. making a specific character into a scifi hologram, while others render normally.
+- The custom per-character settings sent by the ST client, read from `SillyTavern/public/characters/yourcharacternamehere/_animator.json` if it exists.
+- Server defaults, from `SillyTavern-extras/talkinghead/animator.json`, if it exists.
+- Built-in defaults, hardcoded in [`talkinghead/tha3/app/app.py`](tha3/app/app.py).
 
-Here is a complete example of `_animator.json`, showing the default values:
+Any setting that is missing from a particular level in the lookup order falls through to be looked up at the next level.
+
+The idea of per-character animator and postprocessor settings is that this allows giving some personality to different characters. For example, they may sway by different amounts, the breathing cycle duration may be different, and importantly, the postprocessor settings may be different - which allows e.g. making a specific character into a scifi hologram, while others render normally.
+
+Here is a complete example of `animator.json`, showing the default values:
 
 ```
 {"target_fps": 25,
- "crop_left": 0.5,
- "crop_right": 0.5,
- "crop_top": 0.2,
+ "crop_left": 0.0,
+ "crop_right": 0.0,
+ "crop_top": 0.0,
  "crop_bottom": 0.0,
  "pose_interpolator_step": 0.1,
  "blink_interval_min": 2.0,
@@ -158,11 +164,15 @@ Here is a complete example of `_animator.json`, showing the default values:
  "postprocessor_chain": []}
 ```
 
-where:
+Note that some settings make more sense as server defaults, while others make more sense as per-character settings.
 
-- `target_fps`: Desired output frames per second. Note this only affects smoothness of the output (provided that the hardware is fast enough). The speed at which the animation evolves is based on wall time. Snapshots are rendered at the target FPS, or if the hardware is slower, then as often as hardware allows. *Recommendation*: For smooth animation, make the FPS lower than what your hardware could produce, so that some compute remains untapped, available to smooth over the occasional hiccup from other running programs.
-- `crop_left`, `crop_right`, `crop_top`, `crop_bottom`: in units where the width and height of the image are both 2.0. These can be used to cut away empty space around the character. Note the poser always runs on the full 512x512 image due to its design, but the rest of the processing can work with a cropped image.
-- `pose_interpolator_step`: A value such that `0 < step <= 1`. Applied at each frame at a reference of 25 FPS (to standardize the meaning of the setting), with automatic internal FPS-correction to the actual output FPS. Note that the animation is nonlinear. The step controls how much of the *remaining distance* to the current target pose is covered in 1/25 seconds.
+Particularly, `target_fps` makes the most sense to set globally at the server side, in `SillyTavern-extras/talkinghead/animator.json`, while almost everything else makes more sense per-character, in `SillyTavern/public/characters/yourcharacternamehere/_animator.json`.
+
+**What each settings does**:
+
+- `target_fps`: Desired output frames per second. Note this only affects smoothness of the output, provided that the hardware is fast enough. The speed at which the animation evolves is based on wall time. Snapshots are rendered at the target FPS, or if the hardware is slower, then as often as hardware allows. Regardless of render FPS, network send always occurs at `target_fps`, provided that the connection is fast enough. *Recommendation*: For smooth animation, make `target_fps` lower than what your hardware could produce, so that some compute remains untapped, available to smooth over the occasional hiccup from other running programs.
+- `crop_left`, `crop_right`, `crop_top`, `crop_bottom`: in units where the width and height of the image are both 2.0. Cut away empty space on the canvas around the character. Note the poser always internally runs on the full 512x512 image due to its design, but the rest (particularly the postprocessor) can take advantage of the smaller size of the cropped image.
+- `pose_interpolator_step`: A value such that `0 < step <= 1`. Sets how fast pose and expression changes are. The step is applied at each frame at a reference of 25 FPS (to standardize the meaning of the setting), with automatic internal FPS-correction to the actual output FPS. Note that the animation is nonlinear: the change starts suddenly, and slows down. The step controls how much of the *remaining distance* to the current target pose is covered in 1/25 seconds. Once the remaining distance approaches zero, the pose then snaps to the target pose, once the distance becomes small enough for this final discontinuous jump to become unnoticeable.
 - `blink_interval_min`: seconds. After blinking, lower limit for random minimum time until next blink is allowed.
 - `blink_interval_max`: seconds. After blinking, upper limit for random minimum time until next blink is allowed.
 - `blink_probability`: Applied at each frame at a reference of 25 FPS, with automatic internal FPS-correction to the actual output FPS. This is the probability of initiating a blink in each 1/25 second interval.
