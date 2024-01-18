@@ -7,7 +7,6 @@ As of January 2024, preferably to be completed before the next release.
 
 #### Backend
 
-- Add configurable crop filter (after posing, before postproc) to trim unused space around the sides of the character, to allow better positioning of the character in **MovingUI** mode.
 - Postprocessor: make real brightness filters, to decouple translucency from all other filters.
   - Currently many of the filters abuse the alpha channel as a luma substitute, which looks fine for a scifi hologram, but not for some other use cases.
   - Need to convert between RGB and some other color space. Preferably not YUV, since that doesn't map so well to RGB and back.
@@ -15,12 +14,12 @@ As of January 2024, preferably to be completed before the next release.
       https://www.cs.sfu.ca/mmbook/programming_assignments/additional_notes/rgb_yuv_note/RGB-YUV.pdf
   - Maybe HSL, or HCL, or a combined strategy from both, like in this R package:
       https://colorspace.r-forge.r-project.org/articles/manipulation_utilities.html
-- Add a server-side config for animator and postprocessor settings.
-  - For symmetry with emotion handling; but also foreseeable that target FPS is an installation-wide thing instead of a character-wide thing.
-    Currently we don't have a way to set it installation-wide.
 
 #### Frontend
 
+- Figure out why the crop filter doesn't help in positioning the `talkinghead` sprite in *MovingUI* mode.
+  - There must be some logic at the frontend side that reserves a square shape for the talkinghead sprite output,
+    regardless of the image dimensions or aspect ratio of the actual `result_feed`.
 - Check zip upload whether it refreshes the talkinghead character (it should).
 - Switching `talkinghead` mode on/off in Character Expressions should set the expression to the current emotion.
   - The client *does* store the emotion, as evidenced by this quick reply STScript:
