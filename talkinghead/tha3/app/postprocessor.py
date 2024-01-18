@@ -5,6 +5,7 @@ These effects work in linear intensity space, before gamma correction.
 
 __all__ = ["Postprocessor"]
 
+from collections import defaultdict
 import logging
 import math
 import time
@@ -117,9 +118,9 @@ class Postprocessor:
         self.last_report_time = None
 
         # Caches for individual dynamic effects
-        self.alphanoise_last_image = None
-        self.vhs_glitch_last_image = None
-        self.vhs_glitch_last_mask = None
+        self.alphanoise_last_image = defaultdict(lambda: None)
+        self.vhs_glitch_last_image = defaultdict(lambda: None)
+        self.vhs_glitch_last_mask = defaultdict(lambda: None)
 
     def render_into(self, image):
         """Apply current postprocess chain, modifying `image`."""
@@ -341,7 +342,8 @@ class Postprocessor:
 
     def alphanoise(self, image: torch.tensor, *,
                    magnitude: float = 0.1,
-                   sigma: float = 0.0) -> None:
+                   sigma: float = 0.0,
+                   name: str = "alphanoise0") -> None:
         """[dynamic] Dynamic noise to alpha channel. A cheap alternative to luma noise.
 
         `magnitude`: How much noise to apply. 0 is off, 1 is as much noise as possible.
@@ -353,21 +355,25 @@ class Postprocessor:
                  somewhat accurate. Nevertheless, `sigma = 2.0` looks acceptable, too, producing
                  square blobs.
 
+        `name`: Optional name for this filter instance in the chain. Used as cache key.
+                If you have more than one `alphanoise` in the chain, they should have
+                different names so that each one gets its own cache.
+
         Suggested settings:
             Scifi hologram:   magnitude=0.1, sigma=0.0
             Analog VHS tape:  magnitude=0.2, sigma=2.0
         """
         # Re-randomize the noise image whenever the normalized frame changes
-        if self.alphanoise_last_image is None or int(self.frame_no) > int(self.last_frame_no):
+        if self.alphanoise_last_image[name] is None or int(self.frame_no) > int(self.last_frame_no):
             c, h, w = image.shape
             noise_image = torch.rand(h, w, device=self.device, dtype=image.dtype)
             if sigma > 0.0:
                 noise_image = noise_image.unsqueeze(0)  # [h, w] -> [c, h, w] (where c=1)
                 noise_image = torchvision.transforms.GaussianBlur((5, 5), sigma=sigma)(noise_image)
                 noise_image = noise_image.squeeze(0)  # -> [h, w]
-            self.alphanoise_last_image = noise_image
+            self.alphanoise_last_image[name] = noise_image
         else:
-            noise_image = self.alphanoise_last_image
+            noise_image = self.alphanoise_last_image[name]
         base_magnitude = 1.0 - magnitude
         image[3, :, :].mul_(base_magnitude + magnitude * noise_image)
 
@@ -448,7 +454,8 @@ class Postprocessor:
                            strength: float = 0.1,
                            unboost: float = 4.0,
                            max_glitches: int = 3,
-                           min_glitch_height: int = 3, max_glitch_height: int = 6) -> None:
+                           min_glitch_height: int = 3, max_glitch_height: int = 6,
+                           name: str = "analog_vhsglitches0") -> None:
         """[dynamic] Damaged 1980s VHS video tape, with transient (per-frame) glitching lines.
 
         This leaves the alpha channel alone, so the effect only affects parts that already show something.
@@ -460,11 +467,15 @@ class Postprocessor:
                    and there will be fewer of them (in the same video frame) when they do appear.
         `max_glitches`: Maximum number of glitches in the video frame.
         `min_glitch_height`, `max_glitch_height`: in pixels. The height is randomized separately for each glitch.
+
+        `name`: Optional name for this filter instance in the chain. Used as cache key.
+                If you have more than one `analog_vhsglitches` in the chain, they should have
+                different names so that each one gets its own cache.
         """
         # Re-randomize the glitch noise image whenever the normalized frame changes
         # TODO: Add `hold_min`, `hold_max` parameters (similarly to how blink and sway work) to set how long a set of glitches persists.
         # TODO: Especially useful if we add support for multiple copies of the same kind of effect, since then they could have different settings.
-        if self.vhs_glitch_last_image is None or int(self.frame_no) > int(self.last_frame_no):
+        if self.vhs_glitch_last_image[name] is None or int(self.frame_no) > int(self.last_frame_no):
             n_glitches = torch.rand(1, device="cpu")**unboost  # unboost: increase probability of having none or few glitching lines
             n_glitches = int(max_glitches * n_glitches[0])
             if not n_glitches:
@@ -481,11 +492,11 @@ class Postprocessor:
                     glitch_height = int(min_glitch_height + (max_glitch_height - min_glitch_height) * glitch_height[0])
                     vhs_glitch_image[0, line:(line + glitch_height), :] = self._vhs_noise(image, height=glitch_height)  # [1, h, w]
                     vhs_glitch_mask[0, line:(line + glitch_height), :] = 1.0
-            self.vhs_glitch_last_image = vhs_glitch_image
-            self.vhs_glitch_last_mask = vhs_glitch_mask
+            self.vhs_glitch_last_image[name] = vhs_glitch_image
+            self.vhs_glitch_last_mask[name] = vhs_glitch_mask
         else:
-            vhs_glitch_image = self.vhs_glitch_last_image
-            vhs_glitch_mask = self.vhs_glitch_last_mask
+            vhs_glitch_image = self.vhs_glitch_last_image[name]
+            vhs_glitch_mask = self.vhs_glitch_last_mask[name]
 
         if vhs_glitch_image is not VHS_GLITCH_BLANK:
             # Apply glitch to RGB only, so fully transparent parts stay transparent (important to make the effect less distracting).

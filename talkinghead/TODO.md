@@ -2,9 +2,6 @@
 
 ### High priority
 
-- BACKEND: Postprocessor: support several effects of the same kind in the chain.
-  - Mostly this already works, but for those dynamic effects that use a cache, only one cache currently exists for each kind of effect, so they will step on each others' toes.
-  - An ID parameter, and making the cache an ID-keyed dictionary, solves this.
 - BACKEND: Add configurable crop filter to trim unused space around the sides of the character, to allow better positioning of the character in **MovingUI** mode.
 - BACKEND: Add a server-side config for animator and postprocessor settings.
   - For symmetry with emotion handling; but also foreseeable that target FPS is an installation-wide thing instead of a character-wide thing.
