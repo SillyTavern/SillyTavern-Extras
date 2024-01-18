@@ -6,6 +6,7 @@
   - For symmetry with emotion handling; but also foreseeable that target FPS is an installation-wide thing instead of a character-wide thing.
     Currently we don't have a way to set it installation-wide.
 - BACKEND: Fix timing of dynamic postprocessor effects, these should also use a 25 FPS reference.
+- BACKEND: Add configurable crop filter to trim unused space around the sides of the character, to allow better positioning of the character in **MovingUI** mode.
 - FRONTEND: Check zip upload whether it refreshes the talkinghead character (it should).
 - FRONTEND: Switching `talkinghead` mode on/off in Character Expressions should set the expression to the current emotion.
   - The client *does* store the emotion, as evidenced by this quick reply STScript:
