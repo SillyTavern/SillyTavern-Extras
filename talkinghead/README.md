@@ -97,7 +97,7 @@ As far as `talkinghead` is concerned, the **sprite position** on the screen is s
 
 Due to the base pose used by the posing engine, the character's legs are always cut off at the bottom of the image, so the sprite needs to be placed at the bottom. You may need to create a custom background image that works with such a placement. Of the default backgrounds, at least the cyberpunk bedroom looks fine.
 
-**IMPORTANT**: Changing your web browser's zoom level will change the size of the character, too, because doing so rescales all images.
+**IMPORTANT**: Changing your web browser's zoom level will change the size of the character, too, because doing so rescales all images, including the live feed.
 
 We rate-limit the output to 25 FPS (maximum) to avoid DoSing the SillyTavern GUI, and we attempt to reach a constant 25 FPS. If the renderer runs faster, the average GPU usage will be lower, because the animation engine only generates as many frames as are actually consumed. If the renderer runs slower, the latest available frame will be re-sent as many times as needed, to isolate the client side from any render hiccups. While the maximum FPS defaults to 25, it is actually configurable; see *Animator configuration*.
 
