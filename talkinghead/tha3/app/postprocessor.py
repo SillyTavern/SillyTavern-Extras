@@ -83,7 +83,7 @@ class Postprocessor:
     In filter descriptions:
         [static] := depends only on input image, no explicit time dependence.
         [dynamic] := beside input image, also depends on time. In other words,
-                     produces animation even if the input image stays the same.
+                     produces animation even for a stationary input image.
     """
 
     def __init__(self, device: torch.device, chain: Optional[List[Tuple[str, Dict[str, MaybeContained[Atom]]]]] = None):
@@ -123,7 +123,7 @@ class Postprocessor:
         self.vhs_glitch_last_mask = defaultdict(lambda: None)
 
     def render_into(self, image):
-        """Apply current postprocess chain, modifying `image`."""
+        """Apply current postprocess chain, modifying `image` in-place."""
         time_render_start = time.time_ns()
 
         c, h, w = image.shape
@@ -204,6 +204,7 @@ class Postprocessor:
             apply_filter = getattr(self, filter_name)
             apply_filter(image, **settings)
 
+        # Measure the performance of the postprocessor.
         time_now = time.time_ns()
         render_elapsed_sec = (time_now - time_render_start) / 10**9
         self.render_duration_statistics.add_datapoint(render_elapsed_sec)
@@ -403,6 +404,8 @@ class Postprocessor:
                         amplitude3: Optional[float] = 0.001, density3: Optional[float] = 27.0) -> None:
         """[dynamic] Analog video signal with fluctuating hsync.
 
+        In practice, this looks like a rippling effect added to the outline of the character.
+
         We superpose three waves with different densities (1 / cycle length)
         to make the pattern look more irregular.
 
@@ -410,6 +413,12 @@ class Postprocessor:
 
         Amplitudes are given in units where the height and width of the image
         are both 2.0.
+
+        `speed`: At speed 1.0, a wave of `density = 1.0` completes a full cycle every
+                 `image_height` frames. So effectively the cycle position updates by
+                 `speed * (1 / image_height)` at each frame.
+
+        Note that "frame" here refers to the normalized frame number, at a reference of 25 FPS.
         """
         c, h, w = image.shape
 
@@ -511,7 +520,15 @@ class Postprocessor:
 
         Image floats up and down, and a band of black and white noise appears at the bottom.
 
-        Units like in `analog_badhsync`.
+        Units like in `analog_badhsync`:
+
+        Offsets are given in units where the height of the image is 2.0.
+
+        `speed`: At speed 1.0, the floating motion completes a full cycle every
+                 `image_height` frames. So effectively the cycle position updates by
+                 `speed * (1 / image_height)` at each frame.
+
+        Note that "frame" here refers to the normalized frame number, at a reference of 25 FPS.
         """
         c, h, w = image.shape
 
@@ -648,6 +665,8 @@ class Postprocessor:
         `strength`: maximum brightness factor
         `density`: how many banding cycles per full image height
         `speed`: band movement, in pixels per frame
+
+        Note that "frame" here refers to the normalized frame number, at a reference of 25 FPS.
         """
         c, h, w = image.shape
         yy = torch.linspace(0, math.pi, h, dtype=image.dtype, device=self.device)
@@ -672,10 +691,12 @@ class Postprocessor:
         `field`: Which CRT field is dimmed at the first frame. 0 = top, 1 = bottom.
         `dynamic`: If `True`, the dimmed field will alternate each frame (top, bottom, top, bottom, ...)
                    for a more authentic CRT look (like Phosphor deinterlacer in VLC).
+
+        Note that "frame" here refers to the normalized frame number, at a reference of 25 FPS.
         """
         if dynamic:
             start = (field + int(self.frame_no)) % 2
         else:
             start = field
-        # We should ideally modify just the Y channel in YUV space, but modifying the alpha instead looks alright.
+        # We should ideally modify just the Y channel in YUV space, but modifying the alpha instead looks alright, and is much cheaper.
         image[3, start::2, :].mul_(0.5)
