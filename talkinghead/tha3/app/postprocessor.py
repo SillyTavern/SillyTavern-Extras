@@ -130,6 +130,7 @@ class Postprocessor:
 
         c, h, w = image.shape
         if h != self._prev_h or w != self._prev_w:
+            logger.info(f"render_into: Computing pixel position tensors for image size {w}x{h}")
             # Compute base meshgrid for the geometric position of each pixel.
             # This is needed by filters that either vary by geometric position (e.g. `vignetting`),
             # or deform the image (e.g. `analog_badhsync`).
@@ -145,6 +146,7 @@ class Postprocessor:
             self._meshy, self._meshx = torch.meshgrid((self._yy, self._xx), indexing="ij")
             self._prev_h = h
             self._prev_w = w
+            logger.info("render_into: Pixel position tensors cached")
 
         # Update the frame counter.
         #
