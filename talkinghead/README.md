@@ -203,7 +203,7 @@ Currently, we provide some filters that simulate a lo-fi analog video look.
 
 - `analog_lowres`: Simulates a low-resolution analog video signal by blurring the image.
 - `analog_badhsync`: Simulates bad horizontal synchronization (hsync) of an analog video signal, causing a wavy effect that causes the outline of the character to ripple.
-- `analog_vhsglitches`: Simulates a damaged 1980s VHS tape. In each frame, causes random lines to glitch with VHS noise.
+- `analog_vhsglitches`: Simulates a damaged 1980s VHS tape. In each 25 FPS frame, causes random lines to glitch with VHS noise.
 - `analog_vhstracking`: Simulates a 1980s VHS tape with bad tracking. The image floats up and down, and a band of VHS noise appears at the bottom.
 
 **Display**:
