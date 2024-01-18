@@ -309,7 +309,7 @@ To use this, save this **at the client end** as `SillyTavern/public/characters/y
 
 This is a standalone wxPython app that you can run locally on the machine where you installed *SillyTavern-extras*. It is based on the original manual poser app in the THA3 tech demo, but this version has some important new convenience features and usability improvements.
 
-It uses the same models as the live mode. If the directory `talkinghead/tha3/models/` (under the top level of *SillyTavern-extras*) does not exist, the model files are automatically downloaded from HuggingFace and installed there.
+It uses the same THA3 poser models as the live mode. If the directory `talkinghead/tha3/models/` (under the top level of *SillyTavern-extras*) does not exist, the model files are automatically downloaded from HuggingFace and installed there.
 
 With this app, you can:
 
