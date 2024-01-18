@@ -86,31 +86,33 @@ The live mode is configured per-character, via files **at the client end**:
 - `SillyTavern/public/characters/yourcharacternamehere/talkinghead.png`: required. The **input image** for the animator.
   - The `talkinghead` extension does not use or even see the other `.png` files. They are used by *Character Expressions* when *talkinghead mode* is disabled.
 - `SillyTavern/public/characters/yourcharacternamehere/_animator.json`: optional. **Animator and postprocessor settings**.
-  - If a character does not have this file, default settings are used.
+  - If a character does not have this file, server-side default settings are used.
 - `SillyTavern/public/characters/yourcharacternamehere/_emotions.json`: optional. **Custom emotion templates**.
-  - If a character does not have this file, default settings are used. Most of the time, there is no need to customize the emotion templates per-character.
+  - If a character does not have this file, server-side default settings are used. Most of the time, there is no need to customize the emotion templates per-character.
   - *At the client end*, only this one file is needed (or even supported) to customize the emotion templates.
 
-As far as `talkinghead` is concerned, the **sprite position** on the screen is static. However, if you enable the **MovingUI** checkbox in *User Settings ⊳ Advanced*, you can manually position the sprite in the GUI, by dragging its move handle. Note that there is some empty space in the sprite canvas around the sides of the character, so the character will not be able to fit flush against the edge of the window (since that empty space hits the edge of the window first).
+By default, the **sprite position** on the screen is static. However, by enabling the **MovingUI** checkbox in *User Settings ⊳ Advanced*, you can manually position the sprite in the GUI, by dragging its move handle. Note that there is some empty space in the sprite canvas around the sides of the character, so the character will not be able to fit flush against the edge of the window (since that empty space hits the edge of the window first). To cut away that empty space, see the crop options in *Animator configuration*.
 
-Due to the base pose used by the posing engine, the character's legs are always cut off at the bottom of the image, so the sprite needs to be placed at the bottom. You may need to create a custom background image that works with such a placement. Of the default backgrounds, at least the cyberpunk bedroom looks fine.
+Due to the base pose used by the posing engine, the character's legs are always cut off at the bottom of the image; the sprite is designed to be placed at the bottom. You may need to create a custom background image that works with such a placement. Of the default backgrounds, at least the cyberpunk bedroom looks fine.
 
 **IMPORTANT**: Changing your web browser's zoom level will change the size of the character, too, because doing so rescales all images, including the live feed.
 
-We rate-limit the output to 25 FPS (maximum) to avoid DoSing the SillyTavern GUI, and we attempt to reach a constant 25 FPS. If the renderer runs faster, the average GPU usage will be lower, because the animation engine only generates as many frames as are actually consumed. If the renderer runs slower, the latest available frame will be re-sent as many times as needed, to isolate the client side from any render hiccups. While the maximum FPS defaults to 25, it is actually configurable; see *Animator configuration*.
+We rate-limit the output to 25 FPS (maximum, default) to avoid DoSing the SillyTavern GUI, and we attempt to reach a constant 25 FPS. If the renderer runs faster, the average GPU usage will be lower, because the animation engine only generates as many frames as are actually consumed. If the renderer runs slower, the latest available frame will be re-sent as many times as needed, to isolate the client side from any render hiccups. The maximum FPS defaults to 25, but is configurable; see *Animator configuration*.
 
 #### Emotion templates
 
-Emotion templates use the same format as the factory settings in `SillyTavern-extras/talkinghead/emotions/_defaults.json`. The manual poser app included with `talkinghead` is a GUI editor for these templates.
+The manual poser app included with `talkinghead` is a GUI editor for these templates.
 
 The batch export of the manual poser produces a set of static expression images (and corresponding emotion templates), but also an `_emotions.json`, in your chosen output folder. You can use this file at the client end as `SillyTavern/public/characters/yourcharacternamehere/_emotions.json`. This is convenient if you have customized your emotion templates, and wish to share one of your characters with other users, making it automatically use your version of the templates.
+
+The file `_emotions.json` uses the same format as the factory settings in `SillyTavern-extras/talkinghead/emotions/_defaults.json`.
 
 Emotion template lookup order is:
 
 - The set of per-character custom templates sent by the ST client, read from `SillyTavern/public/characters/yourcharacternamehere/_emotions.json` if it exists.
 - Server defaults, from the individual files `SillyTavern-extras/talkinghead/emotions/emotionnamehere.json`.
   - These are customizable. You can e.g. overwrite `curiosity.json` to change the default template for the *"curiosity"* emotion.
-  - **IMPORTANT**: *However, updating SillyTavern-extras from git may overwrite your changes to the server-side default emotion templates.*
+  - **IMPORTANT**: *However, updating SillyTavern-extras from git may overwrite your changes to the server-side default emotion templates. Keep a backup if you customize these.*
 - Factory settings, from `SillyTavern-extras/talkinghead/emotions/_defaults.json`.
   - **IMPORTANT**: Never overwrite or remove this file.
 
@@ -134,7 +136,11 @@ Animator and postprocessor settings lookup order is:
 
 - The custom per-character settings sent by the ST client, read from `SillyTavern/public/characters/yourcharacternamehere/_animator.json` if it exists.
 - Server defaults, from `SillyTavern-extras/talkinghead/animator.json`, if it exists.
-- Built-in defaults, hardcoded in [`talkinghead/tha3/app/app.py`](tha3/app/app.py).
+  - This file is customizable.
+  - **IMPORTANT**: *However, updating SillyTavern-extras from git may overwrite your changes to the server-side animator and postprocessor configuration. Keep a backup if you customize this.*
+- Built-in defaults, hardcoded as `animator_defaults` in [`talkinghead/tha3/app/app.py`](tha3/app/app.py).
+  - **IMPORTANT**: Never change these!
+  - The built-in defaults are used for validation of available settings, so they are guaranteed to be complete.
 
 Any setting that is missing from a particular level in the lookup order falls through to be looked up at the next level.
 
@@ -142,7 +148,7 @@ The idea of per-character animator and postprocessor settings is that this allow
 
 Here is a complete example of `animator.json`, showing the default values:
 
-```
+```json
 {"target_fps": 25,
  "crop_left": 0.0,
  "crop_right": 0.0,
@@ -166,7 +172,7 @@ Here is a complete example of `animator.json`, showing the default values:
 
 Note that some settings make more sense as server defaults, while others make more sense as per-character settings.
 
-Particularly, `target_fps` makes the most sense to set globally at the server side, in `SillyTavern-extras/talkinghead/animator.json`, while almost everything else makes more sense per-character, in `SillyTavern/public/characters/yourcharacternamehere/_animator.json`.
+Particularly, `target_fps` makes the most sense to set globally at the server side, in `SillyTavern-extras/talkinghead/animator.json`, while almost everything else makes more sense per-character, in `SillyTavern/public/characters/yourcharacternamehere/_animator.json`. Nevertheless, providing server-side defaults is a good idea, since the per-character animation configuration is optional.
 
 **What each settings does**:
 
@@ -191,15 +197,17 @@ Particularly, `target_fps` makes the most sense to set globally at the server si
 
 *The available settings keys and examples are kept up-to-date on a best-effort basis, but there is a risk of this documentation being out of date. When in doubt, refer to the actual source code, which comes with extensive docstrings and comments. The final authoritative source is the implementation itself.*
 
-The postprocessor configuration is part of `_animator.json`, stored under the key `"postprocessor_chain"`.
+The postprocessor configuration is stored as part of the animator configuration, stored under the key `"postprocessor_chain"`.
 
-Postprocessing requires some additional compute, depending on the filters used and their settings. When `talkinghead` runs on the GPU, also the postprocessor filters run on the GPU. In gaming technology terms, they are essentially fragment shaders, implemented in PyTorch.
+Postprocessing requires some additional compute, depending on the filters used and their settings. When `talkinghead` runs on the GPU, also the postprocessing filters run on the GPU. In gaming technology terms, they are essentially fragment shaders, implemented in PyTorch.
 
 The filters in the postprocessor chain are applied to the image in the order in which they appear in the list. That is, the filters themselves support rendering in any order. However, for best results, it is useful to keep in mind the process a real physical signal would travel through:
 
 *Light* ⊳ *Camera* ⊳ *Transport* ⊳ *Display*
 
 and set the order for the filters based on that. However, this does not mean that there is just one correct ordering. Some filters are *general-use*, and may make sense at several points in the chain, depending on what you wish to simulate. Feel free to improvise, but make sure to understand why your filter chain makes sense.
+
+The chain is allowed have several instances of the same filter. This is useful e.g. for multiple copies of an effect with different parameter values, or for applying the same general-use effect at more than one point in the chain. Note that some dynamic filters require tracking some state. These filters have a `name` parameter. The dynamic state storage is accessed by name, so the different instances should be configured with different names, so that they will not step on each others' toes in tracking their state.
 
 The following postprocessing filters are available. Options for each filter are documented in the docstrings in [`talkinghead/tha3/app/postprocessor.py`](tha3/app/postprocessor.py).
 
@@ -290,9 +298,9 @@ Then we again render the output on a simulated CRT TV, as appropriate for the 19
 
 #### Complete example: animator and postprocessor settings
 
-This example uses the default values for the animator (to give a template that is easy to tune), but sets up the postprocessor as in the "scifi hologram" example above.
+This example combines the default values for the animator with the "scifi hologram" postprocessor example above.
 
-To use this, save this **at the client end** as `SillyTavern/public/characters/yourcharacternamehere/_animator.json` (i.e. as `_animator.json`, in the same folder where the sprites for your character are), and make `talkinghead` reload your character (for example, by toggling `talkinghead` off and back on in the SillyTavern settings).
+This part goes **at the server end** as `SillyTavern-extras/talkinghead/animator.json`, to make it apply to all `talkinghead` characters that do not provide their own values for these settings:
 
 ```json
 {"target_fps": 25,
@@ -308,8 +316,14 @@ To use this, save this **at the client end** as `SillyTavern/public/characters/y
  "sway_interval_max": 10.0,
  "sway_macro_strength": 0.6,
  "sway_micro_strength": 0.02,
- "breathing_cycle_duration": 4.0,
- "postprocessor_chain": [["bloom", {}],
+ "breathing_cycle_duration": 4.0
+}
+```
+
+This part goes **at the client end** as `SillyTavern/public/characters/yourcharacternamehere/_animator.json`, to make it apply only to a specific character (i.e. the one that we want to make into a scifi hologram):
+
+```json
+{"postprocessor_chain": [["bloom", {}],
                          ["translucency", {"alpha": 0.9}],
                          ["alphanoise", {"magnitude": 0.1, "sigma": 0.0}],
                          ["banding", {}],
@@ -318,7 +332,7 @@ To use this, save this **at the client end** as `SillyTavern/public/characters/y
 }
 ```
 
-You can actually edit the configuration file while `talkinghead` is running. Once you have saved your changes to the file, make `talkinghead` reload your character. This also reloads the configuration, thus applying your changes.
+To refresh a running `talkinghead` after updating any of its settings files, make `talkinghead` reload your character. To do this, you can toggle `talkinghead` off and back on in the SillyTavern settings. Upon loading a character, the settings are re-read from disk both at client at server ends.
 
 
 ### Manual poser
@@ -406,7 +420,7 @@ Also, the live mode is not compatible with the popular VTuber software Live2D. R
 
 During development, known bugs are collected into [TODO](TODO.md).
 
-As `talkinghead` is a part of SillyTavern-extras, you may also want to check the [SillyTavern-extras issue tracker](https://github.com/SillyTavern/SillyTavern-Extras/issues/).
+As `talkinghead` is part of *SillyTavern-extras*, you may also want to check the [SillyTavern-extras issue tracker](https://github.com/SillyTavern/SillyTavern-Extras/issues/).
 
 
 ### Creating a character
