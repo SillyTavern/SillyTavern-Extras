@@ -52,6 +52,10 @@ animator_defaults = {"target_fps": 25,  # Desired output frames per second. Note
                                         # or if the hardware is too slow to reach the target FPS, then as often as hardware allows.
                                         # For smooth animation, make the FPS lower than what your hardware could produce, so that some compute
                                         # remains untapped, available to smooth over the occasional hiccup from other running programs.
+                     "crop_left": 0.0,  # in units where the image width is 2.0
+                     "crop_right": 0.0,  # in units where the image width is 2.0
+                     "crop_top": 0.0,  # in units where the image height is 2.0
+                     "crop_bottom": 0.0,  # in units where the image height is 2.0
                      "pose_interpolator_step": 0.1,  # 0 < this <= 1; at each frame at a reference of 25 FPS; FPS-corrected automatically; see `interpolate_pose`.
 
                      "blink_interval_min": 2.0,  # seconds, lower limit for random minimum time until next blink is allowed.
@@ -1048,7 +1052,18 @@ class Animator:
             # - [0]: model's output index for the full result image
             # - model's data range is [-1, +1], linear intensity ("gamma encoded")
             output_image = self.poser.pose(self.source_image, pose)[0].float()
-            # output_image = (output_image + 1.0) / 2.0  # -> [0, 1]
+
+            # A simple crop filter, for removing empty space around character.
+            # Apply this first so that the postprocessor has fewer pixels to process.
+            c, h, w = output_image.shape
+            x1 = int((self._settings["crop_left"] / 2.0) * w)
+            x2 = int((1 - (self._settings["crop_right"] / 2.0)) * w)
+            y1 = int((self._settings["crop_top"] / 2.0) * h)
+            y2 = int((1 - (self._settings["crop_bottom"] / 2.0)) * h)
+            output_image = output_image[:, y1:y2, x1:x2]
+
+            # [-1, 1] -> [0, 1]
+            # output_image = (output_image + 1.0) / 2.0
             output_image.add_(1.0)
             output_image.mul_(0.5)
 

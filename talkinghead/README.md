@@ -138,6 +138,10 @@ Here is a complete example of `_animator.json`, showing the default values:
 
 ```
 {"target_fps": 25,
+ "crop_left": 0.5,
+ "crop_right": 0.5,
+ "crop_top": 0.2,
+ "crop_bottom": 0.0,
  "pose_interpolator_step": 0.1,
  "blink_interval_min": 2.0,
  "blink_interval_max": 5.0,
@@ -157,6 +161,7 @@ Here is a complete example of `_animator.json`, showing the default values:
 where:
 
 - `target_fps`: Desired output frames per second. Note this only affects smoothness of the output (provided that the hardware is fast enough). The speed at which the animation evolves is based on wall time. Snapshots are rendered at the target FPS, or if the hardware is slower, then as often as hardware allows. *Recommendation*: For smooth animation, make the FPS lower than what your hardware could produce, so that some compute remains untapped, available to smooth over the occasional hiccup from other running programs.
+- `crop_left`, `crop_right`, `crop_top`, `crop_bottom`: in units where the width and height of the image are both 2.0. These can be used to cut away empty space around the character. Note the poser always runs on the full 512x512 image due to its design, but the rest of the processing can work with a cropped image.
 - `pose_interpolator_step`: A value such that `0 < step <= 1`. Applied at each frame at a reference of 25 FPS (to standardize the meaning of the setting), with automatic internal FPS-correction to the actual output FPS. Note that the animation is nonlinear. The step controls how much of the *remaining distance* to the current target pose is covered in 1/25 seconds.
 - `blink_interval_min`: seconds. After blinking, lower limit for random minimum time until next blink is allowed.
 - `blink_interval_max`: seconds. After blinking, upper limit for random minimum time until next blink is allowed.
