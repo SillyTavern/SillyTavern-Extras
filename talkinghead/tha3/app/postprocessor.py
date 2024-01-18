@@ -534,8 +534,8 @@ class Postprocessor:
         image[:, :, :] = warped
 
         # Noise from bad VHS tracking at bottom
-        yoffs_pixels = int((yoffs / 2.0) * 512.0)
-        base_offset_pixels = int((base_offset / 2.0) * 512.0)
+        yoffs_pixels = int((yoffs / 2.0) * h)
+        base_offset_pixels = int((base_offset / 2.0) * h)
         noise_pixels = yoffs_pixels + base_offset_pixels
         if noise_pixels > 0:
             image[:, -noise_pixels:, :] = self._vhs_noise(image, height=noise_pixels)
