@@ -1,24 +1,42 @@
 ## Talkinghead TODO
 
+
 ### High priority
 
-- BACKEND: Add configurable crop filter to trim unused space around the sides of the character, to allow better positioning of the character in **MovingUI** mode.
-- BACKEND: Add a server-side config for animator and postprocessor settings.
+As of January 2024, preferably to be completed before the next release.
+
+#### Backend
+
+- Add configurable crop filter (after posing, before postproc) to trim unused space around the sides of the character, to allow better positioning of the character in **MovingUI** mode.
+- Postprocessor: make real brightness filters, to decouple translucency from all other filters.
+  - Currently many of the filters abuse the alpha channel as a luma substitute, which looks fine for a scifi hologram, but not for some other use cases.
+  - Need to convert between RGB and some other color space. Preferably not YUV, since that doesn't map so well to RGB and back.
+      https://stackoverflow.com/questions/17892346/how-to-convert-rgb-yuv-rgb-both-ways
+      https://www.cs.sfu.ca/mmbook/programming_assignments/additional_notes/rgb_yuv_note/RGB-YUV.pdf
+  - Maybe HSL, or HCL, or a combined strategy from both, like in this R package:
+      https://colorspace.r-forge.r-project.org/articles/manipulation_utilities.html
+- Add a server-side config for animator and postprocessor settings.
   - For symmetry with emotion handling; but also foreseeable that target FPS is an installation-wide thing instead of a character-wide thing.
     Currently we don't have a way to set it installation-wide.
-- FRONTEND: Check zip upload whether it refreshes the talkinghead character (it should).
-- FRONTEND: Switching `talkinghead` mode on/off in Character Expressions should set the expression to the current emotion.
+
+#### Frontend
+
+- Check zip upload whether it refreshes the talkinghead character (it should).
+- Switching `talkinghead` mode on/off in Character Expressions should set the expression to the current emotion.
   - The client *does* store the emotion, as evidenced by this quick reply STScript:
     `/lastsprite {{char}} | /echo Current sprite of {{char}}: {{pipe}}`
     So we should find what implements the slash command `/lastsprite`, to find where the emotion is stored.
-- FRONTEND: If `classify` is enabled, emotion state should be updated from the latest AI-generated text
+- If `classify` is enabled, emotion state should be updated from the latest AI-generated text
   when switching chat files, to resume in the same emotion state where the chat left off.
   - Use the expression setting mechanism to set the emotion.
   - Investigate what calls `/api/classify` (other than the expression setting code in Character Expressions); classifying updates the talkinghead state.
     We should make the same code (at the client end) also update the sprite if Character Expressions is enabled, and call that code after switching to a different chat.
-- FRONTEND: Are there other places in *Character Expressions* (`SillyTavern/public/scripts/extensions/expressions/index.js`)
+- Are there other places in *Character Expressions* (`SillyTavern/public/scripts/extensions/expressions/index.js`)
   where we need to check whether the `talkinghead` module is enabled? `(!isTalkingHeadEnabled() || !modules.includes('talkinghead'))`
-- DOCUMENTATION: Polish up the documentation for release.
+
+#### Documentation
+
+- Polish up the documentation for release:
   - Add pictures to the talkinghead README.
     - Screenshot of the manual poser. Anything else we should say about it?
     - Examples of generated poses, highlighting both success and failure cases. How the live talking head looks in the actual SillyTavern GUI. Link the original THA tech reports.
@@ -27,15 +45,24 @@
   - Merge appropriate material from old user manual into the new README.
   - Update/rewrite the user manual, based on the new README.
     - This should replace the old manual at https://docs.sillytavern.app/extras/extensions/talkinghead/
-- EXAMPLES: Add some example characters created in Stable Diffusion.
+
+#### Examples
+
+- Add some example characters created in Stable Diffusion.
   - Original characters only, as per ST content policy.
   - Maybe we should do Seraphina, since she's part of a default SillyTavern install?
 
+
 ### Medium priority
 
-- FRONTEND: When a new talkinghead sprite is uploaded:
-  - The preview thumbnail in the client doesn't update. (The same goes for the other sprites, so this is a general bug in *Character Expressions*.)
-- FRONTEND: Not related to talkinghead, but since I have a TODO list here, I'm dumping notes on some potentially easily fixable things here instead of opening a ticket for each one:
+Maybe some time in the near-ish future. Would be nice to have in the next release.
+
+#### Frontend
+
+- When a new talkinghead sprite is uploaded:
+  - The preview thumbnail in the client doesn't update. The same goes for the other sprites, so this is a general bug in *Character Expressions*.
+
+- Not related to talkinghead, but since I have a TODO list here, I'm dumping notes on some potentially easily fixable things here instead of opening a ticket for each one:
   - In *Manage chat files*, when using the search feature, clicking on a search result either does nothing,
     or opens the wrong chat (often the latest one, whether or not it matched the search terms). When not searching,
     clicking on a previous chat correctly opens that specific chat.
@@ -123,10 +150,11 @@
 
 ### Low priority
 
-- FRONTEND/BACKEND: To save GPU resources, automatically pause animation when the web browser window with SillyTavern is not in focus. Resume when it regains focus.
-  - Needs a new API endpoint for pause/resume. Note the current `/api/talkinghead/unload` is actually a pause function (the client pauses, and
-    then just hides the live image), but there is currently no resume function (except `/api/talkinghead/load`, which requires sending an image file).
-- BACKEND: Low compute mode: static poses + postprocessor.
+Not scheduled for now.
+
+#### Backend
+
+- Low compute mode: static poses + postprocessor.
   - Poses would be generated from `talkinghead.png` using THA3, as usual, but only once per session. Each pose would be cached.
   - To prevent postproc hiccups (in dynamic effects such as CRT TV simulation) during static pose generation in CPU mode, there are at least two possible approaches.
     - Generate all poses when the plugin starts. At 2 FPS and 28 poses, this would lead to a 14-second delay. Not good.
@@ -137,12 +165,9 @@
     - But I'll need to benchmark the postproc code first, whether it's fast enough to run on CPU in realtime.
   - Alpha-blending between the static poses would need to be implemented in the `talkinghead` module, similarly to how the frontend switches between static expression sprites.
     - Maybe a clean way would be to provide different posing strategies (alternative poser classes): realtime posing, or static posing with alpha-blending.
-- FRONTEND: Add live-modifiable configuration for animation and postprocessor settings?
-  - Add a new control panel to SillyTavern client extension settings
-  - Send new configs to backend whenever anything changes
-- BACKEND: Small performance optimization: see if we could use more in-place updates in the postprocessor, to reduce allocation of temporary tensors.
+- Small performance optimization: see if we could use more in-place updates in the postprocessor, to reduce allocation of temporary tensors.
   - The effect on speed will be small; the compute-heaviest part is the inference of the THA3 deep-learning model.
-- BACKEND: Add more postprocessing filters. Possible ideas, no guarantee I'll ever get around to them:
+- Add more postprocessing filters. Possible ideas, no guarantee I'll ever get around to them:
   - Pixelize, posterize (8-bit look)
   - Analog video glitches
     - Partition image into bands, move some left/right temporarily (for a few frames now that we can do that)
@@ -158,12 +183,27 @@
       - Missing data (zero out the alpha?)
       - Blur (leads to replacing by average color, with controllable sigma)
       - Zigzag deformation
-- BACKEND: Investigate if some particular emotions could use a small random per-frame oscillation applied to "iris_small",
+- Investigate if some particular emotions could use a small random per-frame oscillation applied to "iris_small",
   for that anime "intense emotion" effect (since THA3 doesn't have a morph specifically for the specular reflections in the eyes).
+
+#### Frontend
+
+- Add live-modifiable configuration for animation and postprocessor settings?
+  - Add a new control panel to SillyTavern client extension settings
+  - Send new configs to backend whenever anything changes
+
+#### Both frontend and backend
+
+- To save GPU resources, automatically pause animation when the web browser window with SillyTavern is not in focus. Resume when it regains focus.
+  - Needs a new API endpoint for pause/resume. Note the current `/api/talkinghead/unload` is actually a pause function (the client pauses, and
+    then just hides the live image), but there is currently no resume function (except `/api/talkinghead/load`, which requires sending an image file).
+
 
 ### Far future
 
-- Fast, high-quality scaling mechanism.
+Definitely not scheduled. Ideas for future enhancements.
+
+- Fast, high-quality output scaling mechanism.
   - On a 4k display, the character becomes rather small, which looks jarring on the default backgrounds.
   - The algorithm should be cartoon-aware, some modern-day equivalent of waifu2x. A GAN such as 4x-AnimeSharp or Remacri would be nice, but too slow.
   - Maybe the scaler should run at the client side to avoid the need to stream 1024x1024 PNGs.
