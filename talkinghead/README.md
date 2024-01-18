@@ -93,7 +93,7 @@ The live mode is configured per-character, via files **at the client end**:
   - If a character does not have this file, default settings are used. Most of the time, there is no need to customize the emotion templates per-character.
   - *At the client end*, only this one file is needed (or even supported) to customize the emotion templates.
 
-As far as `talkinghead` is concerned, the **sprite position** on the screen is static. However, if you enable the **MovingUI** checkbox in *User Settings ⊳ Advanced*, you can manually move the sprite in the GUI, by dragging its move handle. Note that there is some empty space in the sprite canvas around the sides of the character, so the character will not be able to fit flush against the edge of the window (since that empty space hits the edge of the window first).
+As far as `talkinghead` is concerned, the **sprite position** on the screen is static. However, if you enable the **MovingUI** checkbox in *User Settings ⊳ Advanced*, you can manually position the sprite in the GUI, by dragging its move handle. Note that there is some empty space in the sprite canvas around the sides of the character, so the character will not be able to fit flush against the edge of the window (since that empty space hits the edge of the window first).
 
 Due to the base pose used by the posing engine, the character's legs are always cut off at the bottom of the image, so the sprite needs to be placed at the bottom. You may need to create a custom background image that works with such a placement. Of the default backgrounds, at least the cyberpunk bedroom looks fine.
 
