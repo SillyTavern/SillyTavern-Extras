@@ -67,9 +67,7 @@ Here is an example *SillyTavern-extras* config that enables `talkinghead` and `c
 --enable-modules=classify,talkinghead --classification-model=joeddav/distilbert-base-uncased-go-emotions-student --talkinghead-gpu
 ```
 
-To customize which model variant of the THA3 poser to use, and where to install the models from, see the `--talkinghead-model=...` and `--talkinghead-models=...` options, respectively.
-
-If the directory `talkinghead/tha3/models/` (under the top level of *SillyTavern-extras*) does not exist, the model files are automatically downloaded from HuggingFace and installed there.
+To customize which model variant of the THA3 poser to use, and where to install the models from, see the `--talkinghead-model=...` and `--talkinghead-models=...` options, respectively. If the directory `talkinghead/tha3/models/` (under the top level of *SillyTavern-extras*) does not exist, the model files are automatically downloaded from HuggingFace and installed there.
 
 #### Testing your installation
 
