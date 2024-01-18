@@ -464,7 +464,7 @@ class Animator:
         if settings is None:
             settings = {}
 
-        logger.info(f"load_animator_settings: user-provided settings: {settings}")
+        logger.info(f"load_animator_settings: user settings: {settings}")
 
         # Load server-side settings (`talkinghead/animator.json`)
         try:
