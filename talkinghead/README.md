@@ -255,7 +255,7 @@ The `banding` and `scanlines` filters suit this look, so we apply them here, too
 
 #### Postprocessor example: HDR, cheap video camera, 1980s VHS tape
 
-After capturing the light with a cheap video camera (just like in the previous example), we simulate the effects of transporting the signal on a 1980s VHS tape. First, we blur the image with `analog_lowres`. Then we apply `alphanoise` with a nonzero `sigma` to make the noise blobs larger than a single pixel, and a rather high `magnitude`. This simulates the brightness noise on a VHS tape. Then we make the image ripple horizontally with `analog_badhsync`, and add a damaged video tape effect with `analog_vhsglitches`. Finally, we add a bad VHS tracking effect to complete the "bad analog video" look.
+After capturing the light with a cheap video camera (just like in the previous example), we simulate the effects of transporting the signal on a 1980s VHS tape. First, we blur the image with `analog_lowres`. Then we apply `alphanoise` with a nonzero `sigma` to make the noise blobs larger than a single pixel, and a rather high `magnitude`. This simulates the brightness noise on a VHS tape. Then we make the image ripple horizontally with `analog_badhsync`, and add a damaged video tape effect with `analog_vhsglitches`. Finally, we add a bad VHS tracking effect to complete the "bad analog video tape" look.
 
 Then we again render the output on a simulated CRT TV, as appropriate for the 1980s time period.
 
@@ -264,7 +264,7 @@ Then we again render the output on a simulated CRT TV, as appropriate for the 19
                         ["chromatic_aberration", {}],
                         ["vignetting", {}],
                         ["analog_lowres", {}],
-                        ["alphanoise", {"magnitude": 0.2, "sigma": 2.0}],
+                        ["alphanoise", {"magnitude": 0.3, "sigma": 2.0}],
                         ["analog_badhsync", {}],
                         ["analog_vhsglitches", {"unboost": 1.0}],
                         ["analog_vhstracking", {}],
