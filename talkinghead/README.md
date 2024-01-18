@@ -477,4 +477,4 @@ Finally, you may want to upscale, to have enough pixels available to align and c
 
 This software incorporates the [THA3](https://github.com/pkhungurn/talking-head-anime-3-demo) AI-based anime posing engine developed by Pramook Khungurn. The THA3 code is used under the MIT license, and the THA3 AI models are used under the Creative Commons Attribution 4.0 International license. The THA3 example character is used under the Creative Commons Attribution-NonCommercial 4.0 International license. The trained models are currently mirrored [on HuggingFace](https://huggingface.co/OktayAlpk/talking-head-anime-3).
 
-In this software, the manual poser code has been mostly rewritten, and the live mode code (the animation driver) is original to `talkinghead`.
+In this software, the manual poser app has been mostly rewritten, and the live mode (the animation driver) is original to `talkinghead` (although initially inspired by the IFacialMocap demo).
