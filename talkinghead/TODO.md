@@ -51,13 +51,6 @@ Maybe some time in the near-ish future. Would be nice to have in the next releas
 - When a new talkinghead sprite is uploaded:
   - The preview thumbnail in the client doesn't update. The same goes for the other sprites, so this is a general bug in *Character Expressions*.
 
-- Not related to talkinghead, but since I have a TODO list here, I'm dumping notes on some potentially easily fixable things here instead of opening a ticket for each one:
-  - In *Manage chat files*, when using the search feature, clicking on a search result either does nothing,
-    or opens the wrong chat (often the latest one, whether or not it matched the search terms). When not searching,
-    clicking on a previous chat correctly opens that specific chat.
-  - *Render Formulas* shows both the rendered formula and its plaintext. Would look better to show only the rendered formula, unless the user wants to edit it
-    (like the inline LaTeX equation renderer in Emacs).
-
 
 ### Low priority
 
