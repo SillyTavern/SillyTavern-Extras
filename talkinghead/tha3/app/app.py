@@ -15,6 +15,7 @@ __all__ = ["set_emotion_from_classification", "set_emotion",
 
 import atexit
 import io
+import json
 import logging
 import math
 import os
@@ -52,6 +53,10 @@ animator_defaults = {"target_fps": 25,  # Desired output frames per second. Note
                                         # or if the hardware is too slow to reach the target FPS, then as often as hardware allows.
                                         # For smooth animation, make the FPS lower than what your hardware could produce, so that some compute
                                         # remains untapped, available to smooth over the occasional hiccup from other running programs.
+                     "crop_left": 0.0,  # in units where the image width is 2.0
+                     "crop_right": 0.0,  # in units where the image width is 2.0
+                     "crop_top": 0.0,  # in units where the image height is 2.0
+                     "crop_bottom": 0.0,  # in units where the image height is 2.0
                      "pose_interpolator_step": 0.1,  # 0 < this <= 1; at each frame at a reference of 25 FPS; FPS-corrected automatically; see `interpolate_pose`.
 
                      "blink_interval_min": 2.0,  # seconds, lower limit for random minimum time until next blink is allowed.
@@ -285,7 +290,7 @@ def talkinghead_load_file(stream) -> str:
         global_reload_image = PIL.Image.open(io.BytesIO(img_data.getvalue()))  # Set the global_reload_image to a copy of the image data
     except PIL.Image.UnidentifiedImageError:
         logger.warning("Could not load input image from stream, loading blank")
-        full_path = os.path.join(os.getcwd(), os.path.normpath(os.path.join(talkinghead_basedir, "tha3", "images", "inital.png")))
+        full_path = os.path.join(os.getcwd(), os.path.join(talkinghead_basedir, "tha3", "images", "inital.png"))
         global_reload_image = PIL.Image.open(full_path)
     finally:
         animation_running = True
@@ -317,7 +322,7 @@ def launch(device: str, model: str) -> Union[None, NoReturn]:
         global_encoder_instance = Encoder()
 
         # Load initial blank character image
-        full_path = os.path.join(os.getcwd(), os.path.normpath(os.path.join(talkinghead_basedir, "tha3", "images", "inital.png")))
+        full_path = os.path.join(os.getcwd(), os.path.join(talkinghead_basedir, "tha3", "images", "inital.png"))
         global_animator_instance.load_image(full_path)
 
         global_animator_instance.start()
@@ -392,6 +397,7 @@ class Animator:
 
         self.last_sway_target_timestamp = None
         self.last_sway_target_pose = None
+        self.last_microsway_timestamp = None
         self.sway_interval = None
 
         self.last_blink_timestamp = None
@@ -458,28 +464,54 @@ class Animator:
         if settings is None:
             settings = {}
 
-        logger.info(f"load_animator_settings: user-provided settings: {settings}")
+        logger.info(f"load_animator_settings: user settings: {settings}")
 
-        # Warn about unknown settings (not an error, to allow running a newer client on an older server that might support only a subset of the keys the client knows about)
-        if settings:
+        # Load server-side settings (`talkinghead/animator.json`)
+        try:
+            animator_config_path = os.path.join(talkinghead_basedir, "animator.json")
+            with open(animator_config_path, "r") as json_file:
+                server_settings = json.load(json_file)
+        except Exception as exc:
+            logger.info(f"load_animator_settings: skipping server settings, reason: {exc}")
+            server_settings = {}
+
+        # Let's define some helpers:
+        def drop_unrecognized(settings: Dict[str, Any], context: str) -> None:  # DANGER: MUTATING FUNCTION
             unknown_fields = [field for field in settings if field not in animator_defaults]
             if unknown_fields:
-                logger.warning(f"load_animator_settings: unknown keys in user-provided settings; maybe client is newer than server? List follows: {unknown_fields}")
+                logger.warning(f"load_animator_settings: in {context}: this server did not recognize the following settings, ignoring them: {unknown_fields}")
+            for field in unknown_fields:
+                settings.pop(field)
+            assert all(field in animator_defaults for field in settings)  # contract: only known settings remaining
 
-        # Set default values for any settings not provided
-        for field, default_value in animator_defaults.items():
-            type_match = (int, float) if isinstance(default_value, (int, float)) else type(default_value)
-            if field in settings and not isinstance(settings[field], type_match):
-                logger.warning(f"Ignoring invalid setting for '{field}': got {type(settings[field])} with value '{settings[field]}', expected {type_match}")
-                continue
-            if field not in settings:
-                settings[field] = default_value
+        def typecheck(settings: Dict[str, Any], context: str) -> None:  # DANGER: MUTATING FUNCTION
+            for field, default_value in animator_defaults.items():
+                type_match = (int, float) if isinstance(default_value, (int, float)) else type(default_value)
+                if field in settings and not isinstance(settings[field], type_match):
+                    logger.warning(f"load_animator_settings: in {context}: incorrect type for '{field}': got {type(settings[field])} with value '{settings[field]}', expected {type_match}")
+                    settings.pop(field)  # (safe; this is not the collection we are iterating over)
 
-        logger.info(f"load_animator_settings: final settings (filled in from defaults as necessary): {settings}")
+        def aggregate(settings: Dict[str, Any], fallback_settings: Dict[str, Any], fallback_context: str) -> None:  # DANGER: MUTATING FUNCTION
+            for field, default_value in fallback_settings.items():
+                if field not in settings:
+                    logger.info(f"load_animator_settings: filling in '{field}' from {fallback_context}")
+                    settings[field] = default_value
+
+        # Now our settings loading strategy is as simple as:
+        settings = dict(settings)  # copy to avoid modifying the original, since we'll pop some stuff.
+        if settings:
+            drop_unrecognized(settings, context="user settings")
+            typecheck(settings, context="user settings")
+        if server_settings:
+            drop_unrecognized(server_settings, context="server settings")
+            typecheck(server_settings, context="server settings")
+        # both `settings` and `server_settings` are fully valid at this point
+        aggregate(settings, fallback_settings=server_settings, fallback_context="server settings")  # first fill in from server-side settings
+        aggregate(settings, fallback_settings=animator_defaults, fallback_context="built-in defaults")  # then fill in from hardcoded defaults
+
+        logger.info(f"load_animator_settings: final settings (filled in as necessary): {settings}")
 
         # Some settings must be applied explicitly.
-        settings = dict(settings)  # copy to avoid modifying the original, since we'll pop some stuff.
-
         logger.debug(f"load_animator_settings: Setting new target FPS = {settings['target_fps']}")
         target_fps = settings.pop("target_fps")  # global variable, controls the network send rate.
 
@@ -567,9 +599,10 @@ class Animator:
             avg_render_fps = min(avg_render_fps, target_fps)
         else:  # No statistics available yet; let's assume we're running at `target_fps`.
             avg_render_fps = target_fps
-        # Note direction: rendering faster (higher FPS) means less likely to blink per frame (to obtain the same blink density per unit of wall time)
+        # We give an independent trial for each of `n` "normalized frames" elapsed at `CALIBRATION_FPS` during one actual frame at `avg_render_fps`.
+        # Note direction: rendering faster (higher FPS) means less likely to blink per frame, to obtain the same blink density per unit of wall time.
         n = CALIBRATION_FPS / avg_render_fps
-        # We give an independent trial for each of `n` (fictitious) frames elapsed at `CALIBRATION_FPS` during one actual frame at `avg_render_fps`.
+        # If at least one of the normalized frames wants to blink, then the actual frame should blink.
         # Doesn't matter that `n` isn't an integer, since the power function over the reals is continuous and we just want a reasonable scaling here.
         p_scaled = 1.0 - (1.0 - p_orig)**n
         should_blink = (random.random() <= p_scaled)
@@ -753,13 +786,23 @@ class Animator:
                                                 self._settings["sway_interval_max"])  # seconds; duration of this sway target before randomizing new one
             return new_target_pose
 
-        # Add dynamic noise (re-generated every frame) to the target to make the animation look less robotic, especially once we are near the target pose.
+        # Add dynamic noise (re-generated at 25 FPS) to the target to make the animation look less robotic, especially once we are near the target pose.
         def add_microsway() -> None:  # DANGER: MUTATING FUNCTION
-            for key in SWAYPARTS:
-                idx = posedict_key_to_index[key]
-                x = new_target_pose[idx] + random.uniform(-noise_max, noise_max)
-                x = max(-1.0, min(x, 1.0))
-                new_target_pose[idx] = x
+            CALIBRATION_FPS = 25  # FPS at which randomizing a new microsway target looks good
+            time_now = time.time_ns()
+            should_microsway = True
+            if self.last_microsway_timestamp is not None:
+                seconds_since_last_microsway = (time_now - self.last_microsway_timestamp) / 10**9
+                if seconds_since_last_microsway < 1 / CALIBRATION_FPS:
+                    should_microsway = False
+
+            if should_microsway:
+                for key in SWAYPARTS:
+                    idx = posedict_key_to_index[key]
+                    x = new_target_pose[idx] + random.uniform(-noise_max, noise_max)
+                    x = max(-1.0, min(x, 1.0))
+                    new_target_pose[idx] = x
+                self.last_microsway_timestamp = time_now
 
         new_target_pose = macrosway()
         add_microsway()
@@ -1036,7 +1079,18 @@ class Animator:
             # - [0]: model's output index for the full result image
             # - model's data range is [-1, +1], linear intensity ("gamma encoded")
             output_image = self.poser.pose(self.source_image, pose)[0].float()
-            # output_image = (output_image + 1.0) / 2.0  # -> [0, 1]
+
+            # A simple crop filter, for removing empty space around character.
+            # Apply this first so that the postprocessor has fewer pixels to process.
+            c, h, w = output_image.shape
+            x1 = int((self._settings["crop_left"] / 2.0) * w)
+            x2 = int((1 - (self._settings["crop_right"] / 2.0)) * w)
+            y1 = int((self._settings["crop_top"] / 2.0) * h)
+            y2 = int((1 - (self._settings["crop_bottom"] / 2.0)) * h)
+            output_image = output_image[:, y1:y2, x1:x2]
+
+            # [-1, 1] -> [0, 1]
+            # output_image = (output_image + 1.0) / 2.0
             output_image.add_(1.0)
             output_image.mul_(0.5)
 
@@ -1057,6 +1111,8 @@ class Animator:
         time_now = time.time_ns()
         if self.source_image is not None:
             render_elapsed_sec = (time_now - time_render_start) / 10**9
+            # remove the average per-frame postprocessing time, to measure render time only
+            render_elapsed_sec -= self.postprocessor.render_duration_statistics.average()
             self.render_duration_statistics.add_datapoint(render_elapsed_sec)
 
         # Set the new rendered frame as the output image, and mark the frame as ready for consumption.

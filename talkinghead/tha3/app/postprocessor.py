@@ -3,11 +3,21 @@
 These effects work in linear intensity space, before gamma correction.
 """
 
+__all__ = ["Postprocessor"]
+
+from collections import defaultdict
+import logging
 import math
+import time
 from typing import Dict, List, Optional, Tuple, TypeVar, Union
 
 import torch
 import torchvision
+
+from tha3.app.util import RunningAverage, luminance, rgb_to_yuv, yuv_to_rgb
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # # Default configuration for the postprocessor.
 # # This documents the correct ordering of the filters.
@@ -36,6 +46,8 @@ default_chain = []  # Overridden by the animator, which sends us the chain.
 T = TypeVar("T")
 Atom = Union[str, bool, int, float]
 MaybeContained = Union[T, List[T], Dict[str, T]]
+
+VHS_GLITCH_BLANK = object()  # nonce value, see `analog_vhsglitches`
 
 class Postprocessor:
     """
@@ -67,24 +79,59 @@ class Postprocessor:
              taking effect immediately. It is recommended to update the chain atomically, by::
 
                  my_postprocessor.chain = my_new_chain
+
+    In filter descriptions:
+        [static] := depends only on input image, no explicit time dependence.
+        [dynamic] := beside input image, also depends on time. In other words,
+                     produces animation even for a stationary input image.
     """
 
     def __init__(self, device: torch.device, chain: Optional[List[Tuple[str, Dict[str, MaybeContained[Atom]]]]] = None):
         # We intentionally keep very little state in this class, for a more FP/REST approach with less bugs.
-        # There's just the device info, a frame counter, and the current filter chain config (which is read at every frame).
-        # The filters themselves are stateless; but note that they overwrite the image being processed.
+        # Filters for static effects are stateless.
+        #
+        # We deviate from FP in that:
+        #   - The filters MUTATE, i.e. they overwrite the image being processed.
+        #     This is to allow optimizing their implementations for memory usage and speed.
+        #   - The filter for a dynamic effect may store state, if needed for performing FPS correction.
         self.device = device
-        self.frame_no = 0
         if chain is None:
             chain = default_chain
         self.chain = chain
+
+        # Meshgrid cache for geometric position of each pixel
+        self._yy = None
+        self._xx = None
+        self._meshy = None
+        self._meshx = None
         self._prev_h = None
         self._prev_w = None
 
+        # FPS correction
+        self.CALIBRATION_FPS = 25  # design FPS for dynamic effects (for automatic FPS correction)
+        self.stream_start_timestamp = time.time_ns()  # for updating frame counter reliably (no accumulation)
+        self.frame_no = -1  # float, frame counter for *normalized* frame number *at CALIBRATION_FPS*
+        self.last_frame_no = -1
+
+        # Performance measurement
+        self.render_duration_statistics = RunningAverage()
+        self.last_report_time = None
+
+        # Caches for individual dynamic effects
+        self.alphanoise_last_image = defaultdict(lambda: None)
+        self.lumanoise_last_image = defaultdict(lambda: None)
+        self.vhs_glitch_interval = defaultdict(lambda: 0.0)
+        self.vhs_glitch_last_frame_no = defaultdict(lambda: 0.0)
+        self.vhs_glitch_last_image = defaultdict(lambda: None)
+        self.vhs_glitch_last_mask = defaultdict(lambda: None)
+
     def render_into(self, image):
-        """Apply current postprocess chain, modifying `image`."""
+        """Apply current postprocess chain, modifying `image` in-place."""
+        time_render_start = time.time_ns()
+
         c, h, w = image.shape
         if h != self._prev_h or w != self._prev_w:
+            logger.info(f"render_into: Computing pixel position tensors for image size {w}x{h}")
             # Compute base meshgrid for the geometric position of each pixel.
             # This is needed by filters that either vary by geometric position (e.g. `vignetting`),
             # or deform the image (e.g. `analog_badhsync`).
@@ -100,12 +147,80 @@ class Postprocessor:
             self._meshy, self._meshx = torch.meshgrid((self._yy, self._xx), indexing="ij")
             self._prev_h = h
             self._prev_w = w
+            logger.info("render_into: Pixel position tensors cached")
 
-        for filter_name, settings in self.chain:
+        # Update the frame counter.
+        #
+        # We consider the frame number to be a float, so that dynamic filters can decide what
+        # to do at fractional frame positions. For continuously animated effects (e.g. banding)
+        # it makes sense to interpolate continuously, whereas other effects (e.g. scanlines)
+        # can make their decisions based on the integer part.
+        #
+        # As always with floats, we must be careful. Note that we operate in a mindset of robust
+        # engineering. Since doing the Right Thing here does not cost significantly more engineering
+        # effort than doing the intuitive but Wrong Thing, it is preferable to go for the proper solution,
+        # regardless of whether it would take a centuries-long session to actually trigger a failure
+        # in the less robust approach.
+        #
+        # So, floating point accuracy considerations? First, we note that accumulation invites
+        # disaster in two ways:
+        #
+        #   - Accumulating the result accumulates also representation error and roundoff error.
+        #   - When accumulating small positive numbers to a sum total, the update eventually
+        #     becomes too small to add, causing the counter to get stuck. (For floats, `x + ϵ = x`
+        #     for sufficiently small ϵ dependent on the magnitude of `x`.)
+        #
+        # Fortunately, frame number is a linear function of time, and time diffs can be measured
+        # precisely. Thus, we can freshly compute the current frame number at each frame, completely
+        # bypassing the need for accumulation:
+        #
+        seconds_since_stream_start = (time_render_start - self.stream_start_timestamp) / 10**9
+        self.last_frame_no = self.frame_no
+        self.frame_no = self.CALIBRATION_FPS * seconds_since_stream_start  # float!
+
+        # That leaves just the questions of how accurate the calculation is, and for how long.
+        # As to the first question:
+        #
+        #  - Timestamps are an integer number of nanoseconds, so they are exact.
+        #  - Dividing by 10**9, we move the decimal point. But floats are base-2, so 0.1
+        #    is not representable in IEEE-754. So there will be some small representation error,
+        #    which for float64 likely appears in the ~15th significant digit.
+        #  - Basic arithmetic, such as multiplication, is guaranteed by IEEE-754
+        #    to be accurate to the ULP.
+        #
+        # Thus, as the result, we obtain the closest number that is representable in IEEE-754,
+        # and the strategy works for the whole range of float64.
+        #
+        # As for the second question, floats are logarithmically spaced. So if this is left running
+        # "for long enough" during the same session, accuracy will eventually suffer. Instead of the
+        # counter getting stuck, however, this will manifest as the frame number updating by more
+        # than `1.0` each time it updates (i.e. whenever the elapsed number of frames reaches the
+        # next representable float).
+        #
+        # This could be fixed by resetting `stream_start_timestamp` once the frame number
+        # becomes too large. But in practice, how long does it take for this issue to occur?
+        # The ULP becomes 1.0 at ~5e15. To reach frame number 5e15, at the reference 25 FPS,
+        # the time required is 2e14 seconds, i.e. 2.31e9 days, or 6.34 million years.
+        # While I can almost imagine the eventual bug report, I think it's safe to ignore this.
+
+        # Apply the current filter chain.
+        chain = self.chain  # read just once; other threads might reassign it while we're rendering
+        for filter_name, settings in chain:
             apply_filter = getattr(self, filter_name)
             apply_filter(image, **settings)
 
-        self.frame_no += 1
+        # Measure the performance of the postprocessor.
+        time_now = time.time_ns()
+        render_elapsed_sec = (time_now - time_render_start) / 10**9
+        self.render_duration_statistics.add_datapoint(render_elapsed_sec)
+
+        # Log the FPS counter in 5-second intervals.
+        if (self.last_report_time is None or time_now - self.last_report_time > 5e9):
+            avg_render_sec = self.render_duration_statistics.average()
+            msec = round(1000 * avg_render_sec, 1)
+            fps = round(1 / avg_render_sec, 1) if avg_render_sec > 0.0 else 0.0
+            logger.info(f"postproc: {msec:.1f}ms [{fps} FPS available]")
+            self.last_report_time = time_now
 
     # --------------------------------------------------------------------------------
     # Physical input signal
@@ -113,12 +228,13 @@ class Postprocessor:
     def bloom(self, image: torch.tensor, *,
               luma_threshold: float = 0.8,
               hdr_exposure: float = 0.7) -> None:
-        """Bloom effect (fake HDR). Popular in early 2000s anime.
+        """[static] Bloom effect (fake HDR). Popular in early 2000s anime.
 
         Makes bright parts of the image bleed light into their surroundings, enhancing perceived contrast.
         Only makes sense when the talkinghead is rendered on a dark-ish background.
 
         `luma_threshold`: How bright is bright. 0.0 is full black, 1.0 is full white.
+                          (Technically, true relative luminance, not luma, since we work in linear RGB space.)
         `hdr_exposure`: Controls the overall brightness of the output. Like in photography,
                         higher exposure means brighter image (saturating toward white).
         """
@@ -126,7 +242,7 @@ class Postprocessor:
         #   https://learnopengl.com/Advanced-Lighting/Bloom
 
         # Find the bright parts.
-        Y = 0.2126 * image[0, :, :] + 0.7152 * image[1, :, :] + 0.0722 * image[2, :, :]  # HDTV luminance (ITU-R Rec. 709)
+        Y = luminance(image[:3, :, :])
         mask = torch.ge(Y, luma_threshold)  # [h, w]
 
         # Make a copy of the image with just the bright parts.
@@ -156,7 +272,7 @@ class Postprocessor:
     def chromatic_aberration(self, image: torch.tensor, *,
                              transverse_sigma: float = 0.5,
                              axial_scale: float = 0.005) -> None:
-        """Simulate the two types of chromatic aberration in a camera lens.
+        """[static] Simulate the two types of chromatic aberration in a camera lens.
 
         Like everything else here, this is of course made of smoke and mirrors. We simulate the axial effect
         (index of refraction varying w.r.t. wavelength) by geometrically scaling the RGB channels individually,
@@ -206,7 +322,7 @@ class Postprocessor:
 
     def vignetting(self, image: torch.tensor, *,
                    strength: float = 0.42) -> None:
-        """Simulate vignetting (less light hitting the corners of a film frame or CCD sensor).
+        """[static] Simulate vignetting (less light hitting the corners of a film frame or CCD sensor).
 
         The profile used here is [cos(strength * d * pi)]**2, where `d` is the distance
         from the center, scaled such that `d = 1.0` is reached at the corners.
@@ -222,7 +338,7 @@ class Postprocessor:
 
     def translucency(self, image: torch.tensor, *,
                      alpha: float = 0.9) -> None:
-        """A simple translucency filter for a hologram look.
+        """[static] A simple translucency filter for a hologram look.
 
         Multiplicatively adjusts the alpha channel.
         """
@@ -233,8 +349,9 @@ class Postprocessor:
 
     def alphanoise(self, image: torch.tensor, *,
                    magnitude: float = 0.1,
-                   sigma: float = 0.0) -> None:
-        """Dynamic noise to alpha channel. A cheap alternative to luma noise.
+                   sigma: float = 0.0,
+                   name: str = "alphanoise0") -> None:
+        """[dynamic] Dynamic noise to alpha channel.
 
         `magnitude`: How much noise to apply. 0 is off, 1 is as much noise as possible.
 
@@ -245,18 +362,69 @@ class Postprocessor:
                  somewhat accurate. Nevertheless, `sigma = 2.0` looks acceptable, too, producing
                  square blobs.
 
+        `name`: Optional name for this filter instance in the chain. Used as cache key.
+                If you have more than one `alphanoise` in the chain, they should have
+                different names so that each one gets its own cache.
+
         Suggested settings:
             Scifi hologram:   magnitude=0.1, sigma=0.0
             Analog VHS tape:  magnitude=0.2, sigma=2.0
         """
-        c, h, w = image.shape
-        noise_image = torch.rand(h, w, device=self.device, dtype=image.dtype)
-        if sigma > 0.0:
-            noise_image = noise_image.unsqueeze(0)  # [h, w] -> [c, h, w] (where c=1)
-            noise_image = torchvision.transforms.GaussianBlur((5, 5), sigma=sigma)(noise_image)
-            noise_image = noise_image.squeeze(0)  # -> [h, w]
+        # Re-randomize the noise image whenever the normalized frame changes
+        if self.alphanoise_last_image[name] is None or int(self.frame_no) > int(self.last_frame_no):
+            c, h, w = image.shape
+            noise_image = torch.rand(h, w, device=self.device, dtype=image.dtype)
+            if sigma > 0.0:
+                noise_image = noise_image.unsqueeze(0)  # [h, w] -> [c, h, w] (where c=1)
+                noise_image = torchvision.transforms.GaussianBlur((5, 5), sigma=sigma)(noise_image)
+                noise_image = noise_image.squeeze(0)  # -> [h, w]
+            self.alphanoise_last_image[name] = noise_image
+        else:
+            noise_image = self.alphanoise_last_image[name]
         base_magnitude = 1.0 - magnitude
         image[3, :, :].mul_(base_magnitude + magnitude * noise_image)
+
+    def lumanoise(self, image: torch.tensor, *,
+                  magnitude: float = 0.1,
+                  sigma: float = 0.0,
+                  name: str = "lumanoise0") -> None:
+        """[dynamic] Dynamic noise to luminance, without touching colors or alpha.
+
+        Based on converting `image` from RGB to YUV, noising it there, and converting back.
+
+        `magnitude`: How much noise to apply. 0 is off, 1 is as much noise as possible.
+
+        `sigma`: If nonzero, apply a Gaussian blur to the noise, thus reducing its spatial frequency
+                 (i.e. making larger and smoother "noise blobs").
+
+                 The blur kernel size is fixed to 5, so `sigma = 1.0` is the largest that will be
+                 somewhat accurate. Nevertheless, `sigma = 2.0` looks acceptable, too, producing
+                 square blobs.
+
+        `name`: Optional name for this filter instance in the chain. Used as cache key.
+                If you have more than one `alphanoise` in the chain, they should have
+                different names so that each one gets its own cache.
+
+        Suggested settings:
+            Scifi hologram:   magnitude=0.1, sigma=0.0
+            Analog VHS tape:  magnitude=0.2, sigma=2.0
+        """
+        # Re-randomize the noise image whenever the normalized frame changes
+        if self.lumanoise_last_image[name] is None or int(self.frame_no) > int(self.last_frame_no):
+            c, h, w = image.shape
+            noise_image = torch.rand(h, w, device=self.device, dtype=image.dtype)
+            if sigma > 0.0:
+                noise_image = noise_image.unsqueeze(0)  # [h, w] -> [c, h, w] (where c=1)
+                noise_image = torchvision.transforms.GaussianBlur((5, 5), sigma=sigma)(noise_image)
+                noise_image = noise_image.squeeze(0)  # -> [h, w]
+            self.lumanoise_last_image[name] = noise_image
+        else:
+            noise_image = self.lumanoise_last_image[name]
+        base_magnitude = 1.0 - magnitude
+        image_yuv = rgb_to_yuv(image[:3, :, :])
+        image_yuv[0, :, :].mul_(base_magnitude + magnitude * noise_image)
+        image_rgb = yuv_to_rgb(image_yuv)
+        image[:3, :, :] = image_rgb
 
     # --------------------------------------------------------------------------------
     # Lo-fi analog video
@@ -264,7 +432,7 @@ class Postprocessor:
     def analog_lowres(self, image: torch.tensor, *,
                       kernel_size: int = 5,
                       sigma: float = 0.75) -> None:
-        """Low-resolution analog video signal, simulated by blurring.
+        """[static] Low-resolution analog video signal, simulated by blurring.
 
         `kernel_size`: size of the Gaussian blur kernel, in pixels.
         `sigma`: standard deviation of the Gaussian blur kernel, in pixels.
@@ -282,7 +450,9 @@ class Postprocessor:
                         amplitude1: float = 0.001, density1: float = 4.0,
                         amplitude2: Optional[float] = 0.001, density2: Optional[float] = 13.0,
                         amplitude3: Optional[float] = 0.001, density3: Optional[float] = 27.0) -> None:
-        """Analog video signal with fluctuating hsync.
+        """[dynamic] Analog video signal with fluctuating hsync.
+
+        In practice, this looks like a rippling effect added to the outline of the character.
 
         We superpose three waves with different densities (1 / cycle length)
         to make the pattern look more irregular.
@@ -291,10 +461,17 @@ class Postprocessor:
 
         Amplitudes are given in units where the height and width of the image
         are both 2.0.
+
+        `speed`: At speed 1.0, a wave of `density = 1.0` completes a full cycle every
+                 `image_height` frames. So effectively the cycle position updates by
+                 `speed * (1 / image_height)` at each frame.
+
+        Note that "frame" here refers to the normalized frame number, at a reference of 25 FPS.
         """
         c, h, w = image.shape
 
         # Animation
+        # FPS correction happens automatically, because `frame_no` is normalized to CALIBRATION_FPS.
         cycle_pos = (self.frame_no / h) * speed
         cycle_pos = cycle_pos - float(int(cycle_pos))  # fractional part
         cycle_pos = 1.0 - cycle_pos  # -> motion from top toward bottom
@@ -334,8 +511,10 @@ class Postprocessor:
                            strength: float = 0.1,
                            unboost: float = 4.0,
                            max_glitches: int = 3,
-                           min_glitch_height: int = 3, max_glitch_height: int = 6) -> None:
-        """Damaged 1980s VHS video tape, with transient (per-frame) glitching lines.
+                           min_glitch_height: int = 3, max_glitch_height: int = 6,
+                           hold_min: int = 1, hold_max: int = 3,
+                           name: str = "analog_vhsglitches0") -> None:
+        """[dynamic] Damaged 1980s VHS video tape, with transient (per-frame) glitching lines.
 
         This leaves the alpha channel alone, so the effect only affects parts that already show something.
         This is an artistic interpretation that makes the effect less distracting when used with RGBA data.
@@ -346,34 +525,67 @@ class Postprocessor:
                    and there will be fewer of them (in the same video frame) when they do appear.
         `max_glitches`: Maximum number of glitches in the video frame.
         `min_glitch_height`, `max_glitch_height`: in pixels. The height is randomized separately for each glitch.
+        `hold_min`, `hold_max`: in frames (at a reference of 25 FPS). Limits for the random time that the
+                                filter holds one glitch pattern before randomizing the next one.
+
+        `name`: Optional name for this filter instance in the chain. Used as cache key.
+                If you have more than one `analog_vhsglitches` in the chain, they should have
+                different names so that each one gets its own cache.
         """
-        c, h, w = image.shape
-        n_glitches = torch.rand(1, device="cpu")**unboost  # higher probability of having none or few glitching lines
-        n_glitches = int(max_glitches * n_glitches[0])
-        if not n_glitches:
-            return
-        glitch_start_lines = torch.rand(n_glitches, device="cpu")
-        glitch_start_lines = [int((h - (max_glitch_height - 1)) * x) for x in glitch_start_lines]
-        for line in glitch_start_lines:
-            glitch_height = torch.rand(1, device="cpu")
-            glitch_height = int(min_glitch_height + (max_glitch_height - min_glitch_height) * glitch_height[0])
-            noise_image = self._vhs_noise(image, height=glitch_height)
+        # Re-randomize the glitch noise image whenever enough frames have elapsed after last randomization
+        if self.vhs_glitch_last_image[name] is None or (int(self.frame_no) - int(self.vhs_glitch_last_frame_no[name])) >= self.vhs_glitch_interval[name]:
+            n_glitches = torch.rand(1, device="cpu")**unboost  # unboost: increase probability of having none or few glitching lines
+            n_glitches = int(max_glitches * n_glitches[0])
+            if not n_glitches:
+                vhs_glitch_image = VHS_GLITCH_BLANK  # use a nonce value instead of None to distinguish between "uninitialized" and "no glitches during current glitch interval"
+                vhs_glitch_mask = None
+            else:
+                c, h, w = image.shape
+                vhs_glitch_image = torch.zeros(1, h, w, dtype=image.dtype, device=self.device)  # monochrome
+                vhs_glitch_mask = torch.zeros(1, h, w, dtype=image.dtype, device=self.device)  # alpha only
+                glitch_start_lines = torch.rand(n_glitches, device="cpu")
+                glitch_start_lines = [int((h - (max_glitch_height - 1)) * x) for x in glitch_start_lines]
+                for line in glitch_start_lines:
+                    glitch_height = torch.rand(1, device="cpu")
+                    glitch_height = int(min_glitch_height + (max_glitch_height - min_glitch_height) * glitch_height[0])
+                    vhs_glitch_image[0, line:(line + glitch_height), :] = self._vhs_noise(image, height=glitch_height)  # [1, h, w]
+                    vhs_glitch_mask[0, line:(line + glitch_height), :] = 1.0  # mark the glitching lines for blending
+            self.vhs_glitch_last_image[name] = vhs_glitch_image
+            self.vhs_glitch_last_mask[name] = vhs_glitch_mask
+            # Randomize time until next change of glitch pattern
+            self.vhs_glitch_interval[name] = round(hold_min + float(torch.rand(1, device="cpu")[0]) * (hold_max - hold_min))
+            self.vhs_glitch_last_frame_no[name] = self.frame_no
+        else:
+            vhs_glitch_image = self.vhs_glitch_last_image[name]
+            vhs_glitch_mask = self.vhs_glitch_last_mask[name]
+
+        if vhs_glitch_image is not VHS_GLITCH_BLANK:
             # Apply glitch to RGB only, so fully transparent parts stay transparent (important to make the effect less distracting).
-            image[:3, line:(line + glitch_height), :] = (1.0 - strength) * image[:3, line:(line + glitch_height), :] + strength * noise_image
+            strength_field = strength * vhs_glitch_mask  # "field" as in physics, NOT as in CRT TV
+            image[:3, :, :] = (1.0 - strength_field) * image[:3, :, :] + strength_field * vhs_glitch_image
 
     def analog_vhstracking(self, image: torch.tensor, *,
                            base_offset: float = 0.03,
                            max_dynamic_offset: float = 0.01,
                            speed: float = 2.5) -> None:
-        """1980s VHS tape with bad tracking.
+        """[dynamic] 1980s VHS tape with bad tracking.
 
         Image floats up and down, and a band of black and white noise appears at the bottom.
 
-        Units like in `analog_badhsync`.
+        Units like in `analog_badhsync`:
+
+        Offsets are given in units where the height of the image is 2.0.
+
+        `speed`: At speed 1.0, the floating motion completes a full cycle every
+                 `image_height` frames. So effectively the cycle position updates by
+                 `speed * (1 / image_height)` at each frame.
+
+        Note that "frame" here refers to the normalized frame number, at a reference of 25 FPS.
         """
         c, h, w = image.shape
 
         # Animation
+        # FPS correction happens automatically, because `frame_no` is normalized to CALIBRATION_FPS.
         cycle_pos = (self.frame_no / h) * speed
         cycle_pos = cycle_pos - float(int(cycle_pos))  # fractional part
         cycle_pos *= 2.0  # full cycle = 2 units
@@ -391,8 +603,8 @@ class Postprocessor:
         image[:, :, :] = warped
 
         # Noise from bad VHS tracking at bottom
-        yoffs_pixels = int((yoffs / 2.0) * 512.0)
-        base_offset_pixels = int((base_offset / 2.0) * 512.0)
+        yoffs_pixels = int((yoffs / 2.0) * h)
+        base_offset_pixels = int((base_offset / 2.0) * h)
         noise_pixels = yoffs_pixels + base_offset_pixels
         if noise_pixels > 0:
             image[:, -noise_pixels:, :] = self._vhs_noise(image, height=noise_pixels)
@@ -424,7 +636,7 @@ class Postprocessor:
                    strength: float = 1.0,
                    tint_rgb: List[float] = [1.0, 1.0, 1.0],
                    bandpass_reference_rgb: List[float] = [1.0, 0.0, 0.0], bandpass_q: float = 0.0) -> None:
-        """Desaturation with bells and whistles.
+        """[static] Desaturation with bells and whistles.
 
         Does not touch the alpha channel.
 
@@ -481,12 +693,12 @@ class Postprocessor:
             # - As the hue difference approaches zero, the pixel is fully passed through.
             # - The 1.0 - ... together with the square makes a sharp spike at the reference hue.
             desat_diff2 = (1.0 - torch.clamp(desat_hue_distance / bandpass_q, max=1.0))**2
-            strength_field = strength * (1.0 - desat_diff2)  # [h, w]
+            strength_field = strength * (1.0 - desat_diff2)  # [h, w]; "field" as in physics, NOT as in CRT TV
         else:
             strength_field = strength  # just a scalar!
 
         # Desaturate, then apply tint
-        Y = 0.2126 * R + 0.7152 * G + 0.0722 * B  # HDTV luminance (ITU-R Rec. 709)  -> [h, w]
+        Y = luminance(image[:3, :, :])  # -> [h, w]
         Y = Y.unsqueeze(0)  # -> [1, h, w]
         tint_color = torch.tensor(tint_rgb, device=self.device, dtype=image.dtype).unsqueeze(1).unsqueeze(2)  # [c, 1, 1]
         tinted_desat_image = Y * tint_color  # -> [c, h, w]
@@ -498,18 +710,21 @@ class Postprocessor:
                 strength: float = 0.4,
                 density: float = 2.0,
                 speed: float = 16.0) -> None:
-        """Bad analog video signal, with traveling brighter and darker bands.
+        """[dynamic] Bad analog video signal, with traveling brighter and darker bands.
 
         This simulates a CRT display as it looks when filmed on video without syncing.
 
         `strength`: maximum brightness factor
         `density`: how many banding cycles per full image height
         `speed`: band movement, in pixels per frame
+
+        Note that "frame" here refers to the normalized frame number, at a reference of 25 FPS.
         """
         c, h, w = image.shape
         yy = torch.linspace(0, math.pi, h, dtype=image.dtype, device=self.device)
 
         # Animation
+        # FPS correction happens automatically, because `frame_no` is normalized to CALIBRATION_FPS.
         cycle_pos = (self.frame_no / h) * speed
         cycle_pos = cycle_pos - float(int(cycle_pos))  # fractional part
         cycle_pos = 1.0 - cycle_pos  # -> motion from top toward bottom
@@ -522,16 +737,27 @@ class Postprocessor:
 
     def scanlines(self, image: torch.tensor, *,
                   field: int = 0,
-                  dynamic: bool = True) -> None:
-        """CRT TV like scanlines.
+                  dynamic: bool = True,
+                  channel: str = "Y") -> None:
+        """[dynamic] CRT TV like scanlines.
 
         `field`: Which CRT field is dimmed at the first frame. 0 = top, 1 = bottom.
         `dynamic`: If `True`, the dimmed field will alternate each frame (top, bottom, top, bottom, ...)
                    for a more authentic CRT look (like Phosphor deinterlacer in VLC).
+        `channel`: One of:
+                     "Y": darken the luminance (converts to YUV and back, slower)
+                     "A": darken the alpha channel (fast, but makes the darkened lines translucent)
+
+        Note that "frame" here refers to the normalized frame number, at a reference of 25 FPS.
         """
         if dynamic:
-            start = (field + self.frame_no) % 2
+            start = (field + int(self.frame_no)) % 2
         else:
             start = field
-        # We should ideally modify just the Y channel in YUV space, but modifying the alpha instead looks alright.
-        image[3, start::2, :].mul_(0.5)
+        if channel == "A":  # alpha
+            image[3, start::2, :].mul_(0.5)
+        else:  # "Y", luminance
+            image_yuv = rgb_to_yuv(image[:3, :, :])
+            image_yuv[0, start::2, :].mul_(0.5)
+            image_rgb = yuv_to_rgb(image_yuv)
+            image[:3, :, :] = image_rgb
