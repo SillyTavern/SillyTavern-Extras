@@ -19,7 +19,7 @@ sentence_transformers
 edge-tts
 matplotlib
 fastapi
-wxpython
+wxpython; sys_platform == 'darwin'
 vosk
 sounddevice
 openai-whisper
