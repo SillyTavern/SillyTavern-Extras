@@ -5,16 +5,6 @@
 
 As of January 2024, preferably to be completed before the next release.
 
-#### Backend
-
-- Postprocessor: make real brightness filters, to decouple translucency from all other filters.
-  - Currently many of the filters abuse the alpha channel as a luma substitute, which looks fine for a scifi hologram, but not for some other use cases.
-  - Need to convert between RGB and some other color space. Preferably not YUV, since that doesn't map so well to RGB and back.
-      https://stackoverflow.com/questions/17892346/how-to-convert-rgb-yuv-rgb-both-ways
-      https://www.cs.sfu.ca/mmbook/programming_assignments/additional_notes/rgb_yuv_note/RGB-YUV.pdf
-  - Maybe HSL, or HCL, or a combined strategy from both, like in this R package:
-      https://colorspace.r-forge.r-project.org/articles/manipulation_utilities.html
-
 #### Frontend
 
 - Figure out why the crop filter doesn't help in positioning the `talkinghead` sprite in *MovingUI* mode.

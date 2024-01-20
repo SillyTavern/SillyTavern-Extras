@@ -240,24 +240,26 @@ Currently, we provide some filters that simulate a lo-fi analog video look.
 **General use**:
 
 - `alphanoise`: Adds noise to the alpha channel (translucency).
+- `lumanoise`: Adds noise to the brightness (luminance).
 - `desaturate`: A desaturation filter with bells and whistles. Beside converting the image to grayscale, can optionally pass through colors that match the hue of a given RGB color (e.g. keep red things, while desaturating the rest), and tint the final result (e.g. for an amber monochrome computer monitor look).
 
-The `alphanoise` filter could represent the display of a lo-fi scifi hologram, as well as noise in an analog video tape (which in this scheme belongs to "transport").
+The noise filters could represent the display of a lo-fi scifi hologram, as well as noise in an analog video tape (which in this scheme belongs to "transport").
 
 The `desaturate` filter could represent either a black and white video camera, or a monochrome display.
 
 #### Postprocessor example: HDR, scifi hologram
 
-The bloom works best on a dark background. We use `alphanoise` to add an imperfection to the simulated display device, causing individual pixels to dynamically vary in their alpha. The `banding` and `scanlines` filters complete the look of how holograms are often depicted in scifi video games and movies. The `"dynamic": true` makes the dimmed field (top or bottom) flip each frame, like on a CRT television.
+The bloom works best on a dark background. We use `lumanoise` to add an imperfection to the simulated display device, causing individual pixels to dynamically vary in their brightness (luminance). The `banding` and `scanlines` filters complete the look of how holograms are often depicted in scifi video games and movies. The `"dynamic": true` makes the dimmed field (top or bottom) flip each frame, like on a CRT television, and `"channel": "A"` applies the effect to the alpha channel, making the "hologram" translucent. (The default is `"channel": "Y"`, affecting the brightness, but not translucency.)
 
 ```
 "postprocessor_chain": [["bloom", {}],
-                        ["translucency", {"alpha": 0.9}],
-                        ["alphanoise", {"magnitude": 0.1, "sigma": 0.0}],
+                        ["lumanoise", {"magnitude": 0.1, "sigma": 0.0}],
                         ["banding", {}],
-                        ["scanlines", {"dynamic": true}]
+                        ["scanlines", {"dynamic": true, "channel": "A"}]
                        ]
 ```
+
+Note that we could also use the `translucency` filter to make the character translucent, e.g.: `["translucency", {"alpha": 0.7}]`.
 
 #### Postprocessor example: cheap video camera, amber monochrome computer monitor
 
@@ -272,7 +274,7 @@ The `banding` and `scanlines` filters suit this look, so we apply them here, too
                         ["vignetting", {}],
                         ["desaturate", {"tint_rgb": [1.0, 0.5, 0.2]}],
                         ["banding", {}],
-                        ["scanlines", {"dynamic": false}]
+                        ["scanlines", {"dynamic": false, "channel": "A"}]
                        ]
 ```
 
@@ -284,15 +286,13 @@ Then we again render the output on a simulated CRT TV, as appropriate for the 19
 
 ```
 "postprocessor_chain": [["bloom", {}],
-                        ["chromatic_aberration", {}],
-                        ["vignetting", {}],
                         ["analog_lowres", {}],
-                        ["alphanoise", {"magnitude": 0.3, "sigma": 2.0}],
+                        ["lumanoise", {"magnitude": 0.3, "sigma": 2.0}],
                         ["analog_badhsync", {}],
                         ["analog_vhsglitches", {"unboost": 1.0}],
                         ["analog_vhstracking", {}],
                         ["banding", {}],
-                        ["scanlines", {"dynamic": true}]
+                        ["scanlines", {"dynamic": true, "channel": "A"}]
                        ]
 ```
 

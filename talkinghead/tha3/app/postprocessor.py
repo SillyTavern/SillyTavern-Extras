@@ -14,7 +14,7 @@ from typing import Dict, List, Optional, Tuple, TypeVar, Union
 import torch
 import torchvision
 
-from tha3.app.util import RunningAverage
+from tha3.app.util import RunningAverage, luminance, rgb_to_yuv, yuv_to_rgb
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -119,6 +119,7 @@ class Postprocessor:
 
         # Caches for individual dynamic effects
         self.alphanoise_last_image = defaultdict(lambda: None)
+        self.lumanoise_last_image = defaultdict(lambda: None)
         self.vhs_glitch_interval = defaultdict(lambda: 0.0)
         self.vhs_glitch_last_frame_no = defaultdict(lambda: 0.0)
         self.vhs_glitch_last_image = defaultdict(lambda: None)
@@ -233,6 +234,7 @@ class Postprocessor:
         Only makes sense when the talkinghead is rendered on a dark-ish background.
 
         `luma_threshold`: How bright is bright. 0.0 is full black, 1.0 is full white.
+                          (Technically, true relative luminance, not luma, since we work in linear RGB space.)
         `hdr_exposure`: Controls the overall brightness of the output. Like in photography,
                         higher exposure means brighter image (saturating toward white).
         """
@@ -240,7 +242,7 @@ class Postprocessor:
         #   https://learnopengl.com/Advanced-Lighting/Bloom
 
         # Find the bright parts.
-        Y = 0.2126 * image[0, :, :] + 0.7152 * image[1, :, :] + 0.0722 * image[2, :, :]  # HDTV luminance (ITU-R Rec. 709)
+        Y = luminance(image[:3, :, :])
         mask = torch.ge(Y, luma_threshold)  # [h, w]
 
         # Make a copy of the image with just the bright parts.
@@ -349,7 +351,7 @@ class Postprocessor:
                    magnitude: float = 0.1,
                    sigma: float = 0.0,
                    name: str = "alphanoise0") -> None:
-        """[dynamic] Dynamic noise to alpha channel. A cheap alternative to luma noise.
+        """[dynamic] Dynamic noise to alpha channel.
 
         `magnitude`: How much noise to apply. 0 is off, 1 is as much noise as possible.
 
@@ -381,6 +383,48 @@ class Postprocessor:
             noise_image = self.alphanoise_last_image[name]
         base_magnitude = 1.0 - magnitude
         image[3, :, :].mul_(base_magnitude + magnitude * noise_image)
+
+    def lumanoise(self, image: torch.tensor, *,
+                  magnitude: float = 0.1,
+                  sigma: float = 0.0,
+                  name: str = "lumanoise0") -> None:
+        """[dynamic] Dynamic noise to luminance, without touching colors or alpha.
+
+        Based on converting `image` from RGB to YUV, noising it there, and converting back.
+
+        `magnitude`: How much noise to apply. 0 is off, 1 is as much noise as possible.
+
+        `sigma`: If nonzero, apply a Gaussian blur to the noise, thus reducing its spatial frequency
+                 (i.e. making larger and smoother "noise blobs").
+
+                 The blur kernel size is fixed to 5, so `sigma = 1.0` is the largest that will be
+                 somewhat accurate. Nevertheless, `sigma = 2.0` looks acceptable, too, producing
+                 square blobs.
+
+        `name`: Optional name for this filter instance in the chain. Used as cache key.
+                If you have more than one `alphanoise` in the chain, they should have
+                different names so that each one gets its own cache.
+
+        Suggested settings:
+            Scifi hologram:   magnitude=0.1, sigma=0.0
+            Analog VHS tape:  magnitude=0.2, sigma=2.0
+        """
+        # Re-randomize the noise image whenever the normalized frame changes
+        if self.lumanoise_last_image[name] is None or int(self.frame_no) > int(self.last_frame_no):
+            c, h, w = image.shape
+            noise_image = torch.rand(h, w, device=self.device, dtype=image.dtype)
+            if sigma > 0.0:
+                noise_image = noise_image.unsqueeze(0)  # [h, w] -> [c, h, w] (where c=1)
+                noise_image = torchvision.transforms.GaussianBlur((5, 5), sigma=sigma)(noise_image)
+                noise_image = noise_image.squeeze(0)  # -> [h, w]
+            self.lumanoise_last_image[name] = noise_image
+        else:
+            noise_image = self.lumanoise_last_image[name]
+        base_magnitude = 1.0 - magnitude
+        image_yuv = rgb_to_yuv(image[:3, :, :])
+        image_yuv[0, :, :].mul_(base_magnitude + magnitude * noise_image)
+        image_rgb = yuv_to_rgb(image_yuv)
+        image[:3, :, :] = image_rgb
 
     # --------------------------------------------------------------------------------
     # Lo-fi analog video
@@ -654,7 +698,7 @@ class Postprocessor:
             strength_field = strength  # just a scalar!
 
         # Desaturate, then apply tint
-        Y = 0.2126 * R + 0.7152 * G + 0.0722 * B  # HDTV luminance (ITU-R Rec. 709)  -> [h, w]
+        Y = luminance(image[:3, :, :])  # -> [h, w]
         Y = Y.unsqueeze(0)  # -> [1, h, w]
         tint_color = torch.tensor(tint_rgb, device=self.device, dtype=image.dtype).unsqueeze(1).unsqueeze(2)  # [c, 1, 1]
         tinted_desat_image = Y * tint_color  # -> [c, h, w]
@@ -693,12 +737,16 @@ class Postprocessor:
 
     def scanlines(self, image: torch.tensor, *,
                   field: int = 0,
-                  dynamic: bool = True) -> None:
+                  dynamic: bool = True,
+                  channel: str = "Y") -> None:
         """[dynamic] CRT TV like scanlines.
 
         `field`: Which CRT field is dimmed at the first frame. 0 = top, 1 = bottom.
         `dynamic`: If `True`, the dimmed field will alternate each frame (top, bottom, top, bottom, ...)
                    for a more authentic CRT look (like Phosphor deinterlacer in VLC).
+        `channel`: One of:
+                     "Y": darken the luminance (converts to YUV and back, slower)
+                     "A": darken the alpha channel (fast, but makes the darkened lines translucent)
 
         Note that "frame" here refers to the normalized frame number, at a reference of 25 FPS.
         """
@@ -706,5 +754,10 @@ class Postprocessor:
             start = (field + int(self.frame_no)) % 2
         else:
             start = field
-        # We should ideally modify just the Y channel in YUV space, but modifying the alpha instead looks alright, and is much cheaper.
-        image[3, start::2, :].mul_(0.5)
+        if channel == "A":  # alpha
+            image[3, start::2, :].mul_(0.5)
+        else:  # "Y", luminance
+            image_yuv = rgb_to_yuv(image[:3, :, :])
+            image_yuv[0, start::2, :].mul_(0.5)
+            image_rgb = yuv_to_rgb(image_yuv)
+            image[:3, :, :] = image_rgb
