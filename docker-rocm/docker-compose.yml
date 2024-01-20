@@ -1,0 +1,27 @@
+version: "3"
+services:
+  sillytavern-extras:
+    devices:
+      - /dev/kfd
+      - /dev/dri
+    group_add:
+      - video
+    image: cohee1207/sillytavern-extras
+    build:
+      context: ../
+      dockerfile: docker/Dockerfile
+      args:
+        REQUIREMENTS: requirements-rocm.txt
+        MODULES: caption,summarize,classify,talkinghead,chromadb
+#        MODULES: caption,summarize,classify,sd,silero-tts,edge-tts,chromadb,talkinghead,websearch
+    volumes:
+      #- "./chromadb:/chromadb"
+      - "./cache:/root/.cache"
+      - "../api_key.txt:/sillytavern-extras/api_key.txt:rw"
+    ports:
+      - "5100:5100"
+#    environment:
+#      - HSA_OVERRIDE_GFX_VERSION=10.3.0 
+#      - HCC_AMDGPU_TARGET=gfx1030
+    command: python server.py --enable-modules=caption,summarize,classify,chromadb,talkinghead --cuda --talkinghead-gpu
+#    command: python server.py --enable-modules=caption,summarize,classify,sd,silero-tts,edge-tts,chromadb
