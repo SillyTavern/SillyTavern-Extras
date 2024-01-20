@@ -124,6 +124,9 @@ class Postprocessor:
         self.vhs_glitch_last_frame_no = defaultdict(lambda: 0.0)
         self.vhs_glitch_last_image = defaultdict(lambda: None)
         self.vhs_glitch_last_mask = defaultdict(lambda: None)
+        self.shift_distort_interval = defaultdict(lambda: 0.0)
+        self.shift_distort_last_frame_no = defaultdict(lambda: 0.0)
+        self.shift_distort_grid = defaultdict(lambda: None)
 
     def render_into(self, image):
         """Apply current postprocess chain, modifying `image` in-place."""
@@ -614,6 +617,59 @@ class Postprocessor:
             # fade = torch.sin(xx)**2  # [w]
             # fade = fade.unsqueeze(0)  # [1, w]
             # image[3, -noise_pixels:, :] = fade
+
+    def shift_distort(self, image: torch.tensor, *,
+                      strength: float = 0.05,
+                      unboost: float = 4.0,
+                      max_glitches: int = 3,
+                      min_glitch_height: int = 20, max_glitch_height: int = 30,
+                      hold_min: int = 1, hold_max: int = 3,
+                      name: str = "shift_distort0") -> None:
+        """[dynamic] Glitchy digital video transport, with transient (per-frame) blocks of lines shifted left or right.
+
+        `strength`: Amount of the horizontal shift, in units where 2.0 is the width of the full image.
+                    Positive values shift toward the right.
+                    For shifting both left and right, use two copies of the filter in your chain,
+                    one with `strength > 0` and one with `strength < 0`.
+        `unboost`: Use this to adjust the probability profile for the appearance of glitches.
+                   The higher `unboost` is, the less probable it is for glitches to appear at all,
+                   and there will be fewer of them (in the same video frame) when they do appear.
+        `max_glitches`: Maximum number of glitches in the video frame.
+        `min_glitch_height`, `max_glitch_height`: in pixels. The height is randomized separately for each glitch.
+        `hold_min`, `hold_max`: in frames (at a reference of 25 FPS). Limits for the random time that the
+                                filter holds one glitch pattern before randomizing the next one.
+
+        `name`: Optional name for this filter instance in the chain. Used as cache key.
+                If you have more than one `shift_distort` in the chain, they should have
+                different names so that each one gets its own cache.
+        """
+        # Re-randomize the glitch pattern whenever enough frames have elapsed after last randomization
+        if self.shift_distort_grid[name] is None or (int(self.frame_no) - int(self.shift_distort_last_frame_no[name])) >= self.shift_distort_interval[name]:
+            n_glitches = torch.rand(1, device="cpu")**unboost  # unboost: increase probability of having none or few glitching lines
+            n_glitches = int(max_glitches * n_glitches[0])
+            meshy = self._meshy
+            meshx = self._meshx.clone()  # don't modify the original; also, make sure each element has a unique memory address
+            if n_glitches:
+                c, h, w = image.shape
+                glitch_start_lines = torch.rand(n_glitches, device="cpu")
+                glitch_start_lines = [int((h - (max_glitch_height - 1)) * x) for x in glitch_start_lines]
+                for line in glitch_start_lines:
+                    glitch_height = torch.rand(1, device="cpu")
+                    glitch_height = int(min_glitch_height + (max_glitch_height - min_glitch_height) * glitch_height[0])
+                    meshx[line:(line + glitch_height), :] -= strength
+            shift_distort_grid = torch.stack((meshx, meshy), 2)
+            shift_distort_grid = shift_distort_grid.unsqueeze(0)  # batch of one
+            self.shift_distort_grid[name] = shift_distort_grid
+            # Randomize time until next change of glitch pattern
+            self.shift_distort_interval[name] = round(hold_min + float(torch.rand(1, device="cpu")[0]) * (hold_max - hold_min))
+            self.shift_distort_last_frame_no[name] = self.frame_no
+        else:
+            shift_distort_grid = self.shift_distort_grid[name]
+
+        image_batch = image.unsqueeze(0)  # batch of one -> [1, c, h, w]
+        warped = torch.nn.functional.grid_sample(image_batch, shift_distort_grid, mode="bilinear", padding_mode="border", align_corners=False)
+        warped = warped.squeeze(0)  # [1, c, h, w] -> [c, h, w]
+        image[:, :, :] = warped
 
     # --------------------------------------------------------------------------------
     # CRT TV output

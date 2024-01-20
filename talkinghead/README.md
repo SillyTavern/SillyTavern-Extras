@@ -222,12 +222,11 @@ The following postprocessing filters are available. Options for each filter are 
 
 **Transport**:
 
-Currently, we provide some filters that simulate a lo-fi analog video look.
-
 - `analog_lowres`: Simulates a low-resolution analog video signal by blurring the image.
 - `analog_badhsync`: Simulates bad horizontal synchronization (hsync) of an analog video signal, causing a wavy effect that causes the outline of the character to ripple.
 - `analog_vhsglitches`: Simulates a damaged 1980s VHS tape. In each 25 FPS frame, causes random lines to glitch with VHS noise.
 - `analog_vhstracking`: Simulates a 1980s VHS tape with bad tracking. The image floats up and down, and a band of VHS noise appears at the bottom.
+- `shift_distort`: Simulates a glitchy digital video transport as sometimes depicted in sci-fi, with random blocks of lines shifted horizontally.
 
 **Display**:
 
@@ -260,6 +259,15 @@ The bloom works best on a dark background. We use `lumanoise` to add an imperfec
 ```
 
 Note that we could also use the `translucency` filter to make the character translucent, e.g.: `["translucency", {"alpha": 0.7}]`.
+
+Also, for some glitching video transport that shifts random blocks of lines horizontally, we could add these:
+
+```
+["shift_distort", {"strength": 0.05, "name": "shift_right"}],
+["shift_distort", {"strength": -0.05, "name": "shift_left"}],
+```
+
+Having a unique name for each instance is important, because the name acts as a cache key.
 
 #### Postprocessor example: cheap video camera, amber monochrome computer monitor
 
