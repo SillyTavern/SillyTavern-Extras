@@ -99,9 +99,11 @@ Not scheduled for now.
 
 #### Frontend
 
-- Add live-modifiable configuration for animation and postprocessor settings?
-  - Add a new control panel to SillyTavern client extension settings
-  - Send new configs to backend whenever anything changes
+- Add a way to upload new JSON configs (`_animator.json`, `_emotions.json`), because ST could be running on a remote machine somewhere.
+  - Send new uploaded config to backend.
+- Add live-modifiable configuration for animation and postprocessor settings.
+  - Add a new control panel to SillyTavern client extension settings.
+  - Send new configs to backend whenever anything changes.
 
 #### Both frontend and backend
 
