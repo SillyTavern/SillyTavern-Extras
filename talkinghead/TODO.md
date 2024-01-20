@@ -42,16 +42,6 @@ As of January 2024, preferably to be completed before the next release.
   - Maybe we should do Seraphina, since she's part of a default SillyTavern install?
 
 
-### Medium priority
-
-Maybe some time in the near-ish future. Would be nice to have in the next release.
-
-#### Frontend
-
-- When a new talkinghead sprite is uploaded:
-  - The preview thumbnail in the client doesn't update. The same goes for the other sprites, so this is a general bug in *Character Expressions*.
-
-
 ### Low priority
 
 Not scheduled for now.
