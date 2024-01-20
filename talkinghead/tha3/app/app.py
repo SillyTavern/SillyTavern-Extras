@@ -1111,6 +1111,8 @@ class Animator:
         time_now = time.time_ns()
         if self.source_image is not None:
             render_elapsed_sec = (time_now - time_render_start) / 10**9
+            # remove the average per-frame postprocessing time, to measure render time only
+            render_elapsed_sec -= self.postprocessor.render_duration_statistics.average()
             self.render_duration_statistics.add_datapoint(render_elapsed_sec)
 
         # Set the new rendered frame as the output image, and mark the frame as ready for consumption.
