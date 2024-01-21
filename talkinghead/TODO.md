@@ -7,6 +7,8 @@ As of January 2024, preferably to be completed before the next release.
 
 #### Frontend
 
+- See if we can get this working also with local classify now that we have a `set_emotion` API endpoint.
+  - Responsibilities: the client end should set the emotion when it calls classify, instead of relying on the extras server doing it internally when extras classify is called.
 - Figure out why the crop filter doesn't help in positioning the `talkinghead` sprite in *MovingUI* mode.
   - There must be some logic at the frontend side that reserves a square shape for the talkinghead sprite output,
     regardless of the image dimensions or aspect ratio of the actual `result_feed`.
