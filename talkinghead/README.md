@@ -224,9 +224,10 @@ The following postprocessing filters are available. Options for each filter are 
 
 - `analog_lowres`: Simulates a low-resolution analog video signal by blurring the image.
 - `analog_badhsync`: Simulates bad horizontal synchronization (hsync) of an analog video signal, causing a wavy effect that causes the outline of the character to ripple.
+- `analog_distort`: Simulates a rippling, runaway hsync near the top or bottom edge of an image. This can happen with some equipment if the video cable is too long.
 - `analog_vhsglitches`: Simulates a damaged 1980s VHS tape. In each 25 FPS frame, causes random lines to glitch with VHS noise.
 - `analog_vhstracking`: Simulates a 1980s VHS tape with bad tracking. The image floats up and down, and a band of VHS noise appears at the bottom.
-- `shift_distort`: Simulates a glitchy digital video transport as sometimes depicted in sci-fi, with random blocks of lines shifted horizontally.
+- `shift_distort`: A glitchy digital video transport as sometimes depicted in sci-fi, with random blocks of lines suddenly shifted horizontally temporarily.
 
 **Display**:
 

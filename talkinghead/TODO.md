@@ -63,20 +63,13 @@ Not scheduled for now.
   - The effect on speed will be small; the compute-heaviest part is the inference of the THA3 deep-learning model.
 - Add more postprocessing filters. Possible ideas, no guarantee I'll ever get around to them:
   - Pixelize, posterize (8-bit look)
-  - Analog video glitches
-    - Partition image into bands, move some left/right temporarily (for a few frames now that we can do that)
-    - Another effect of bad VHS hsync: dynamic "bending" effect near top edge:
-      - Distortion by horizontal movement
-      - Topmost row of pixels moves the most, then a smoothly decaying offset profile as a function of height (decaying to zero at maybe 20% of image height, measured from the top)
-      - The maximum offset flutters dynamically in a semi-regular, semi-unpredictable manner (use a superposition of three sine waves at different frequencies, as functions of time)
   - Digital data connection glitches
     - Apply to random rectangles; may need to persist for a few frames to animate and/or make them more noticeable
-    - May need to protect important regions like the character's head (approximately, from the template); we're after "Hollywood glitchy", not actually glitchy
     - Types:
       - Constant-color rectangle
       - Missing data (zero out the alpha?)
       - Blur (leads to replacing by average color, with controllable sigma)
-      - Zigzag deformation
+      - Zigzag deformation (perhaps not needed now that we have `shift_distort`, which is similar, but with a rectangular shape, and applied to full lines of video)
 - Investigate if some particular emotions could use a small random per-frame oscillation applied to "iris_small",
   for that anime "intense emotion" effect (since THA3 doesn't have a morph specifically for the specular reflections in the eyes).
 

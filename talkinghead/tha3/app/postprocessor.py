@@ -495,6 +495,70 @@ class Postprocessor:
         warped = warped.squeeze(0)  # [1, c, h, w] -> [c, h, w]
         image[:, :, :] = warped
 
+    def analog_distort(self, image: torch.tensor, *,
+                       speed: float = 8.0,
+                       strength: float = 0.1,
+                       ripple_amplitude: float = 0.05,
+                       ripple_density1: float = 4.0,
+                       ripple_density2: Optional[float] = 13.0,
+                       ripple_density3: Optional[float] = 27.0,
+                       edge: str = "top") -> None:
+        """[dynamic] Analog video signal distorted by a runaway hsync near the top or bottom edge.
+
+        A bad video cable connection can do this, e.g. when connecting a game console to a display
+        with an analog YPbPr component cable 10m in length. In reality, when I ran into this phenomenon,
+        the distortion only occurred for near-white images, but as glitch art, it looks better if it's
+        always applied at full strength.
+
+        `speed`: At speed 1.0, a full cycle of the rippling effect completes every `image_height` frames.
+                 So effectively the cycle position updates by `speed * (1 / image_height)` at each frame.
+        `strength`: Base strength for maximum distortion at the edge of the image.
+                    In units where the height and width of the image are both 2.0.
+        `ripple_amplitude`: Variation on top of `strength`.
+        `ripple_density1`: Like `density` in `analog_badhsync`, but in time. How many cycles the first
+                           component wave completes per one cycle of the ripple effect.
+        `ripple_density2`: Like `ripple_density1`, but for the second component wave.
+                           Set to `None` or to 0.0 to disable the second component wave.
+        `ripple_density3`: Like `ripple_density1`, but for the third component wave.
+                           Set to `None` or to 0.0 to disable the third component wave.
+        `edge`: one of "top", "bottom". Near which edge of the image to apply the maximal distortion.
+                The distortion then decays to zero, with a quadratic profile, in 1/8 of the image height.
+
+        Note that "frame" here refers to the normalized frame number, at a reference of 25 FPS.
+        """
+        c, h, w = image.shape
+
+        # Animation
+        # FPS correction happens automatically, because `frame_no` is normalized to CALIBRATION_FPS.
+        cycle_pos = (self.frame_no / h) * speed
+        cycle_pos = cycle_pos - float(int(cycle_pos))  # fractional part
+        cycle_pos *= 2.0  # full cycle = 2 units
+
+        # Deformation
+        # The spatial distort profile is a quadratic curve [0, 1], for 1/8 of the image height.
+        meshy = self._meshy
+        if edge == "top":
+            spatial_distort_profile = (torch.clamp(meshy + 0.75, max=0.0) * 4.0)**2  # distort near y = -1
+        else:  # edge == "bottom":
+            spatial_distort_profile = (torch.clamp(meshy - 0.75, min=0.0) * 4.0)**2  # distort near y = +1
+        ripple_amplitude = ripple_amplitude
+        ripple = math.sin(ripple_density1 * cycle_pos * math.pi)
+        if ripple_density2:
+            ripple += math.sin(ripple_density2 * cycle_pos * math.pi)
+        if ripple_density3:
+            ripple += math.sin(ripple_density3 * cycle_pos * math.pi)
+        instantaneous_strength = (1.0 - ripple_amplitude) * strength + ripple_amplitude * ripple
+        # The minus sign: read coordinates toward the left -> shift the image toward the right.
+        meshx = self._meshx - instantaneous_strength * spatial_distort_profile
+
+        # Then just the usual incantation for applying a geometric distortion in Torch:
+        grid = torch.stack((meshx, meshy), 2)
+        grid = grid.unsqueeze(0)  # batch of one
+        image_batch = image.unsqueeze(0)  # batch of one -> [1, c, h, w]
+        warped = torch.nn.functional.grid_sample(image_batch, grid, mode="bilinear", padding_mode="border", align_corners=False)
+        warped = warped.squeeze(0)  # [1, c, h, w] -> [c, h, w]
+        image[:, :, :] = warped
+
     def _vhs_noise(self, image: torch.tensor, *,
                    height: int) -> torch.tensor:
         """Generate a horizontal band of noise that looks as if it came from a blank VHS tape.
