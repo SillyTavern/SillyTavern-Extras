@@ -88,7 +88,14 @@ Not scheduled for now.
 - To save GPU resources, automatically pause animation when the web browser window with SillyTavern is not in focus. Resume when it regains focus.
   - Needs a new API endpoint for pause/resume. Note the current `/api/talkinghead/unload` is actually a pause function (the client pauses, and
     then just hides the live image), but there is currently no resume function (except `/api/talkinghead/load`, which requires sending an image file).
-
+- Lip-sync talking animation to TTS output.
+  - THA3 has morphs for A, I, U, E, O, and the "mouth delta" shape Δ.
+  - This needs either:
+    - Realtime data from client
+      - Exists already! See `SillyTavern/public/scripts/extensions/tts/index.js`, function `playAudioData`. There's lip sync for VRM (VRoid).
+        Still need to investigate how the VRM plugin extracts phonemes from the audio data.
+    - Or if ST-extras generates the TTS output, then at least a start timestamp for the playback of a given TTS output audio file,
+      and a possibility to stop animating if the user stops the audio.
 
 ### Far future
 
@@ -99,10 +106,4 @@ Definitely not scheduled. Ideas for future enhancements.
   - The algorithm should be cartoon-aware, some modern-day equivalent of waifu2x. A GAN such as 4x-AnimeSharp or Remacri would be nice, but too slow.
   - Maybe the scaler should run at the client side to avoid the need to stream 1024x1024 PNGs.
     - What JavaScript anime scalers are there, or which algorithms are simple enough for a small custom implementation?
-- Lip-sync talking animation to TTS output.
-  - THA3 has morphs for A, I, U, E, O, and the "mouth delta" shape Δ.
-  - This needs either:
-    - Realtime data from client
-    - Or if ST-extras generates the TTS output, then at least a start timestamp for the playback of a given TTS output audio file,
-      and a possibility to stop animating if the user stops the audio.
 - Group chats / visual novel mode / several talkingheads running simultaneously.
