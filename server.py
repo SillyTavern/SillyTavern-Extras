@@ -601,7 +601,11 @@ def api_embeddings_compute():
     sentences: Union[str, List[str]] = data["text"]
     if not (isinstance(sentences, str) or (isinstance(sentences, list) and all(isinstance(x, str) for x in sentences))):
         abort(400, '"text" must be string or array of strings')
-    print("Computing vector embedding")
+    if isinstance(sentences, str):
+        nitems = 1
+    else:
+        nitems = len(sentences)
+    print(f"Computing vector embedding for {nitems} item{'s' if nitems != 1 else ''}")
     vectors: Union[np.array, List[np.array]] = sentence_embedder.encode(sentences,
                                                                         show_progress_bar=True,  # on ST-extras console
                                                                         convert_to_numpy=True,
