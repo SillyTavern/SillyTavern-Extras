@@ -125,6 +125,10 @@ def index():
         content = f.read()
     return render_template_string(markdown.markdown(content, extensions=["tables"]))
 
+@app.route("/api/modules", methods=["GET"])
+def get_modules():
+    return jsonify({"modules": modules})
+
 @app.route("/api/extensions", methods=["GET"])
 def get_extensions():
     extensions = dict(
@@ -477,10 +481,6 @@ def api_image_samplers():
 
     return jsonify({"samplers": samplers})
 
-@app.route("/api/modules", methods=["GET"])
-def get_modules():
-    return jsonify({"modules": modules})
-
 # ----------------------------------------
 # tts
 
@@ -488,7 +488,7 @@ tts_service = None  # populated when the module is loaded
 
 @app.route("/api/tts/speakers", methods=["GET"])
 @require_module("silero-tts")
-def tts_speakers():
+def api_tts_speakers():
     voices = [
         {
             "name": speaker,
@@ -502,7 +502,7 @@ def tts_speakers():
 # Added fix for Silero not working as new files were unable to be created if one already existed. - Rolyat 7/7/23
 @app.route("/api/tts/generate", methods=["POST"])
 @require_module("silero-tts")
-def tts_generate():
+def api_tts_generate():
     voice = request.get_json()
     if "text" not in voice or not isinstance(voice["text"], str):
         abort(400, '"text" is required')
@@ -526,7 +526,7 @@ def tts_generate():
 
 @app.route("/api/tts/sample/<speaker>", methods=["GET"])
 @require_module("silero-tts")
-def tts_play_sample(speaker: str):
+def api_tts_play_sample(speaker: str):
     return send_from_directory(SILERO_SAMPLES_PATH, f"{speaker}.wav")
 
 # ----------------------------------------
@@ -536,13 +536,13 @@ edge = None  # populated when the module is loaded
 
 @app.route("/api/edge-tts/list", methods=["GET"])
 @require_module("edge-tts")
-def edge_tts_list():
+def api_edge_tts_list():
     voices = edge.get_voices()
     return jsonify(voices)
 
 @app.route("/api/edge-tts/generate", methods=["POST"])
 @require_module("edge-tts")
-def edge_tts_generate():
+def api_edge_tts_generate():
     data = request.get_json()
     if "text" not in data or not isinstance(data["text"], str):
         abort(400, '"text" is required')
@@ -569,7 +569,7 @@ chromadb_embed_fn = None
 
 @app.route("/api/chromadb", methods=["POST"])
 @require_module("chromadb")
-def chromadb_add_messages():
+def api_chromadb_add_messages():
     data = request.get_json()
     if "chat_id" not in data or not isinstance(data["chat_id"], str):
         abort(400, '"chat_id" is required')
@@ -598,7 +598,7 @@ def chromadb_add_messages():
 
 @app.route("/api/chromadb/purge", methods=["POST"])
 @require_module("chromadb")
-def chromadb_purge():
+def api_chromadb_purge():
     data = request.get_json()
     if "chat_id" not in data or not isinstance(data["chat_id"], str):
         abort(400, '"chat_id" is required')
@@ -615,7 +615,7 @@ def chromadb_purge():
 
 @app.route("/api/chromadb/query", methods=["POST"])
 @require_module("chromadb")
-def chromadb_query():
+def api_chromadb_query():
     data = request.get_json()
     if "chat_id" not in data or not isinstance(data["chat_id"], str):
         abort(400, '"chat_id" is required')
@@ -663,7 +663,7 @@ def chromadb_query():
 
 @app.route("/api/chromadb/multiquery", methods=["POST"])
 @require_module("chromadb")
-def chromadb_multiquery():
+def api_chromadb_multiquery():
     data = request.get_json()
     if "chat_list" not in data or not isinstance(data["chat_list"], list):
         abort(400, '"chat_list" is required and should be a list')
@@ -726,7 +726,7 @@ def chromadb_multiquery():
 
 @app.route("/api/chromadb/export", methods=["POST"])
 @require_module("chromadb")
-def chromadb_export():
+def api_chromadb_export():
     data = request.get_json()
     if "chat_id" not in data or not isinstance(data["chat_id"], str):
         abort(400, '"chat_id" is required')
@@ -765,7 +765,7 @@ def chromadb_export():
 
 @app.route("/api/chromadb/import", methods=["POST"])
 @require_module("chromadb")
-def chromadb_import():
+def api_chromadb_import():
     data = request.get_json()
     content = data['content']
     if "chat_id" not in data or not isinstance(data["chat_id"], str):
@@ -1199,6 +1199,6 @@ if args.share:
         cloudflare = _run_cloudflared(port)
     print(f"{Fore.GREEN}{Style.NORMAL}Running on: {cloudflare}{Style.RESET_ALL}")
 
-ignore_auth.append(tts_play_sample)
+ignore_auth.append(api_tts_play_sample)
 ignore_auth.append(api_talkinghead_result_feed)
 app.run(host=host, port=port)
