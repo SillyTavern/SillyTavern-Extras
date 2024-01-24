@@ -124,6 +124,9 @@ class Postprocessor:
         self.vhs_glitch_last_frame_no = defaultdict(lambda: 0.0)
         self.vhs_glitch_last_image = defaultdict(lambda: None)
         self.vhs_glitch_last_mask = defaultdict(lambda: None)
+        self.shift_distort_interval = defaultdict(lambda: 0.0)
+        self.shift_distort_last_frame_no = defaultdict(lambda: 0.0)
+        self.shift_distort_grid = defaultdict(lambda: None)
 
     def render_into(self, image):
         """Apply current postprocess chain, modifying `image` in-place."""
@@ -492,6 +495,70 @@ class Postprocessor:
         warped = warped.squeeze(0)  # [1, c, h, w] -> [c, h, w]
         image[:, :, :] = warped
 
+    def analog_distort(self, image: torch.tensor, *,
+                       speed: float = 8.0,
+                       strength: float = 0.1,
+                       ripple_amplitude: float = 0.05,
+                       ripple_density1: float = 4.0,
+                       ripple_density2: Optional[float] = 13.0,
+                       ripple_density3: Optional[float] = 27.0,
+                       edge: str = "top") -> None:
+        """[dynamic] Analog video signal distorted by a runaway hsync near the top or bottom edge.
+
+        A bad video cable connection can do this, e.g. when connecting a game console to a display
+        with an analog YPbPr component cable 10m in length. In reality, when I ran into this phenomenon,
+        the distortion only occurred for near-white images, but as glitch art, it looks better if it's
+        always applied at full strength.
+
+        `speed`: At speed 1.0, a full cycle of the rippling effect completes every `image_height` frames.
+                 So effectively the cycle position updates by `speed * (1 / image_height)` at each frame.
+        `strength`: Base strength for maximum distortion at the edge of the image.
+                    In units where the height and width of the image are both 2.0.
+        `ripple_amplitude`: Variation on top of `strength`.
+        `ripple_density1`: Like `density` in `analog_badhsync`, but in time. How many cycles the first
+                           component wave completes per one cycle of the ripple effect.
+        `ripple_density2`: Like `ripple_density1`, but for the second component wave.
+                           Set to `None` or to 0.0 to disable the second component wave.
+        `ripple_density3`: Like `ripple_density1`, but for the third component wave.
+                           Set to `None` or to 0.0 to disable the third component wave.
+        `edge`: one of "top", "bottom". Near which edge of the image to apply the maximal distortion.
+                The distortion then decays to zero, with a quadratic profile, in 1/8 of the image height.
+
+        Note that "frame" here refers to the normalized frame number, at a reference of 25 FPS.
+        """
+        c, h, w = image.shape
+
+        # Animation
+        # FPS correction happens automatically, because `frame_no` is normalized to CALIBRATION_FPS.
+        cycle_pos = (self.frame_no / h) * speed
+        cycle_pos = cycle_pos - float(int(cycle_pos))  # fractional part
+        cycle_pos *= 2.0  # full cycle = 2 units
+
+        # Deformation
+        # The spatial distort profile is a quadratic curve [0, 1], for 1/8 of the image height.
+        meshy = self._meshy
+        if edge == "top":
+            spatial_distort_profile = (torch.clamp(meshy + 0.75, max=0.0) * 4.0)**2  # distort near y = -1
+        else:  # edge == "bottom":
+            spatial_distort_profile = (torch.clamp(meshy - 0.75, min=0.0) * 4.0)**2  # distort near y = +1
+        ripple_amplitude = ripple_amplitude
+        ripple = math.sin(ripple_density1 * cycle_pos * math.pi)
+        if ripple_density2:
+            ripple += math.sin(ripple_density2 * cycle_pos * math.pi)
+        if ripple_density3:
+            ripple += math.sin(ripple_density3 * cycle_pos * math.pi)
+        instantaneous_strength = (1.0 - ripple_amplitude) * strength + ripple_amplitude * ripple
+        # The minus sign: read coordinates toward the left -> shift the image toward the right.
+        meshx = self._meshx - instantaneous_strength * spatial_distort_profile
+
+        # Then just the usual incantation for applying a geometric distortion in Torch:
+        grid = torch.stack((meshx, meshy), 2)
+        grid = grid.unsqueeze(0)  # batch of one
+        image_batch = image.unsqueeze(0)  # batch of one -> [1, c, h, w]
+        warped = torch.nn.functional.grid_sample(image_batch, grid, mode="bilinear", padding_mode="border", align_corners=False)
+        warped = warped.squeeze(0)  # [1, c, h, w] -> [c, h, w]
+        image[:, :, :] = warped
+
     def _vhs_noise(self, image: torch.tensor, *,
                    height: int) -> torch.tensor:
         """Generate a horizontal band of noise that looks as if it came from a blank VHS tape.
@@ -614,6 +681,59 @@ class Postprocessor:
             # fade = torch.sin(xx)**2  # [w]
             # fade = fade.unsqueeze(0)  # [1, w]
             # image[3, -noise_pixels:, :] = fade
+
+    def shift_distort(self, image: torch.tensor, *,
+                      strength: float = 0.05,
+                      unboost: float = 4.0,
+                      max_glitches: int = 3,
+                      min_glitch_height: int = 20, max_glitch_height: int = 30,
+                      hold_min: int = 1, hold_max: int = 3,
+                      name: str = "shift_distort0") -> None:
+        """[dynamic] Glitchy digital video transport, with transient (per-frame) blocks of lines shifted left or right.
+
+        `strength`: Amount of the horizontal shift, in units where 2.0 is the width of the full image.
+                    Positive values shift toward the right.
+                    For shifting both left and right, use two copies of the filter in your chain,
+                    one with `strength > 0` and one with `strength < 0`.
+        `unboost`: Use this to adjust the probability profile for the appearance of glitches.
+                   The higher `unboost` is, the less probable it is for glitches to appear at all,
+                   and there will be fewer of them (in the same video frame) when they do appear.
+        `max_glitches`: Maximum number of glitches in the video frame.
+        `min_glitch_height`, `max_glitch_height`: in pixels. The height is randomized separately for each glitch.
+        `hold_min`, `hold_max`: in frames (at a reference of 25 FPS). Limits for the random time that the
+                                filter holds one glitch pattern before randomizing the next one.
+
+        `name`: Optional name for this filter instance in the chain. Used as cache key.
+                If you have more than one `shift_distort` in the chain, they should have
+                different names so that each one gets its own cache.
+        """
+        # Re-randomize the glitch pattern whenever enough frames have elapsed after last randomization
+        if self.shift_distort_grid[name] is None or (int(self.frame_no) - int(self.shift_distort_last_frame_no[name])) >= self.shift_distort_interval[name]:
+            n_glitches = torch.rand(1, device="cpu")**unboost  # unboost: increase probability of having none or few glitching lines
+            n_glitches = int(max_glitches * n_glitches[0])
+            meshy = self._meshy
+            meshx = self._meshx.clone()  # don't modify the original; also, make sure each element has a unique memory address
+            if n_glitches:
+                c, h, w = image.shape
+                glitch_start_lines = torch.rand(n_glitches, device="cpu")
+                glitch_start_lines = [int((h - (max_glitch_height - 1)) * x) for x in glitch_start_lines]
+                for line in glitch_start_lines:
+                    glitch_height = torch.rand(1, device="cpu")
+                    glitch_height = int(min_glitch_height + (max_glitch_height - min_glitch_height) * glitch_height[0])
+                    meshx[line:(line + glitch_height), :] -= strength
+            shift_distort_grid = torch.stack((meshx, meshy), 2)
+            shift_distort_grid = shift_distort_grid.unsqueeze(0)  # batch of one
+            self.shift_distort_grid[name] = shift_distort_grid
+            # Randomize time until next change of glitch pattern
+            self.shift_distort_interval[name] = round(hold_min + float(torch.rand(1, device="cpu")[0]) * (hold_max - hold_min))
+            self.shift_distort_last_frame_no[name] = self.frame_no
+        else:
+            shift_distort_grid = self.shift_distort_grid[name]
+
+        image_batch = image.unsqueeze(0)  # batch of one -> [1, c, h, w]
+        warped = torch.nn.functional.grid_sample(image_batch, shift_distort_grid, mode="bilinear", padding_mode="border", align_corners=False)
+        warped = warped.squeeze(0)  # [1, c, h, w] -> [c, h, w]
+        image[:, :, :] = warped
 
     # --------------------------------------------------------------------------------
     # CRT TV output

@@ -12,6 +12,7 @@ from random import randint
 import secrets
 import sys
 import time
+from typing import List, Union
 import unicodedata
 
 from colorama import Fore, Style, init as colorama_init
@@ -19,6 +20,7 @@ import markdown
 
 from PIL import Image
 
+import numpy as np
 import torch
 from transformers import pipeline
 
@@ -124,6 +126,10 @@ def index():
     with open("./README.md", "r", encoding="utf8") as f:
         content = f.read()
     return render_template_string(markdown.markdown(content, extensions=["tables"]))
+
+@app.route("/api/modules", methods=["GET"])
+def get_modules():
+    return jsonify({"modules": modules})
 
 @app.route("/api/extensions", methods=["GET"])
 def get_extensions():
@@ -477,10 +483,6 @@ def api_image_samplers():
 
     return jsonify({"samplers": samplers})
 
-@app.route("/api/modules", methods=["GET"])
-def get_modules():
-    return jsonify({"modules": modules})
-
 # ----------------------------------------
 # tts
 
@@ -488,7 +490,7 @@ tts_service = None  # populated when the module is loaded
 
 @app.route("/api/tts/speakers", methods=["GET"])
 @require_module("silero-tts")
-def tts_speakers():
+def api_tts_speakers():
     voices = [
         {
             "name": speaker,
@@ -502,7 +504,7 @@ def tts_speakers():
 # Added fix for Silero not working as new files were unable to be created if one already existed. - Rolyat 7/7/23
 @app.route("/api/tts/generate", methods=["POST"])
 @require_module("silero-tts")
-def tts_generate():
+def api_tts_generate():
     voice = request.get_json()
     if "text" not in voice or not isinstance(voice["text"], str):
         abort(400, '"text" is required')
@@ -526,7 +528,7 @@ def tts_generate():
 
 @app.route("/api/tts/sample/<speaker>", methods=["GET"])
 @require_module("silero-tts")
-def tts_play_sample(speaker: str):
+def api_tts_play_sample(speaker: str):
     return send_from_directory(SILERO_SAMPLES_PATH, f"{speaker}.wav")
 
 # ----------------------------------------
@@ -536,13 +538,13 @@ edge = None  # populated when the module is loaded
 
 @app.route("/api/edge-tts/list", methods=["GET"])
 @require_module("edge-tts")
-def edge_tts_list():
+def api_edge_tts_list():
     voices = edge.get_voices()
     return jsonify(voices)
 
 @app.route("/api/edge-tts/generate", methods=["POST"])
 @require_module("edge-tts")
-def edge_tts_generate():
+def api_edge_tts_generate():
     data = request.get_json()
     if "text" not in data or not isinstance(data["text"], str):
         abort(400, '"text" is required')
@@ -562,6 +564,60 @@ def edge_tts_generate():
         abort(500, data["voice"])
 
 # ----------------------------------------
+# embeddings
+
+sentence_embedder = None  # populated when the module is loaded
+
+@app.route("/api/embeddings/compute", methods=["POST"])
+@require_module("embeddings")
+def api_embeddings_compute():
+    """For making vector DB keys. Compute the vector embedding of one or more sentences of text.
+
+    Input format is JSON::
+
+        {"text": "Blah blah blah."}
+
+    or::
+
+        {"text": ["Blah blah blah.",
+                  ...]}
+
+    Output is also JSON::
+
+        {"embedding": array}
+
+    or::
+
+        {"embedding": [array0,
+                       ...]}
+
+    respectively.
+
+    This is the Extras backend for computing embeddings in the Vector Storage builtin extension.
+    """
+    data = request.get_json()
+    if "text" not in data:
+        abort(400, '"text" is required')
+    sentences: Union[str, List[str]] = data["text"]
+    if not (isinstance(sentences, str) or (isinstance(sentences, list) and all(isinstance(x, str) for x in sentences))):
+        abort(400, '"text" must be string or array of strings')
+    if isinstance(sentences, str):
+        nitems = 1
+    else:
+        nitems = len(sentences)
+    print(f"Computing vector embedding for {nitems} item{'s' if nitems != 1 else ''}")
+    vectors: Union[np.array, List[np.array]] = sentence_embedder.encode(sentences,
+                                                                        show_progress_bar=True,  # on ST-extras console
+                                                                        convert_to_numpy=True,
+                                                                        normalize_embeddings=True)
+    # NumPy arrays are not JSON serializable, so convert to Python lists
+    if isinstance(vectors, np.ndarray):
+        vectors = vectors.tolist()
+    else:  # isinstance(vectors, list) and all(isinstance(x, np.ndarray) for x in vectors)
+        vectors = [x.tolist() for x in vectors]
+    return jsonify({"embedding": vectors})
+
+# ----------------------------------------
 # chromadb
 
 chromadb_client = None  # populated when the module is loaded
@@ -569,7 +625,7 @@ chromadb_embed_fn = None
 
 @app.route("/api/chromadb", methods=["POST"])
 @require_module("chromadb")
-def chromadb_add_messages():
+def api_chromadb_add_messages():
     data = request.get_json()
     if "chat_id" not in data or not isinstance(data["chat_id"], str):
         abort(400, '"chat_id" is required')
@@ -598,7 +654,7 @@ def chromadb_add_messages():
 
 @app.route("/api/chromadb/purge", methods=["POST"])
 @require_module("chromadb")
-def chromadb_purge():
+def api_chromadb_purge():
     data = request.get_json()
     if "chat_id" not in data or not isinstance(data["chat_id"], str):
         abort(400, '"chat_id" is required')
@@ -615,7 +671,7 @@ def chromadb_purge():
 
 @app.route("/api/chromadb/query", methods=["POST"])
 @require_module("chromadb")
-def chromadb_query():
+def api_chromadb_query():
     data = request.get_json()
     if "chat_id" not in data or not isinstance(data["chat_id"], str):
         abort(400, '"chat_id" is required')
@@ -663,7 +719,7 @@ def chromadb_query():
 
 @app.route("/api/chromadb/multiquery", methods=["POST"])
 @require_module("chromadb")
-def chromadb_multiquery():
+def api_chromadb_multiquery():
     data = request.get_json()
     if "chat_list" not in data or not isinstance(data["chat_list"], list):
         abort(400, '"chat_list" is required and should be a list')
@@ -726,7 +782,7 @@ def chromadb_multiquery():
 
 @app.route("/api/chromadb/export", methods=["POST"])
 @require_module("chromadb")
-def chromadb_export():
+def api_chromadb_export():
     data = request.get_json()
     if "chat_id" not in data or not isinstance(data["chat_id"], str):
         abort(400, '"chat_id" is required')
@@ -765,7 +821,7 @@ def chromadb_export():
 
 @app.route("/api/chromadb/import", methods=["POST"])
 @require_module("chromadb")
-def chromadb_import():
+def api_chromadb_import():
     data = request.get_json()
     content = data['content']
     if "chat_id" not in data or not isinstance(data["chat_id"], str):
@@ -1045,6 +1101,11 @@ if "edge-tts" in modules:
     print("Initializing Edge TTS client")
     import tts_edge as edge
 
+if "embeddings" in modules:
+    print("Initializing embeddings")
+    from sentence_transformers import SentenceTransformer
+    sentence_embedder = SentenceTransformer(embedding_model, device=device_string)
+
 if "chromadb" in modules:
     print("Initializing ChromaDB")
     import chromadb
@@ -1199,6 +1260,6 @@ if args.share:
         cloudflare = _run_cloudflared(port)
     print(f"{Fore.GREEN}{Style.NORMAL}Running on: {cloudflare}{Style.RESET_ALL}")
 
-ignore_auth.append(tts_play_sample)
+ignore_auth.append(api_tts_play_sample)
 ignore_auth.append(api_talkinghead_result_feed)
 app.run(host=host, port=port)
