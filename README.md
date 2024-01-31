@@ -59,7 +59,7 @@ Installing the chromadb package requires one of the following:
 1. Have Visual C++ build tools installed: https://visualstudio.microsoft.com/visual-cpp-build-tools/
 2. Installing hnswlib from conda: `conda install -c conda-forge hnswlib`
 
-**:exclamation: IMPORTANT!** The chromadb package is used **only** by the `chromadb` module for the old Vector Storage extension, which is deprecated. You will likely not need it.
+**:exclamation: IMPORTANT!** The chromadb package is used **only** by the `chromadb` module for the old Smart Context extension, which is deprecated. You will likely not need it.
 
 ### Missing modules reported by SillyTavern extensions menu?
 
@@ -251,7 +251,7 @@ ARCHFLAGS='-arch arm64' pip install --no-binary :all: --compile --use-pep517 --n
 
 ## ChromaDB
 
-**:exclamation: IMPORTANT!** ChromaDB is used **only** by the `chromadb` module for the old Vector Storage extension, which is deprecated. You will likely not need it.
+**:exclamation: IMPORTANT!** ChromaDB is used **only** by the `chromadb` module for the old Smart Context extension, which is deprecated. You will likely not need it.
 
 ChromaDB is a blazing fast and open source database that is used for long-term memory when chatting with characters. It can be run in-memory or on a local server on your LAN.
 
