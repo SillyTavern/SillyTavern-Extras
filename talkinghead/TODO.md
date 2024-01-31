@@ -7,6 +7,7 @@ As of January 2024, preferably to be completed before the next release.
 
 #### Frontend
 
+- Add a slash command to enable/disable `talkinghead` mode for *Character Expressions*. This could be bound to a Quick Reply for a single-button toggle.
 - See if we can get this working also with local classify now that we have a `set_emotion` API endpoint.
   - Responsibilities: the client end should set the emotion when it calls classify, instead of relying on the extras server doing it internally when extras classify is called.
 - Figure out why the crop filter doesn't help in positioning the `talkinghead` sprite in *MovingUI* mode.
