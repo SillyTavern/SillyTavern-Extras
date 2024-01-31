@@ -1,5 +1,14 @@
 # SillyTavern - Extras
 
+- [Recent news](#recent-news)
+- [What is this](#what-is-this)
+- [How to run](#how-to-run)
+- [Modules](#modules)
+- [Options](#options)
+- [Coqui TTS](#coqui-tts)
+- [ChromaDB](#chromadb)
+- [API Endpoints](#api-endpoints)
+
 ## Recent news
 
 * November 20 2023 - The project is relicensed as AGPLv3 to comply with the rest of ST organization policy. If you have any concerns about that, please raise a discussion in the appropriate channel.
@@ -10,11 +19,14 @@
 * July 25 2023 - Now extras require Python 3.11 to run, some of the new modules will be incompatible with old Python 3.10 installs. To migrate using conda, please remove old environment using `conda remove --name extras --all` and reinstall using the instructions below.
 
 ## What is this
+
 A set of APIs for various SillyTavern extensions.
 
 **You need to run the latest version of SillyTavern. Grab it here: [How to install](https://docs.sillytavern.app/installation/windows/), [Git repository](https://github.com/SillyTavern/SillyTavern)**
 
 All modules, except for Stable Diffusion, run on the CPU by default. However, they can alternatively be configured to use CUDA (with `--cuda` command line option). When running all modules simultaneously, you can expect a usage of approximately 6 GB of RAM. Loading Stable Diffusion adds an additional couple of GB to the memory usage.
+
+Some modules can be configured to use CUDA separately from the rest (e.g. `--talkinghead-gpu`, `--coqui-gpu` command line options). This is useful in low-VRAM setups, such as on a gaming laptop.
 
 Try on Colab (will give you a link to Extras API):  <a target="_blank" href="https://colab.research.google.com/github/SillyTavern/SillyTavern/blob/release/colab/GPU.ipynb">
   <img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"/>
@@ -40,12 +52,14 @@ https://docs.sillytavern.app/
 
 ### Common errors when installing requirements
 
-> ERROR: Could not build wheels for hnswlib, which is required to install pyproject.toml-based projects
+> *ERROR: Could not build wheels for hnswlib, which is required to install pyproject.toml-based projects*
 
-Installing chromadb package requires one of the following:
+Installing the chromadb package requires one of the following:
 
 1. Have Visual C++ build tools installed: https://visualstudio.microsoft.com/visual-cpp-build-tools/
 2. Installing hnswlib from conda: `conda install -c conda-forge hnswlib`
+
+**:exclamation: IMPORTANT!** The chromadb package is used **only** by the `chromadb` module for the old Vector Storage extension, which is deprecated. You will likely not need it.
 
 ### Missing modules reported by SillyTavern extensions menu?
 
@@ -63,21 +77,9 @@ You must specify a list of module names to be run in the `--enable-modules` comm
 
 There are some folks in the community having success running Extras on their phones via Ubuntu on Termux. This project wasn't made with mobile support in mind, so this guide is provided strictly for your information only: https://rentry.org/STAI-Termux#downloading-and-running-tai-extras
 
-#### ❗ IMPORTANT!
+#### :exclamation: IMPORTANT!
 
-We will NOT provide any support for running this on Android. Direct all your questions to the creator of this guide.
-
-### Talkinghead module on Linux
-
-The manual poser app of `talkinghead` requires the installation of an additional package because it's not installed automatically due to incompatibility with Colab. Run this after you install other requirements:
-
-`pip install wxpython==4.2.1`
-
-If you only run `talkinghead` in the live mode (i.e. as a SillyTavern-extras module), `wxpython` is no longer required.
-
-The manual poser has two uses. First, it is a GUI editor for the `talkinghead` emotion templates. Secondly, it can batch-generate static emotion sprites from a single talkinghead image (if you want the convenience of AI-powered posing, but don't want to run the live mode).
-
-A fast GPU is heavily recommended. For more information, see the [`talkinghead` README](talkinghead/README.md).
+We will NOT provide any support for running Extras on Android. Direct all your questions to the creator of the guide linked above.
 
 ### 💻 Locally
 #### Option 1 - Conda (recommended) 🐍
@@ -133,6 +135,23 @@ conda activate extras
 python server.py
 ```
 
+#### :exclamation: IMPORTANT! Talkinghead
+
+Installation requirements for Talkinghead changed in January 2024. The live mode - i.e. the `talkinghead` module that powers the Talkinghead mode of Character Expressions - no longer needs any additional packages.
+
+However, a manual poser app has been added, serving two purposes. First, it is a GUI editor for the Talkinghead emotion templates. Secondly, it can batch-generate static emotion sprites from a single Talkinghead image. The latter can be convenient if you want the convenience of AI-powered posing (e.g. if you make new characters often), but don't want to run the live mode.
+
+The manual poser app, and **only** that app, still requires the installation of an additional package that is not installed automatically due to incompatibility with Colab. If you want to be able to use the manual poser app, then run this after you have installed other requirements:
+
+```
+conda activate extras
+pip install wxpython==4.2.1
+```
+
+The installation of the wxpython package can easily take half an hour on a fast CPU, as it needs to compile a whole GUI toolkit.
+
+More information about Talkinghead can be found in its [full documentation](talkinghead/README.md).
+
 #### Option 2 - Vanilla 🍦
 * Install Python 3.11: https://www.python.org/downloads/release/python-3114/
 * Install git: https://git-scm.com/downloads
@@ -149,41 +168,55 @@ cd SillyTavern-extras
 
 ## Modules
 
-| Name          | Description                                                         |
-| ------------- | ------------------------------------------------------------------- |
-| `caption`     | Image captioning                                                    |
-| `summarize`   | Text summarization                                                  |
-| `classify`    | Text sentiment classification                                       |
-| `sd`          | Stable Diffusion image generation (remote A1111 server by default)  |
-| `silero-tts`  | [Silero TTS server](https://github.com/ouoertheo/silero-api-server) |
-| `chromadb`    | Vector storage server                                               |
-| `talkinghead` | AI-powered character animation                                      |
-| `edge-tts`    | [Microsoft Edge TTS client](https://github.com/rany2/edge-tts)      |
-| `coqui-tts`   | [Coqui TTS server](https://github.com/coqui-ai/TTS)                 |
-| `rvc`         | Real-time voice cloning                                             |
-| `websearch`   | Google search using Selenium headless browser                       |
+| Name          | Used by                                                              | Description                                                                      |
+|---------------|----------------------------------------------------------------------|----------------------------------------------------------------------------------|
+| `caption`     |                                                                      | Image captioning                                                                 |
+| `chromadb`    | [*Smart Context*](https://github.com/SillyTavern/Extension-ChromaDB) | Vector storage server                                                            |
+| `classify`    | *Character Expressions*                                              | Text sentiment classification                                                    |
+| `coqui-tts`   |                                                                      | [Coqui TTS server](https://github.com/coqui-ai/TTS)                              |
+| `edge-tts`    |                                                                      | [Microsoft Edge TTS client](https://github.com/rany2/edge-tts)                   |
+| `embeddings`  | *Vector Storage*                                                     | The *Extras* vectorization source                                                |
+| `rvc`         |                                                                      | Real-time voice cloning                                                          |
+| `sd`          |                                                                      | Stable Diffusion image generation (remote A1111 server by default)               |
+| `silero-tts`  |                                                                      | [Silero TTS server](https://github.com/ouoertheo/silero-api-server)              |
+| `summarize`   | *Summarize*                                                          | The *Extras API* backend                                                         |
+| `talkinghead` | *Character Expressions*                                              | AI-powered character animation (see [full documentation](talkinghead/README.md)) |
+| `websearch`   | [*Websearch*](https://github.com/SillyTavern/Extension-WebSearch)    | Google or DuckDuckGo search using Selenium headless browser                      |
 
-## Additional options
+#### **:exclamation: IMPORTANT!**
+
+- *Character Expressions* can connect to two Extras modules, `classify` and `talkinghead`.
+  - `classify` updates the expression of the AI character's avatar automatically based on text sentiment analysis.
+  - `talkinghead` provides AI-powered character animation. It also takes its expression from the Extras `classify`.
+    - To use Talkinghead, *Extensions ⊳ Character Expressions ⊳ Local server classification* in the ST GUI must be **off**, and `classify` must be enabled in Extras.
+- *Smart Context* is deprecated; superseded by *Vector Storage*.
+  - The `embeddings` module makes the ingestion performance comparable with ChromaDB, as it uses the same vectorization backend.
+  - *Vector Storage* does not use other Extras modules.
+- *Summarize*: the *Main API* is generally more capable, as it uses your main LLM to perform the summarization.
+  - The `summarize` module is only used when you summarize with the *Extras API*. It uses a specialized BART summarization model, with a context size of 1024.
+
+## Options
+
 | Flag                     | Description                                                            |
 | ------------------------ | ---------------------------------------------------------------------- |
-| `--enable-modules`       | **Required option**. Provide a list of enabled modules.<br>Expects a comma-separated list of module names. See [Modules](#modules)<br>Example: `--enable-modules=caption,sd` |
+| `--enable-modules`       | **Required option**. Which modules to enable.<br>Expects a comma-separated list of module names. Ordering does not matter. See [Modules](#modules)<br>Example: `--enable-modules=caption,sd` |
 | `--port`                 | Specify the port on which the application is hosted. Default: **5100** |
 | `--listen`               | Host the app on the local network                                      |
 | `--share`                | Share the app on CloudFlare tunnel                                     |
 | `--secure`               | Adds API key authentication requirements. Highly recommended when paired with share! |
 | `--cpu`                  | Run the models on the CPU instead of CUDA. Enabled by default. |
 | `--mps` or `--m1`        | Run the models on Apple Silicon. Only for M1 and M2 processors. |
-| `--cuda`                 | Uses CUDA (GPU+VRAM) to run modules if it is available. Otherwise, falls back to using CPU. |
+| `--cuda`                 | Use CUDA (GPU+VRAM) to run modules if it is available. Otherwise, falls back to using CPU. |
 | `--cuda-device`          | Specifies a CUDA device to use. Defaults to `cuda:0` (first available GPU). |
-| `--talkinghead-gpu`      | Uses GPU for talkinghead (10x FPS increase in animation). |
-| `--talkinghead-model`    | Load a specific THA3 model variant for talkinghead.<br>Default: `auto` (which is `separable_half` on GPU, `separable_float` on CPU). |
-| `--talkinghead-models`   | If THA3 models are not yet installed, downloads and installs them.<br>Expects a HuggingFace model ID.<br>Default: [OktayAlpk/talking-head-anime-3](https://huggingface.co/OktayAlpk/talking-head-anime-3) |
-| `--coqui-gpu`            | Uses GPU for coqui TTS (if available). |
+| `--talkinghead-gpu`      | Use CUDA (GPU+VRAM) for Talkinghead. **Highly recommended**, 10-30x FPS increase in animation. |
+| `--talkinghead-model`    | Load a specific variant of the THA3 AI poser model for Talkinghead.<br>Default: `auto` (which is `separable_half` on GPU, `separable_float` on CPU). |
+| `--talkinghead-models`   | If the THA3 AI poser models are not yet installed, downloads and installs them.<br>Expects a HuggingFace model ID.<br>Default: [OktayAlpk/talking-head-anime-3](https://huggingface.co/OktayAlpk/talking-head-anime-3) |
+| `--coqui-gpu`            | Use GPU for coqui TTS (if available). |
 | `--coqui-model`          | If provided, downloads and preloads a coqui TTS model. Default: none.<br>Example: `tts_models/multilingual/multi-dataset/bark` |
 | `--summarization-model`  | Load a custom summarization model.<br>Expects a HuggingFace model ID.<br>Default: [Qiliang/bart-large-cnn-samsum-ChatGPT_v3](https://huggingface.co/Qiliang/bart-large-cnn-samsum-ChatGPT_v3) |
 | `--classification-model` | Load a custom sentiment classification model.<br>Expects a HuggingFace model ID.<br>Default (6 emotions): [nateraw/bert-base-uncased-emotion](https://huggingface.co/nateraw/bert-base-uncased-emotion)<br>Other solid option is (28 emotions): [joeddav/distilbert-base-uncased-go-emotions-student](https://huggingface.co/joeddav/distilbert-base-uncased-go-emotions-student)<br>For Chinese language: [touch20032003/xuyuan-trial-sentiment-bert-chinese](https://huggingface.co/touch20032003/xuyuan-trial-sentiment-bert-chinese) |
 | `--captioning-model`     | Load a custom captioning model.<br>Expects a HuggingFace model ID.<br>Default: [Salesforce/blip-image-captioning-large](https://huggingface.co/Salesforce/blip-image-captioning-large) |
-| `--embedding-model`      | Load a custom text embedding model.<br>Expects a HuggingFace model ID.<br>Default: [sentence-transformers/all-mpnet-base-v2](https://huggingface.co/sentence-transformers/all-mpnet-base-v2) |
+| `--embedding-model`      | Load a custom text embedding (vectorization) model. Both the `embeddings` and `chromadb` modules use this.<br>The backend is [`sentence_transformers`](https://pypi.org/project/sentence-transformers/), so check there for info on supported models.<br>Expects a HuggingFace model ID.<br>Default: [sentence-transformers/all-mpnet-base-v2](https://huggingface.co/sentence-transformers/all-mpnet-base-v2) |
 | `--chroma-host`          | Specifies a host IP for a remote ChromaDB server. |
 | `--chroma-port`          | Specifies an HTTP port for a remote ChromaDB server.<br>Default: `8000` |
 | `--sd-model`             | Load a custom Stable Diffusion image generation model.<br>Expects a HuggingFace model ID.<br>Default: [ckpt/anything-v4.5-vae-swapped](https://huggingface.co/ckpt/anything-v4.5-vae-swapped)<br>*Must have VAE pre-baked in PyTorch format or the output will look drab!* |
@@ -217,6 +250,9 @@ ARCHFLAGS='-arch arm64' pip install --no-binary :all: --compile --use-pep517 --n
 ```
 
 ## ChromaDB
+
+**:exclamation: IMPORTANT!** ChromaDB is used **only** by the `chromadb` module for the old Vector Storage extension, which is deprecated. You will likely not need it.
+
 ChromaDB is a blazing fast and open source database that is used for long-term memory when chatting with characters. It can be run in-memory or on a local server on your LAN.
 
 NOTE: You should **NOT** run ChromaDB on a cloud server. There are no methods for authentication (yet), so unless you want to expose an unauthenticated ChromaDB to the world, run this on a local server in your LAN.
@@ -250,7 +286,12 @@ If you are running ChromaDB on the same machine as SillyTavern, you will have to
 7. On your client machine, make sure to specity the `--chroma-port` argument (ex. `--chroma-port=<your-port-here>`) along with the `--chroma-host` argument.
 
 ## API Endpoints
-### Get active list
+
+*This section is developer documentation, containing usage examples of the API endpoints.*
+
+*This is kept up-to-date on a best-effort basis, but there is a risk of this documentation being out of date. When in doubt, refer to the actual source code.*
+
+### Get list of enabled modules
 `GET /api/modules`
 #### **Input**
 None
@@ -404,6 +445,39 @@ WAV audio file.
 `GET /api/tts/sample/<voice_id>`
 #### **Output**
 WAV audio file.
+
+
+### Compute text embeddings (vectorize)
+`POST /api/embeddings/compute`
+
+This is a vectorization source (text embedding provider) for the Vector Storage built-in extension of ST.
+
+If you have many text items to vectorize (e.g. chat history, or chunks for RAG ingestion), send them in all at once. This allows the backend to batch the input, allocating the available compute resources efficiently, and thus running much faster (compared to processing a single item at a time).
+
+The embeddings are always normalized.
+
+#### **Input**
+For one text item:
+```
+{ "text": "The quick brown fox jumps over the lazy dog." }
+```
+For multiple text items, just put them in an array:
+```
+{ "text": ["The quick brown fox jumps over the lazy dog.",
+           "Lorem ipsum dolor sit amet, consectetur adipiscing elit.",
+           ...] }
+```
+#### **Output**
+When the input was one text item, returns one vector (the embedding of that text item) as an array:
+```
+{ "embedding": [numbers] }
+```
+When the input was multiple text items, returns multiple vectors (one for each input text item) as an array of arrays:
+```
+{ "embedding": [[numbers],
+                [numbers], ...] }
+```
+
 
 ### Add messages to chromadb
 `POST /api/chromadb`
@@ -603,6 +677,7 @@ To reset all animator/postprocessor settings to their server defaults, send a bl
 
 ### Set the talkinghead character's emotion
 `POST /api/talkinghead/set_emotion`
+
 Available emotions: see `talkinghead/emotions/*.json`. An emotion must be specified, but if it is not available, this operation defaults to `"neutral"`, which must always be available. This endpoint is the backend behind the `/emote` slash command in talkinghead mode.
 #### **Input**
 ```
@@ -620,6 +695,7 @@ Animated transparent image, each frame a 512x512 PNG image in RGBA format.
 
 ### Perform web search
 `POST /api/websearch`
+
 Available engines: `google` (default), `duckduckgo`
 #### **Input**
 ```
