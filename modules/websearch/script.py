@@ -8,7 +8,9 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from modules.utils import is_colab
 import atexit
+import sys
 
+sys.stdout.reconfigure(encoding='utf-8')
 
 def get_driver():
     try:
